@@ -1,5 +1,4 @@
-""" Template for a generic module
-"""
+""" Template for a generic module """
 from pyModular import Module, Signal, finite_difference
 
 

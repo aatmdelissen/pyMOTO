@@ -6,7 +6,7 @@ from math import *
 class ModuleA(Module):
     """ y = x2 * sin(x1) """
     def _response(self, x1, x2):
-        self.x1 = x1
+        self.x1 = x1  # Store for use in sensitivity
         self.x2 = x2
         return self.x2 * sin(self.x1)
 
@@ -19,13 +19,14 @@ class ModuleA(Module):
 class ModuleB(Module):
     """ y = cos(x1) * cos(x2) """
     def _response(self, x1, x2):
-        self.x1 = x1
-        self.x2 = x2
-        return cos(self.x2) * cos(self.x1)
+        # Already calculate the state derivative
+        self.dy_dx1 = sin(x1) * cos(x2)
+        self.dy_dx2 = cos(x1) * sin(x2)
+        return cos(x2) * cos(x1)
 
     def _sensitivity(self, df_dy):
-        df_dx1 = - df_dy * sin(self.x1) * cos(self.x2)
-        df_dx2 = - df_dy * cos(self.x1) * sin(self.x2)
+        df_dx1 = - df_dy * self.dy_dx1
+        df_dx2 = - df_dy * self.dy_dx2
         return df_dx1, df_dx2
 
 
@@ -44,7 +45,6 @@ class ModuleC(Module):
 
 if __name__ == '__main__':
     print("Example 1: Multiple scalar-to-scalar modules")
-    Module.print_children()
 
     # Declare the signals
     x = Signal('x')
