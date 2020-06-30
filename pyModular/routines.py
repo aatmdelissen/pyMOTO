@@ -2,7 +2,7 @@ import numpy as np
 
 
 def finite_difference(blk, dx=1e-8, tol=1e-5):
-    """ Performs a finite difference check on the module / interconnection given
+    """ Performs a finite difference check on the given module or interconnection
 
     :param blk: The module or interconnection
     :param dx: Perturbation size
