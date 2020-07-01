@@ -1,7 +1,7 @@
 """ Example 2: Generic scalar-to-scalar modules """
 from pyModular import MathGeneral, Signal, Interconnection, finite_difference
 
-#foo
+
 if __name__ == '__main__':
     print("Example 2: Generic scalar-to-scalar-module (with MathGeneral)")
 
