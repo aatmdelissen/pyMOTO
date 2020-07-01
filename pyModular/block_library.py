@@ -116,3 +116,4 @@ class SumVec(Module):
 
     def _sensitivity(self, df_dy):
         return [df_dy*np.ones_like(self.x)]
+
