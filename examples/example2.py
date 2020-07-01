@@ -28,6 +28,7 @@ if __name__ == '__main__':
         m2 = MathGeneral([y, z], b, "inp0^2 * (1 + inp1)")
         m3 = MathGeneral([a, b], g, "inp1 * sin(inp0)")
     else:
+        m1, m2, m3 = None, None, None
         exit()
 
     # Create interconnection
