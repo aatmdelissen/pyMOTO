@@ -6,7 +6,8 @@ from math import *
 class ModuleA(Module):
     """ y = x2 * sin(x1) """
     def _response(self, x1, x2):
-        self.x1 = x1  # Store for use in sensitivity
+        # Store state for use in sensitivity
+        self.x1 = x1
         self.x2 = x2
         return self.x2 * sin(self.x1)
 
@@ -33,13 +34,14 @@ class ModuleB(Module):
 class ModuleC(Module):
     """ y = x1^2 * (1 + x2) """
     def _response(self, x1, x2):
-        self.x1 = x1
-        self.x2 = x2
-        return self.x1 * self.x1 * (1 + self.x2)
+        return x1**2 * (1 + x2)
 
     def _sensitivity(self, df_dy):
-        df_dx1 = 2 * df_dy * self.x1 * (1 + self.x2)
-        df_dx2 = df_dy * self.x1 * self.x1
+        # Obtain input state from signals
+        x1 = self.sig_in[0].get_state()
+        x2 = self.sig_in[1].get_state()
+        df_dx1 = 2 * df_dy * x1 * (1 + x2)
+        df_dx2 = df_dy * x1 * x1
         return df_dx1, df_dx2
 
 
@@ -70,7 +72,7 @@ if __name__ == '__main__':
         m2 = ModuleC([y, z], b)
         m3 = ModuleA([a, b], g)
     else:
-        exit()
+        m1, m2, m3 = None, None, None
 
     # Create interconnection
     func = Interconnection(m1, m2, m3)
