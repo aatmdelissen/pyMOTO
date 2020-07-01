@@ -9,15 +9,16 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
     :param tol: Tolerance
     """
     print("=========================================================================================================\n")
-    print("Starting a finite difference check of \"{0}\" with dx = {1}, and tol = {2}".format(type(blk).__name__, dx, tol))
+    print("Starting a finite difference check of \"{0}\" with dx = {1}, and tol = {2}".format(
+        type(blk).__name__, dx, tol))
     print("Inputs:")
     [print("{}\t{} = {}".format(i, s.tag, s.get_state())) for i, s in enumerate(blk.sig_in)]
     print("")
 
     # Setup some internal storage
-    f0 = [None for s in blk.sig_out]  # Response values at original inputs
-    df_an = [None for s in blk.sig_out]  # Analytical output sensitivities
-    dx_an = [[None for s in blk.sig_in] for ss in blk.sig_out]
+    f0 = [None for _ in blk.sig_out]  # Response values at original inputs
+    df_an = [np.empty(0) for _ in blk.sig_out]  # Analytical output sensitivities
+    dx_an = [[np.empty(0) for _ in blk.sig_in] for _ in blk.sig_out]
 
     # Initial reset in case some memory is still left
     blk.reset()
@@ -29,27 +30,27 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
     # Get analytical response and sensitivities, by looping over all outputs
     for Iout, Sout in enumerate(blk.sig_out):
         # Obtain the output state
-        outp = Sout.get_state()
+        output = Sout.get_state()
 
-        print("{}\t{} = {}".format(Iout, Sout.tag, outp))
+        print("{}\t{} = {}".format(Iout, Sout.tag, output))
 
         # Store the output value
-        if hasattr(outp, "copy"):
-            f0[Iout] = outp.copy()
+        if hasattr(output, "copy"):
+            f0[Iout] = output.copy()
         else:
-            f0[Iout] = outp
+            f0[Iout] = output
 
         # Get the output state shape
-        if (hasattr(outp, "shape")):
-            shape = outp.shape
+        if hasattr(output, "shape"):
+            shape = output.shape
         else:
             shape = ()
 
         # Generate a random sensitivity for output signal
-        if np.iscomplexobj(outp):
-            df_an[Iout] = np.random.rand(*shape) + 1j*np.random.rand(*shape)
-        else:
-            df_an[Iout] = np.random.rand(*shape)
+        df_an[Iout] = np.random.rand(*shape)
+
+        if np.iscomplexobj(output):
+            df_an[Iout] += 1j*np.random.rand(*shape)
 
         # TODO Compensate or show this randomness in the results? how?
 
@@ -81,14 +82,14 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
         try:
             # Get iterator for x
             it = np.nditer(x, flags=['c_index', 'multi_index'], op_flags=['readwrite'])
-            isIterable = True
-        except:
+            is_iterable = True
+        except TypeError:
             it = np.nditer(np.array(x), flags=['c_index', 'multi_index'], op_flags=['readwrite'])
-            isIterable = False
+            is_iterable = False
 
         while not it.finished:
             # Get original value and do the perturbation
-            if isIterable:
+            if is_iterable:
                 x0 = it[0].copy()
                 it[0] += dx
             else:
@@ -99,7 +100,7 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
             blk.response()
 
             # Restore original state
-            if isIterable:
+            if is_iterable:
                 it[0] = x0
             else:
                 Sin.set_state(x0)
@@ -114,25 +115,25 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
                 dgdx_fd = np.real(np.sum(df*np.conj(df_an[Iout])))
 
                 if dx_an[Iout][Iin] is not None:
-                    if isIterable:
+                    if is_iterable:
                         dgdx_an = np.real(dx_an[Iout][Iin][it.multi_index])
                     else:
                         dgdx_an = np.real(dx_an[Iout][Iin])
                 else:
                     dgdx_an = 0.0
 
-
                 if abs(dgdx_an) < tol:
                     error = abs(dgdx_fd - dgdx_an)
                 else:
                     error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
 
-                print("d%s/d%s     i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s" % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
+                print("d%s/d%s     i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s"
+                      % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
 
             # If the input state is complex, also do a complex perturbation
             if np.iscomplexobj(x0):
                 # Do the perturbation
-                if isIterable:
+                if is_iterable:
                     it[0] += dx*1j
                 else:
                     print("is x (= {}) equal to x0 (= {})???".format(x, x0))
@@ -142,7 +143,7 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
                 blk.response()
 
                 # Restore original state
-                if isIterable:
+                if is_iterable:
                     it[0] = x0
                 else:
                     Sin.set_state(x0)
@@ -157,20 +158,20 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
                     dgdx_fd = np.real(np.sum(df*np.conj(df_an[Iout])))
 
                     if dx_an[Iout][Iin] is not None:
-                        if isIterable:
+                        if is_iterable:
                             dgdx_an = np.imag(dx_an[Iout][Iin][it.multi_index])
                         else:
                             dgdx_an = np.imag(dx_an[Iout][Iin])
                     else:
                         dgdx_an = 0.0
 
-
                     if abs(dgdx_an) < tol/1000:
                         error = abs(dgdx_fd - dgdx_an)
                     else:
-                        error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd),abs(dgdx_an))
+                        error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
 
-                    print("d%s/d%s (I) i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s" % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
+                    print("d%s/d%s (I) i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s"
+                          % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
 
             # Go to the next entry in the array
             it.iternext()
