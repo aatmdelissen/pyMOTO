@@ -1,3 +1,4 @@
+from typing import Union, List, Iterable, Any
 import warnings
 import sys
 
@@ -10,73 +11,64 @@ class Signal:
     Optional arguments: tag (string)
     Optional keyword arguments: tag=(string)
 
-    >> Signal('x')
+    >> Signal('x1')
 
-    >> Signal(tag='xPhys')
+    >> Signal(tag='x2')
 
     """
-    def __init__(self, tag=None):
+    def __init__(self, tag: str = ""):
         self.tag = tag
-        self.state = None
-        self.sensitivity = None
+        self._state = None
+        self._sensitivity = None
 
-    def set_sens(self, ds):
-        try:  # TODO Maybe a check if they are conforming??
+    def set_state(self, value: Any):
+        self._state = value
+
+    def get_state(self):
+        return self._state
+
+    def set_sens(self, ds: Any):
+        self._sensitivity = ds
+
+    def add_sens(self, ds: Any):
+        try:
             if ds is None:
                 return
-            if self.sensitivity is None:
-                self.sensitivity = ds
+            if self._sensitivity is None:
+                self.set_sens(ds)
             else:
-                self.sensitivity += ds
+                self._sensitivity += ds
         except Exception as e:
             raise type(e)(str(e) + ', in signal %s' % self.tag).with_traceback(sys.exc_info()[2])
 
     def get_sens(self):
-        return self.sensitivity
-
-    def set_state(self, value):
-        self.state = value
-
-    def get_state(self):
-        return self.state
+        return self._sensitivity
 
     def reset(self):
-        self.sensitivity = None
+        self._sensitivity = None
 
 
-def parse_signals(signals):
-    """
-    Parses single signal to a list of signals
-    :param signals: Signal or list of Signal
-    :return: list of Signal
-    """
-    if signals is None:
-        return []
-    elif isinstance(signals, list):
-        for s in signals:
-            if not isinstance(s, Signal):
-                raise RuntimeError("Entry {} is not a Signal instance".format(s))
-        return signals
-    elif isinstance(signals, Signal):
-        return [signals]
-
-    raise RuntimeError("Entry {} is not a Signal instance".format(signals))
+def make_signals(*args):
+    return [Signal(s) for s in args]
 
 
-def parse_to_list(var_in):
-    """
-    Parses inputs to a list
-    :param var_in:
-    :return: list
-    """
+def _parse_to_list(var_in: Any):
     if var_in is None:
         return []
-    elif isinstance(var_in, list):
-        return var_in
-    elif isinstance(var_in, tuple):
+    elif isinstance(var_in, Iterable):
         return list(var_in)
     else:
         return [var_in]
+
+
+def _check_valid_signal(sig: Any):
+    if not isinstance(sig, Signal):
+        raise TypeError("Entry {} is not a Signal".format(sig))
+
+
+def _check_valid_module(mod: Any):
+    if not issubclass(type(mod), Module):
+        raise TypeError("Entry {} is not a Module".format(mod))
 
 
 class RegisteredClass(object):
@@ -85,7 +77,7 @@ class RegisteredClass(object):
     """
 
     @classmethod
-    def create(cls, sub_type, *args, **kwargs):
+    def create(cls, sub_type: str, *args, **kwargs):
         """
         Factory method to create subclasses. Call with the name of the subclass to instantiate a new object of
         requested type.
@@ -166,12 +158,16 @@ class Module(RegisteredClass):
     >> Module(sig_in=[inputs], sig_out=[outputs]
     """
 
-    def __init__(self, sig_in=None, sig_out=None, *args, **kwargs):
+    def __init__(self, sig_in: Union[Signal, List[Signal]] = None, sig_out: Union[Signal, List[Signal]] = None,
+                 *args, **kwargs):
         try:
-            self.sig_in = parse_signals(sig_in)
-            self.sig_out = parse_signals(sig_out)
+            self.sig_in = _parse_to_list(sig_in)
+            [_check_valid_signal(s) for s in self.sig_in]
 
-            # Call preparation of module or submodule
+            self.sig_out = _parse_to_list(sig_out)
+            [_check_valid_signal(s) for s in self.sig_out]
+
+            # Call preparation of submodule with remaining arguments
             self._prepare(*args, **kwargs)
         except Exception as e:
             raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
@@ -181,23 +177,17 @@ class Module(RegisteredClass):
         Calculate the response from sig_in and output this to sig_out
         """
         try:
-            # Get all input states
             inp = [s.get_state() for s in self.sig_in]
-
-            # TODO If error is generated: we want to know in which block
-            # Calculate the actual response
-
-            output = parse_to_list(self._response(*inp))
+            state_out = _parse_to_list(self._response(*inp))  # Calculate the actual response
 
             # Check if enough outputs are calculated
-            if len(output) != len(self.sig_out):
+            if len(state_out) != len(self.sig_out):
                 raise RuntimeError("Number of responses calculated ({}) is unequal to number of output signals ({}) {}".
-                                   format(len(output), len(self.sig_out), type(self)))
+                                   format(len(state_out), len(self.sig_out), type(self)))
 
             # Update the output signals
-            for i, val in enumerate(output):
-                if val is not None:
-                    self.sig_out[i].set_state(val)
+            for i, val in enumerate(state_out):
+                self.sig_out[i].set_state(val)
 
         except Exception as e:
             raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
@@ -214,12 +204,11 @@ class Module(RegisteredClass):
             # Get all sensitivity values of the outputs
             sens_in = [s.get_sens() for s in self.sig_out]
 
-            # Check if any of the input sensitivities is set
             if all([s is None for s in sens_in]):
-                return
+                return  # If none of the adjoint variables is set
 
             # Calculate the new sensitivities of the inputs
-            sens_out = parse_to_list(self._sensitivity(*sens_in))
+            sens_out = _parse_to_list(self._sensitivity(*sens_in))
 
             # Check if enough sensitivities are calculated
             if len(sens_out) != len(self.sig_in):
@@ -228,7 +217,7 @@ class Module(RegisteredClass):
 
             # Add the sensitivities to the signals
             for i, ds in enumerate(sens_out):
-                self.sig_in[i].set_sens(ds)
+                self.sig_in[i].add_sens(ds)
 
         except Exception as e:
             raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
@@ -246,36 +235,40 @@ class Module(RegisteredClass):
         pass
 
     def _response(self, *args):
-        raise RuntimeError("No response behavior defined")
+        raise NotImplementedError("No response behavior defined")
 
     def _sensitivity(self, *args):
-        return [None for s in self.sig_in]
+        warnings.warn("Sensitivity routine is used, but not defined, in {}".format(type(self).__name__), Warning)
+        return [None for _ in self.sig_in]
 
     def _reset(self):
         pass
 
 
-class Interconnection(Module):
-    """
-    Binds multiple Modules together as one Module
+class Network(Module):
+    """ Binds multiple Modules together as one Module
 
-    >> Interconnection(module1, module2, ...)
+    >> Network(module1, module2, ...)
 
-    >> Interconnection([module1, module2, ...])
+    >> Network([module1, module2, ...])
 
-    >> Interconnection((module1, module2, ...))
+    >> Network((module1, module2, ...))
 
-    >> Interconnection([{type="module1", sig_in=[sig1, sig2], sig_out=[sig3]}, {type="module2", sig_in=[sig3], sig_out=[sig4]}])
+    >> Network([ {type="module1", sig_in=[sig1, sig2], sig_out=[sig3]},
+                 {type="module2", sig_in=[sig3], sig_out=[sig4]} ])
 
     """
     def __init__(self, *args):
         # Obtain the internal blocks
-        self.mods = parse_to_list(args)
+        self.mods = _parse_to_list(args)
 
         # Check if the blocks are initialized, else create them
         for i, b in enumerate(self.mods):
             if isinstance(b, dict):
                 self.mods[i] = Module.create(b['type'], **b)
+
+        # Check validity of modules
+        [_check_valid_module(m) for m in self.mods]
 
         # Gather all the input and output signals of the internal blocks
         all_in = set()
@@ -296,5 +289,5 @@ class Interconnection(Module):
     def reset(self):
         [b.reset() for b in self.mods]
 
-
-
+    def _response(self, *args):
+        pass  # Unused

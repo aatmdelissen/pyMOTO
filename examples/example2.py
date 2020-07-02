@@ -1,5 +1,5 @@
 """ Example 2: Generic scalar-to-scalar modules """
-from pyModular import MathGeneral, Signal, Interconnection, finite_difference
+from pyModular import MathGeneral, Signal, Network, finite_difference
 
 
 if __name__ == '__main__':
@@ -33,7 +33,7 @@ if __name__ == '__main__':
         exit()
 
     # Create interconnection
-    func = Interconnection(m1, m2, m3)
+    func = Network(m1, m2, m3)
 
     print("Current interconnection:")
     print(" -> ".join([type(m).__name__ for m in func.mods]))

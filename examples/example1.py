@@ -1,5 +1,5 @@
 """ Example 1: Multiple scalar-to-scalar modules """
-from pyModular import Module, Signal, Interconnection, finite_difference
+from pyModular import Module, Signal, Network, finite_difference
 from math import *
 
 
@@ -61,13 +61,21 @@ if __name__ == '__main__':
     y.set_state(0.8)
     z.set_state(3.4)
 
+    # Create the modules
     ordering = 0
     if ordering == 0:
-        # Create modules
+        # A __
+        #     \
+        #      --> C
+        # B __/
         m1 = ModuleA([x, y], a)
         m2 = ModuleB([y, z], b)
         m3 = ModuleC([a, b], g)
     elif ordering == 1:
+        # B __
+        #     \
+        #      --> A
+        # C __/
         m1 = ModuleB([x, y], a)
         m2 = ModuleC([y, z], b)
         m3 = ModuleA([a, b], g)
@@ -75,7 +83,7 @@ if __name__ == '__main__':
         m1, m2, m3 = None, None, None
 
     # Create interconnection
-    func = Interconnection(m1, m2, m3)
+    func = Network(m1, m2, m3)
 
     print("Current interconnection:")
     print(" -> ".join([type(m).__name__ for m in func.mods]))
