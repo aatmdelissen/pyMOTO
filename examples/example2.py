@@ -1,9 +1,8 @@
-""" Example 2: Generic scalar-to-scalar modules """
+""" Example 2: MathGeneral """
 from pyModular import MathGeneral, Signal, Network, finite_difference
 
-
 if __name__ == '__main__':
-    print("Example 2: Generic scalar-to-scalar-module (with MathGeneral)")
+    print("Example 2: MathGeneral")
 
     # SETUP
     x = Signal('x')
@@ -14,9 +13,18 @@ if __name__ == '__main__':
     g = Signal('g')
 
     # Initial values
-    x.set_state(1.0)
-    y.set_state(0.8)
-    z.set_state(3.4)
+    vector_type = True
+    if vector_type:
+        print("The initial values are vectors")
+        import numpy as np
+        x.set_state(np.array([1.0, 2.0, 3.0, 4.0]))
+        y.set_state(np.array([0.8, 1.2, 1.8, 2.6]))
+        z.set_state(np.array([3.4, 8.5, 4.1, 6.3]))
+    else:
+        print("The initial values are scalar")
+        x.set_state(1.0)
+        y.set_state(0.8)
+        z.set_state(3.4)
 
     ordering = 0
     if ordering == 0:
@@ -25,6 +33,7 @@ if __name__ == '__main__':
         m2 = MathGeneral([y, z], b, "cos(inp0) * cos(inp1)")
         m3 = MathGeneral([a, b], g, "inp0^2 * (1 + inp1)")
     elif ordering == 1:
+        print("Using an alternative module order")
         m1 = MathGeneral([x, y], a, "cos(inp0) * cos(inp1)")
         m2 = MathGeneral([y, z], b, "inp0^2 * (1 + inp1)")
         m3 = MathGeneral([a, b], g, "inp1 * sin(inp0)")
