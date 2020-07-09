@@ -1,4 +1,4 @@
-""" Example 1: Multiple scalar-to-scalar modules """
+""" Example 1: Simple scalar network """
 from pyModular import Module, Signal, Network, finite_difference
 from math import *
 
@@ -46,7 +46,7 @@ class ModuleC(Module):
 
 
 if __name__ == '__main__':
-    print("Example 1: Multiple scalar-to-scalar modules")
+    print("Example 1: Simple scalar network")
 
     # Declare the signals
     x = Signal('x')
