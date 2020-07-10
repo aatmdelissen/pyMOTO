@@ -2,7 +2,7 @@
 from pyModular import MathGeneral, Signal, Network, finite_difference
 
 if __name__ == '__main__':
-    print("Example 2: MathGeneral")
+    print(__doc__)
 
     # SETUP
     x = Signal('x')

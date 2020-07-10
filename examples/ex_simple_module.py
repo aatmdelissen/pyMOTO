@@ -75,6 +75,7 @@ class MyNewModule(Module):
 
 
 if __name__ == "__main__":
+    print(__doc__)
     print("_" * 80)
     print("PART 1: Setup")
 

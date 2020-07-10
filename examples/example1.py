@@ -46,7 +46,7 @@ class ModuleC(Module):
 
 
 if __name__ == '__main__':
-    print("Example 1: Simple scalar network")
+    print(__doc__)
 
     # Declare the signals
     x = Signal('x')
