@@ -46,7 +46,7 @@ class MathGeneral(Module):
 
     def _sensitivity(self, df_dy):
         dg_df = self.df(*self.x)
-        dg_dx = [df_dy*dg for dg in dg_df]
+        dg_dx = [df_dy*np.conj(dg) for dg in dg_df]
 
         # Sum if input is scalar
         for i, sig in enumerate(self.sig_in):
