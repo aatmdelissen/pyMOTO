@@ -99,12 +99,6 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
             # Calculate perturbed solution
             blk.response()
 
-            # Restore original state
-            if is_iterable:
-                it[0] = x0
-            else:
-                Sin.set_state(x0)
-
             # Obtain all perturbed responses
             for Iout, Sout in enumerate(blk.sig_out):
                 # Obtain perturbed response
@@ -130,6 +124,12 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
                 print("d%s/d%s     i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s"
                       % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
 
+            # Restore original state
+            if is_iterable:
+                it[0] = x0
+            else:
+                Sin.set_state(x0)
+
             # If the input state is complex, also do a complex perturbation
             if np.iscomplexobj(x0):
                 # Do the perturbation
@@ -141,12 +141,6 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
 
                 # Calculate perturbed solution
                 blk.response()
-
-                # Restore original state
-                if is_iterable:
-                    it[0] = x0
-                else:
-                    Sin.set_state(x0)
 
                 # Obtain all perturbed responses
                 for Iout, Sout in enumerate(blk.sig_out):
@@ -172,6 +166,12 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
 
                     print("d%s/d%s (I) i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s"
                           % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
+
+                # Restore original state
+                if is_iterable:
+                    it[0] = x0
+                else:
+                    Sin.set_state(x0)
 
             # Go to the next entry in the array
             it.iternext()
