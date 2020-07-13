@@ -47,10 +47,10 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
             shape = ()
 
         # Generate a random sensitivity for output signal
-        df_an[Iout] = np.random.rand(*shape)
-
         if np.iscomplexobj(output):
-            df_an[Iout] += 1j*np.random.rand(*shape)
+            df_an[Iout] = np.random.rand(*shape) + 1j*np.random.rand(*shape)
+        else:
+            df_an[Iout] = np.random.rand(*shape)
 
         # TODO Compensate or show this randomness in the results? how?
 
