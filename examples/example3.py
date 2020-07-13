@@ -27,7 +27,7 @@ if __name__ == '__main__':
     # Initialize module and connect signals
     use_einsum = True
     if use_einsum:
-        m_dot = EinSum([u, v], y, expression="i,i->i")
+        m_dot = EinSum([u, v], y, expression="i,i->")
     else:
         m_dot = MyDotProduct([u, v], y)
 
