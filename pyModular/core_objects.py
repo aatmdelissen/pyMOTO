@@ -1,6 +1,7 @@
 from typing import Union, List, Iterable, Any
 import warnings
 import sys
+import numpy as np
 
 
 class Signal:
@@ -55,6 +56,8 @@ def make_signals(*args):
 def _parse_to_list(var_in: Any):
     if var_in is None:
         return []
+    elif isinstance(var_in, np.ndarray):
+        return [var_in]
     elif isinstance(var_in, Iterable):
         return list(var_in)
     else:
