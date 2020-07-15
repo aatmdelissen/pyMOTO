@@ -1,3 +1,5 @@
+![logo](M_logo_256.png)
+
 Modular framework for optimization with semi-automatic derivatives
 
 
