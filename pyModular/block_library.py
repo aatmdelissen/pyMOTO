@@ -136,11 +136,3 @@ class EinSum(Module):
         return df_out
 
 
-class SumVec(Module):
-    def _response(self, x):
-        self.x = x
-        return [np.sum(x)]
-
-    def _sensitivity(self, df_dy):
-        return [df_dy*np.ones_like(self.x)]
-
