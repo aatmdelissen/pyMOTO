@@ -149,13 +149,13 @@ class TestModule(TestCase):
 
             def _response(self, a, b):
                 self.internalstate = True
-                return a*b, a+b
+                return a * b, a + b
 
             def _sensitivity(self, dc, dd):
                 self.didsensitivity = True
                 a = self.sig_in[0].get_state()
                 b = self.sig_in[1].get_state()
-                return b*dc+dd, a*dc+dd
+                return b * dc + dd, a * dc + dd
 
             def _reset(self):
                 self.internalstate = False
@@ -219,7 +219,7 @@ class TestModule(TestCase):
         self.assertTrue(bl.did_sens, msg="Check if _sensitivity did run")
         self.assertEqual(a.get_sens(), 2.15, msg="After running first sensitivity")
         bl.sensitivity()
-        self.assertEqual(a.get_sens(), 2.15+2.15, msg="After running second sensitivity")
+        self.assertEqual(a.get_sens(), 2.15 + 2.15, msg="After running second sensitivity")
         bl.reset()
         self.assertIsNone(a.get_sens(), msg="After resetting module")
         bl.sensitivity()
@@ -228,7 +228,7 @@ class TestModule(TestCase):
     def test_wrong_response(self):
         class WrongResponse(pym.Module):
             def _response(self, a):
-                return a*2.0, a*3.0  # Two returns
+                return a * 2.0, a * 3.0  # Two returns
 
         sa = pym.Signal('a')
         sa.set_state(2.5)
@@ -240,13 +240,12 @@ class TestModule(TestCase):
     def test_sensitivity_and_reset_errors(self):
         class NoSensitivity(pym.Module):
             def _response(self, a, b):
-                return a*b
+                return a * b
 
             def _sensitivity(self, dc):
                 self.did_sensitivity = True
-                a = self.sig_in[0].get_state()
                 b = self.sig_in[1].get_state()
-                return b*dc  # Only returns one sensitivity
+                return b * dc  # Only returns one sensitivity
 
             def _reset(self):
                 raise RuntimeError("An error has occurred")
@@ -282,19 +281,20 @@ class TestNetwork(TestCase):
 
         netw1 = pym.Network(m1, m2, m3)
 
-        netw2 = pym.Network([m1, m2, {"type": "MathGeneral", "sig_in": [y1, y2], "sig_out": z, "expression": "y1*y2"}])  # Initalize with list
+        netw2 = pym.Network([m1, m2, {"type": "MathGeneral", "sig_in": [y1, y2], "sig_out": z,
+                                      "expression": "y1*y2"}])  # Initalize with list
 
         x1.set_state(2.0)
         x2.set_state(3.0)
         netw1.response()
         self.assertEqual(y1.get_state(), 4.0)
         self.assertEqual(y2.get_state(), 11.0)
-        self.assertEqual(z.get_state(),  44.0)
+        self.assertEqual(z.get_state(), 44.0)
 
         netw2.response()
         self.assertEqual(y1.get_state(), 4.0)
         self.assertEqual(y2.get_state(), 11.0)
-        self.assertEqual(z.get_state(),  44.0)
+        self.assertEqual(z.get_state(), 44.0)
 
         z.set_sens(1.0)
         netw1.sensitivity()
@@ -340,129 +340,3 @@ class TestNetwork(TestCase):
         z.set_sens(1.0)
         self.assertRaises(KeyError, netw.sensitivity)
         self.assertRaises(ValueError, netw.reset)
-
-
-class TestDyadCarrier(TestCase):
-    def test_initialize(self):
-        n = 10
-        u1 = np.random.rand(n)
-        u2 = np.random.rand(n)
-        v1 = np.random.rand(n)
-        v2 = np.random.rand(n)
-
-        a = pym.DyadCarrier(u1, v1)
-        self.assertEqual(len(a.u), 1)
-        self.assertEqual(len(a.v), 1)
-        self.assertEqual(len(a.u[0]), len(u1))
-        self.assertEqual(len(a.v[0]), len(v1))
-        self.assertTrue(np.allclose(a.u[0], u1))
-        self.assertTrue(np.allclose(a.v[0], v1))
-
-        b = pym.DyadCarrier([u1, u2], [v1, v2])
-        self.assertEqual(len(b.u), 2)
-        self.assertEqual(len(b.v), 2)
-        self.assertEqual(len(b.u[0]), len(u1))
-        self.assertEqual(len(b.u[1]), len(u2))
-        self.assertEqual(len(b.v[0]), len(v1))
-        self.assertEqual(len(b.v[1]), len(v2))
-        self.assertTrue(np.allclose(b.u[0], u1))
-        self.assertTrue(np.allclose(b.u[1], u2))
-        self.assertTrue(np.allclose(b.v[0], v1))
-        self.assertTrue(np.allclose(b.v[1], v2))
-
-        c = pym.DyadCarrier(np.random.rand(n, 2), np.random.rand(n, 2))
-        self.assertEqual(len(c.u), 1)
-        self.assertEqual(len(c.v), 1)
-
-        d = pym.DyadCarrier(np.random.rand(n, 2), np.random.rand(n, 3))
-        self.assertEqual(len(d.u), 1)
-        self.assertEqual(len(d.v), 1)
-
-        self.assertRaises(TypeError, pym.DyadCarrier, u1, [v1, v2])
-
-        self.assertRaises(TypeError, pym.DyadCarrier, [u1, np.random.rand(n+1)], [v1, v2])
-
-        self.assertRaises(TypeError, pym.DyadCarrier, [u1, [1.0, 2.0, 3.0]], [v1, v2])
-
-        self.assertRaises(TypeError, pym.DyadCarrier, [u1, u2], [v1, np.random.rand(n + 1)])
-
-        self.assertRaises(TypeError, pym.DyadCarrier, [u1, u2], [v1, [1.0, 2.0, 3.0]])
-
-        self.assertRaises(TypeError, pym.DyadCarrier, np.random.rand(n, 2, 3), v1)
-
-        self.assertRaises(TypeError, pym.DyadCarrier, u1, np.random.rand(n, 2, 3))
-
-    def test_math_operations(self):
-        n = 10
-        u1 = np.random.rand(n)
-        u2 = np.random.rand(n)
-        v1 = np.random.rand(n)
-        v2 = np.random.rand(n)
-
-        a = pym.DyadCarrier(u1, v1)
-        b = pym.DyadCarrier([u1, u2], [v1, v2])
-        c = pym.DyadCarrier(np.random.rand(n, 2), np.random.rand(n, 2))
-        d = pym.DyadCarrier(np.random.rand(n, 2), np.random.rand(n, 3))
-
-        ap = +a
-        self.assertFalse(a.u[0] is ap.u[0])
-        self.assertFalse(a.v[0] is ap.v[0])
-        self.assertTrue(np.allclose(a.u[0], ap.u[0]))
-        self.assertTrue(np.allclose(a.v[0], ap.v[0]))
-
-        bm = -b
-        self.assertFalse(b.u[0] is bm.u[0])
-        self.assertFalse(b.u[1] is bm.u[1])
-        self.assertFalse(b.v[0] is bm.v[0])
-        self.assertFalse(b.v[1] is bm.v[1])
-        self.assertTrue(np.allclose(b.u[0], -bm.u[0]))
-        self.assertTrue(np.allclose(b.u[1], -bm.u[1]))
-        self.assertTrue(np.allclose(b.v[0], bm.v[0]))
-        self.assertTrue(np.allclose(b.v[1], bm.v[1]))
-
-        ap += b
-        self.assertEqual(len(ap.u), 3)
-        self.assertEqual(len(ap.v), 3)
-        self.assertTrue(np.allclose(ap.u[0], a.u[0]))
-        self.assertTrue(np.allclose(ap.v[0], a.v[0]))
-        self.assertTrue(np.allclose(ap.u[1], b.u[0]))
-        self.assertTrue(np.allclose(ap.v[1], b.v[0]))
-        self.assertTrue(np.allclose(ap.u[2], b.u[1]))
-        self.assertTrue(np.allclose(ap.v[2], b.v[1]))
-
-        a1 = +a
-        a1 -= b
-        self.assertEqual(len(a1.u), 3)
-        self.assertEqual(len(a1.v), 3)
-        self.assertTrue(np.allclose(a1.u[0], a.u[0]))
-        self.assertTrue(np.allclose(a1.v[0], a.v[0]))
-        self.assertTrue(np.allclose(a1.u[1], -b.u[0]))
-        self.assertTrue(np.allclose(a1.v[1], b.v[0]))
-        self.assertTrue(np.allclose(a1.u[2], -b.u[1]))
-        self.assertTrue(np.allclose(a1.v[2], b.v[1]))
-
-        a2 = a + b
-        self.assertEqual(len(a2.u), 3)
-        self.assertEqual(len(a2.v), 3)
-        self.assertTrue(np.allclose(a2.u[0], a.u[0]))
-        self.assertTrue(np.allclose(a2.v[0], a.v[0]))
-        self.assertTrue(np.allclose(a2.u[1], b.u[0]))
-        self.assertTrue(np.allclose(a2.v[1], b.v[0]))
-        self.assertTrue(np.allclose(a2.u[2], b.u[1]))
-        self.assertTrue(np.allclose(a2.v[2], b.v[1]))
-
-        a3 = a - b
-        self.assertEqual(len(a3.u), 3)
-        self.assertEqual(len(a3.v), 3)
-        self.assertTrue(np.allclose(a3.u[0], a.u[0]))
-        self.assertTrue(np.allclose(a3.v[0], a.v[0]))
-        self.assertTrue(np.allclose(a3.u[1], -b.u[0]))
-        self.assertTrue(np.allclose(a3.v[1], b.v[0]))
-        self.assertTrue(np.allclose(a3.u[2], -b.u[1]))
-        self.assertTrue(np.allclose(a3.v[2], b.v[1]))
-
-        a4 = a.copy()
-        self.assertFalse(a.u[0] is a4.u[0])
-        self.assertFalse(a.v[0] is a4.v[0])
-        self.assertTrue(np.allclose(a4.u[0], a.u[0]))
-        self.assertTrue(np.allclose(a4.v[0], a.v[0]))
