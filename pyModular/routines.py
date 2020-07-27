@@ -1,11 +1,12 @@
 import numpy as np
 
 
-def finite_difference(blk, dx=1e-8, tol=1e-5):
+def finite_difference(blk, dx: float = 1e-8, tol: float = 1e-5, random: bool = True):
     """ Performs a finite difference check on the given module or interconnection
 
     :param blk: The module or interconnection
     :param dx: Perturbation size
+    :param random: Randomize sensitivity data
     :param tol: Tolerance
     """
     print("=========================================================================================================\n")
@@ -35,38 +36,33 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
         print("{}\t{} = {}".format(Iout, Sout.tag, output))
 
         # Store the output value
-        if hasattr(output, "copy"):
-            f0[Iout] = output.copy()
-        else:
-            f0[Iout] = output
+        f0[Iout] = (output.copy() if hasattr(output, "copy") else output)
 
         # Get the output state shape
-        if hasattr(output, "shape"):
-            shape = output.shape
-        else:
-            shape = ()
+        shape = (output.shape if hasattr(output, "shape") else ())
 
-        # Generate a random sensitivity for output signal
-        if np.iscomplexobj(output):
-            df_an[Iout] = np.random.rand(*shape) + 1j*np.random.rand(*shape)
-        else:
+        # Generate a (random) sensitivity for output signal
+        if random:
             df_an[Iout] = np.random.rand(*shape)
+        else:
+            df_an[Iout] = np.ones(*shape)
 
-        # TODO Compensate or show this randomness in the results? how?
+        if np.iscomplexobj(output):
+            if random:
+                df_an[Iout] = df_an[Iout] + 1j * np.random.rand(*shape)
+            else:
+                df_an[Iout] = df_an[Iout] + 1j * np.ones(*shape)
 
         # Set the output sensitivity
         Sout.set_sens(df_an[Iout])
 
-        # Perform sensitivity calculation
+        # Perform the analytical sensitivity calculation
         blk.sensitivity()
 
         # Store all input sensitivities for this output
         for Iin, Sin in enumerate(blk.sig_in):
             sens = Sin.get_sens()
-            if hasattr(sens, "copy"):
-                dx_an[Iout][Iin] = sens.copy()
-            else:
-                dx_an[Iout][Iin] = sens
+            dx_an[Iout][Iin] = (sens.copy() if hasattr(sens, "copy") else sens)
 
         # Reset the sensitivities for next output
         blk.reset()
@@ -109,10 +105,7 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
                 dgdx_fd = np.real(np.sum(df*np.conj(df_an[Iout])))
 
                 if dx_an[Iout][Iin] is not None:
-                    if is_iterable:
-                        dgdx_an = np.real(dx_an[Iout][Iin][it.multi_index])
-                    else:
-                        dgdx_an = np.real(dx_an[Iout][Iin])
+                    dgdx_an = (np.real(dx_an[Iout][Iin][it.multi_index] if is_iterable else dx_an[Iout][Iin]))
                 else:
                     dgdx_an = 0.0
 
@@ -152,14 +145,11 @@ def finite_difference(blk, dx=1e-8, tol=1e-5):
                     dgdx_fd = np.real(np.sum(df*np.conj(df_an[Iout])))
 
                     if dx_an[Iout][Iin] is not None:
-                        if is_iterable:
-                            dgdx_an = np.imag(dx_an[Iout][Iin][it.multi_index])
-                        else:
-                            dgdx_an = np.imag(dx_an[Iout][Iin])
+                        dgdx_an = (np.imag(dx_an[Iout][Iin][it.multi_index] if is_iterable else dx_an[Iout][Iin]))
                     else:
                         dgdx_an = 0.0
 
-                    if abs(dgdx_an) < tol/1000:
+                    if abs(dgdx_an) < tol:
                         error = abs(dgdx_fd - dgdx_an)
                     else:
                         error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
