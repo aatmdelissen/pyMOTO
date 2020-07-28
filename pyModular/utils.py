@@ -1,5 +1,4 @@
-from typing import Any, Iterable
-import numpy as np
+from typing import Any
 
 
 def _parse_to_list(*args: Any):
@@ -12,9 +11,9 @@ def _parse_to_list(*args: Any):
 
     if var_in is None:
         return []
-    elif isinstance(var_in, np.ndarray):
-        return [var_in]
-    elif isinstance(var_in, Iterable):
+    elif isinstance(var_in, list):
+        return var_in
+    elif isinstance(var_in, tuple):
         return list(var_in)
     else:
         return [var_in]
