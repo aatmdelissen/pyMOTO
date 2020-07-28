@@ -17,9 +17,9 @@ class Signal:
     >> Signal(tag='x2')
 
     """
-    def __init__(self, tag: str = ""):
+    def __init__(self, tag: str = "", state: Any = None):
         self.tag = tag
-        self._state = None
+        self._state = state
         self._sensitivity = None
 
     def set_state(self, value: Any):
@@ -228,7 +228,8 @@ class Module(RegisteredClass):
         raise NotImplementedError("No response behavior defined")
 
     def _sensitivity(self, *args):
-        warnings.warn("Sensitivity routine is used, but not defined, in {}".format(type(self).__name__), Warning)
+        if len(self.sig_out) > 0 and len(self.sig_in) > 0:
+            warnings.warn("Sensitivity routine is used, but not defined, in {}".format(type(self).__name__), Warning)
         return [None for _ in self.sig_in]
 
     def _reset(self):
