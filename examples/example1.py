@@ -3,7 +3,7 @@ This example demonstrates how a simple Module is implemented. Different methods 
 shown, and the ordering of the Modules in the Network can be changed to obtain other behavior. Basic usage of Signals,
 sensitivity calculation, and finite-difference validation is demonstrated.
 """
-from pyModular import Module, Signal, Network, finite_difference
+from pymodular import Module, Signal, Network, finite_difference
 from math import *
 
 

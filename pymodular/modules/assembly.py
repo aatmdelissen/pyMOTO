@@ -1,5 +1,5 @@
 """ Assembly modules for finite element analysis """
-from pyModular import Module, DyadCarrier
+from pymodular import Module, DyadCarrier
 import numpy as np
 from scipy.sparse import csc_matrix
 

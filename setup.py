@@ -1,6 +1,6 @@
 from setuptools import setup
 
-setup(name='pyModular',
+setup(name='pymodular',
       version='0.1',
       description='Framework for optimization',
       long_description='Semi-automatic differentiation',
@@ -9,7 +9,7 @@ setup(name='pyModular',
       author='Arnoud Delissen',
       author_email='a.a.t.m.delissen@tudelft.nl',
       license='',
-      packages=['pyModular'],
+      packages=['pymodular'],
       install_requires=['numpy', 'sympy'],
       zip_safe=False,
       test_suite='nose.collector',

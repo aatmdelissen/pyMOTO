@@ -1,5 +1,5 @@
 from unittest import TestCase
-import pyModular as pym
+import pymodular as pym
 import numpy as np
 
 

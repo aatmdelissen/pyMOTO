@@ -1,5 +1,5 @@
 """ Example for a compliance topology optimization """
-import pyModular as pym
+import pymodular as pym
 import numpy as np
 
 if __name__ == "__main__":

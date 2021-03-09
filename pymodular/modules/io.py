@@ -1,4 +1,4 @@
-from pyModular import Module
+from pymodular import Module
 import matplotlib.pyplot as plt
 import numpy as np
 from .assembly import DomainDefinition

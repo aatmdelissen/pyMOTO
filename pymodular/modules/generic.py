@@ -1,6 +1,6 @@
 """ Generic modules, valid for general mathematical operations """
 import numpy as np
-from pyModular.core_objects import Module
+from pymodular.core_objects import Module
 
 
 class MathGeneral(Module):

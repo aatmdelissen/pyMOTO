@@ -2,7 +2,7 @@
 In this example, a module for the vector-vector dot-product is implemented. The same behavior can be realized with the
 EinSum Module, which relies on the numpy function einsum.
 """
-from pyModular import Module, Signal, finite_difference, EinSum
+from pymodular import Module, Signal, finite_difference, EinSum
 import numpy as np
 
 

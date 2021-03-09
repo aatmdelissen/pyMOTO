@@ -1,6 +1,6 @@
 from unittest import TestCase
 import numpy as np
-import pyModular as pym
+import pymodular as pym
 
 
 class TestMath(TestCase):

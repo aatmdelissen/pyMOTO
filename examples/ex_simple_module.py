@@ -1,7 +1,7 @@
 """ Example: Module template for a generic module
 It shows possibilities for a generic Module, and also the importance of the sensitivity reset.
 """
-from pyModular import Module, Signal, finite_difference
+from pymodular import Module, Signal, finite_difference
 
 
 class MyNewModule(Module):

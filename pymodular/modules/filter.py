@@ -1,4 +1,4 @@
-from pyModular import Module
+from pymodular import Module
 from .assembly import DomainDefinition
 import numpy as np
 from scipy.sparse import coo_matrix

@@ -1,5 +1,5 @@
 """ Minimal example for a structural compliance topology optimization """
-import pyModular as pym
+import pymodular as pym
 import numpy as np
 
 nx, ny = 100, 40

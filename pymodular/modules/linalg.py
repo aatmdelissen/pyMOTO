@@ -1,6 +1,6 @@
 """ Specialized linear algebra modules """
-from pyModular.core_objects import Module
-from pyModular.dyadcarrier import DyadCarrier
+from pymodular.core_objects import Module
+from pymodular.dyadcarrier import DyadCarrier
 import numpy as np
 import scipy.sparse as sps
 
