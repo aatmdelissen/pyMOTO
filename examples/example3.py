@@ -1,4 +1,7 @@
-"""Example 3: Vector dot product (and EinSum)"""
+"""Example 3: Vector dot product (and EinSum)
+In this example, a module for the vector-vector dot-product is implemented. The same behavior can be realized with the
+EinSum Module, which relies on the numpy function einsum.
+"""
 from pyModular import Module, Signal, finite_difference, EinSum
 import numpy as np
 
@@ -19,6 +22,7 @@ class MyDotProduct(Module):
 if __name__ == '__main__':
     print(__doc__)
 
+    # --- SETUP ---
     # Initialize signals
     u = Signal("u")
     v = Signal("v")
@@ -32,21 +36,22 @@ if __name__ == '__main__':
         m_dot = MyDotProduct([u, v], y)
 
     # Set initial values
-    u.set_state(np.array([2.1, 3.2, 4.3, 5.4]))
-    v.set_state(np.array([-1.5, 3.8, 2.3, 8.5]))
+    u.state = np.array([2.1, 3.2, 4.3, 5.4])
+    v.state = np.array([-1.5, 3.8, 2.3, 8.5])
 
-    # Forward analysis
+    # --- FORWARD ANALYSIS ---
     m_dot.response()
 
-    print("The response is u . v = dot({0}, {1}) = {2}".format(u.get_state(), v.get_state(), y.get_state()))
+    print("The response is u . v = dot({0}, {1}) = {2}".format(u.state, v.state, y.state))
 
-    # Sensitivity analysis
-    y.set_sens(np.ones_like(y.get_state()))
+    # --- BACKPROPAGATION ---
+    y.sensitivity = np.ones_like(y.state)
     m_dot.sensitivity()
 
-    print("The sensitivities are:")
-    print("d{0}/d{1} = {2}".format(y.tag, u.tag, u.get_sens()))
-    print("d{0}/d{1} = {2}".format(y.tag, v.tag, v.get_sens()))
+    print("\nThe sensitivities are:")
+    print("d{0}/d{1} = {2}".format(y.tag, u.tag, u.sensitivity))
+    print("d{0}/d{1} = {2}".format(y.tag, v.tag, v.sensitivity))
 
+    # --- Finite difference check ---
     finite_difference(m_dot)
 

@@ -1,4 +1,6 @@
-""" Template for a generic module """
+""" Example: Module template for a generic module
+It shows possibilities for a generic Module, and also the importance of the sensitivity reset.
+"""
 from pyModular import Module, Signal, finite_difference
 
 
@@ -28,6 +30,10 @@ class MyNewModule(Module):
         :return: The results of the calculation
         """
         print('>> Do my response calculation')
+
+        # Incorrect data
+        if x1 is None or x2 is None:
+            raise RuntimeError("You forgot to set {} and {}".format(self.sig_in[0].tag, self.sig_in[1].tag))
 
         # Store data
         self.x1 = x1
@@ -100,20 +106,19 @@ if __name__ == "__main__":
     print("PART 2: Forward analysis")
 
     try:
-        # When no values are set into the signal's state, we get an error
-        print("\nTry calling the response without initial values results in an error")
+        print("\nTrying to call the response without setting initial values results in an error")
         the_mod.response()
-    except TypeError as e:
+    except RuntimeError as e:
         print("ERROR OBTAINED: ", e.__str__())
 
     # Set the initial values
-    x1.set_state(2.0)
-    x2.set_state(3.0)
+    x1.state = 2.0
+    x2.state = 3.0
 
-    print("\nState initialized to {0} = {1}, {2} = {3}".format(x1.tag, x1.get_state(), x2.tag, x2.get_state()))
+    print("\nState initialized to {0} = {1}, {2} = {3}".format(x1.tag, x1.state, x2.tag, x2.state))
     print("Call response")
     the_mod.response()
-    print("The results: {0} = {1}, {2} = {3}".format(y1.tag, y1.get_state(), y2.tag, y2.get_state()))
+    print("The results: {0} = {1}, {2} = {3}".format(y1.tag, y1.state, y2.tag, y2.state))
 
     print("_"*80)
     print("PART 3: Backpropagation (sensitivity analysis)")
@@ -121,21 +126,29 @@ if __name__ == "__main__":
     # Calculate sensitivities
     print("\nIf no seed is given, no sensitivities will be calculated")
     the_mod.sensitivity()
-    print("dg/d{} = {}".format(x1.tag, x1.get_sens()))
-    print("dg/d{} = {}".format(x2.tag, x2.get_sens()))
+    print("dg/d{} = {}".format(x1.tag, x1.sensitivity))
+    print("dg/d{} = {}".format(x2.tag, x2.sensitivity))
 
     print("\nSeed dg/dy1 = 1.0, so we can calculate dy1/dx1 and dy1/dx2")
-    y1.set_sens(1.0)
+    y1.sensitivity = 1.0
     the_mod.sensitivity()
-    print("dy1/d{} = {}".format(x1.tag, x1.get_sens()))
-    print("dy1/d{} = {}".format(x2.tag, x2.get_sens()))
+    print("dy1/d{} = {}".format(x1.tag, x1.sensitivity))
+    print("dy1/d{} = {}".format(x2.tag, x2.sensitivity))
+
+    print("\nWhen reset is not called after the sensitivity calculation, the results will not be correct.")
+    print("Seed dg/dy1 = 1.0 again (not strictly necessary, since the value already was seeded)")
+    y1.sensitivity = 1.0
+    the_mod.sensitivity()
+    print("Incorrect sensitivity dy1/d{} = {}".format(x1.tag, x1.sensitivity))
+    print("Incorrect sensitivity dy1/d{} = {}".format(x2.tag, x2.sensitivity))
+    print("The values are now double of what they're supposed to be, because they're added to what we already had.")
 
     print("\nRESET! And seed dg/dy2 = 1.0 to calculate the other sensitivities")
-    the_mod.reset()  # DON'T FORGET THIS RESET, ELSE SENSITIVITIES FROM PREVIOUS RUNS WILL CONTAMINATE YOUR RESULT!
-    y2.set_sens(1.0)
+    the_mod.reset()  # !! DON'T FORGET TO RESET, ELSE SENSITIVITIES FROM PREVIOUS RUNS WILL CONTAMINATE YOUR RESULT !!
+    y2.sensitivity = 1.0
     the_mod.sensitivity()
-    print("dy2/d{} = {}".format(x1.tag, x1.get_sens()))
-    print("dy2/d{} = {}".format(x2.tag, x2.get_sens()))
+    print("dy2/d{} = {}".format(x1.tag, x1.sensitivity))
+    print("dy2/d{} = {}".format(x2.tag, x2.sensitivity))
 
     # You can always check your module with finite differencing
     finite_difference(the_mod)

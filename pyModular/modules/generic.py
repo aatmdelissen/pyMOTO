@@ -1,8 +1,8 @@
+""" Generic modules, valid for general mathematical operations """
 import numpy as np
-from .core_objects import Module
+from pyModular.core_objects import Module
 
 
-# ############### STANDARD LIBRARY OF BLOCKS ##################
 class MathGeneral(Module):
     """ General mathematical expression module
 
@@ -54,8 +54,11 @@ class MathGeneral(Module):
                 continue
 
             state_len = 1
-            if hasattr(sig.get_state(), "__len__"):
-                state_len = len(sig.get_state())
+            if hasattr(sig.state, "__len__"):
+                try:
+                    state_len = len(sig.state)
+                except TypeError:
+                    state_len = 1
 
             sens_len = 1
             if hasattr(dg_dx[i], "__len__"):
@@ -64,7 +67,7 @@ class MathGeneral(Module):
             if state_len == 1 and sens_len > 1:
                 dg_dx[i] = np.sum(dg_dx[i])
 
-            if not isinstance(dg_dx[i], type(sig.get_state())):
+            if not isinstance(dg_dx[i], type(sig.state)):
                 dg_dx[i] = np.array(dg_dx[i])
 
         return dg_dx
@@ -107,14 +110,14 @@ class EinSum(Module):
             # be deducted. Therefore we add these exceptions
             if len(set(self.indices_in[0])) < len(self.indices_in[0]):
                 # exception for repeated indices (e.g. trace, diagonal summing)
-                if self.sig_in[0].get_state().ndim > 2:
+                if self.sig_in[0].state.ndim > 2:
                     raise TypeError(
                         "Sensitivities for repeated incides '{}' not supported for any other than trace 'ii->'."
                         .format(self.expr))
-                mat = np.zeros_like(self.sig_in[0].get_state())
+                mat = np.zeros_like(self.sig_in[0].state)
                 np.fill_diagonal(mat, 1.0)
             else:
-                mat = np.ones_like(self.sig_in[0].get_state())
+                mat = np.ones_like(self.sig_in[0].state)
             return np.conj(np.conj(df_in) * mat)
 
         for ind_in in self.indices_in:
@@ -126,10 +129,10 @@ class EinSum(Module):
         for ar in range(n_in):
             ind_in = [self.indices_out]
             ind_in += [elem for i, elem in enumerate(self.indices_in) if i != ar]
-            arg_in = [s.get_state() for i, s in enumerate(self.sig_in) if i != ar]
+            arg_in = [s.state for i, s in enumerate(self.sig_in) if i != ar]
             ind_out = self.indices_in[ar]
 
-            da_i = np.zeros_like(self.sig_in[ar].get_state())
+            da_i = np.zeros_like(self.sig_in[ar].state)
             op = ",".join(ind_in)+"->"+ind_out
             np.einsum(op, np.conj(df_in), *arg_in, out=da_i)
             df_out.append(np.conj(da_i))

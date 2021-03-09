@@ -1,8 +1,9 @@
 from typing import Union, List, Any
 import warnings
 import sys
+import functools
 from .utils import _parse_to_list
-
+from abc import ABC, abstractmethod
 
 class Signal:
     """
@@ -17,36 +18,27 @@ class Signal:
     >> Signal(tag='x2')
 
     """
-    def __init__(self, tag: str = "", state: Any = None):
+    def __init__(self, tag: str = "", state: Any = None, sensitivity: Any = None):
         self.tag = tag
-        self._state = state
-        self._sensitivity = None
+        self.state = state
+        self.sensitivity = sensitivity
 
-    def set_state(self, value: Any):
-        self._state = value
-
-    def get_state(self):
-        return self._state
-
-    def set_sens(self, ds: Any):
-        self._sensitivity = ds
-
-    def add_sens(self, ds: Any):
+    def add_sensitivity(self, ds: Any):
         try:
             if ds is None:
                 return
-            if self._sensitivity is None:
-                self.set_sens(ds)
+            if self.sensitivity is None:
+                self.sensitivity = ds
             else:
-                self._sensitivity += ds
+                self.sensitivity += ds
         except Exception as e:
             raise type(e)(str(e) + ', in signal %s' % self.tag).with_traceback(sys.exc_info()[2]) from None
 
-    def get_sens(self):
-        return self._sensitivity
-
-    def reset(self):
-        self._sensitivity = None
+    def reset(self, keep_alloc: bool = False):
+        if keep_alloc and self.sensitivity is not None:
+            self.sensitivity *= 0
+        else:
+            self.sensitivity = None
 
 
 def make_signals(*args):
@@ -54,13 +46,21 @@ def make_signals(*args):
 
 
 def _check_valid_signal(sig: Any):
-    if not isinstance(sig, Signal):
-        raise TypeError("Entry {} is not a Signal".format(sig))
+    if isinstance(sig, Signal):
+        return True
+    if hasattr(sig, "state") and hasattr(sig, "sensitivity"):
+        return True
+    if hasattr(sig, "add_sensitivity"):
+        return True
+    raise TypeError("Entry {} is not a Signal".format(sig))
 
 
 def _check_valid_module(mod: Any):
-    if not issubclass(type(mod), Module):
-        raise TypeError("Entry {} is not a Module".format(mod))
+    if issubclass(type(mod), Module):
+        return True
+    if hasattr(mod, "response") and hasattr(mod, "sensitivity") and hasattr(mod, "reset"):
+        return True
+    raise TypeError("Entry {} is not a Module".format(mod))
 
 
 class RegisteredClass(object):
@@ -130,8 +130,11 @@ class RegisteredClass(object):
     def print_children(cls):
         print(": ".join([cls.__name__+" subtypes", ", ".join(cls.all_subclasses().keys())]))
 
+import inspect
+import functools
+import traceback
 
-class Module(RegisteredClass):
+class Module(ABC, RegisteredClass):
     """
     Main class: Module
     Transforms input signal to output signal and output signal sensitivity to input signal sensitivity
@@ -152,6 +155,14 @@ class Module(RegisteredClass):
     >> Module(sig_in=[inputs], sig_out=[outputs]
     """
 
+    def _error_str(self, add_signal: bool=True):
+        sig_str = ""
+        if add_signal:
+            sig_str = f"{[s.tag for s in self.sig_in]}->{[s.tag for s in self.sig_out]}"
+        lineno = inspect.getsourcelines(self.__class__)[1]
+        filename = inspect.getfile(self.__class__)
+        return f"\n\tFile \"{filename}\", line {lineno}, in module {type(self).__name__}{sig_str}"
+
     def __init__(self, sig_in: Union[Signal, List[Signal]] = None, sig_out: Union[Signal, List[Signal]] = None,
                  *args, **kwargs):
         try:
@@ -164,27 +175,27 @@ class Module(RegisteredClass):
             # Call preparation of submodule with remaining arguments
             self._prepare(*args, **kwargs)
         except Exception as e:
-            raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e) + self._error_str(add_signal=False)).with_traceback(sys.exc_info()[2]) from None
 
     def response(self):
         """
         Calculate the response from sig_in and output this to sig_out
         """
         try:
-            inp = [s.get_state() for s in self.sig_in]
+            inp = [s.state for s in self.sig_in]
             state_out = _parse_to_list(self._response(*inp))  # Calculate the actual response
 
             # Check if enough outputs are calculated
             if len(state_out) != len(self.sig_out):
-                raise TypeError("Number of responses calculated ({}) is unequal to number of output signals ({}) {}"
-                                .format(len(state_out), len(self.sig_out), type(self)))
+                raise TypeError(f"Number of responses calculated ({len(state_out)}) is unequal to "
+                                f"number of output signals ({len(self.sig_out)})")
 
             # Update the output signals
             for i, val in enumerate(state_out):
-                self.sig_out[i].set_state(val)
+                self.sig_out[i].state = val
 
         except Exception as e:
-            raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e) + self._error_str()).with_traceback(sys.exc_info()[2]) from None
 
     def sensitivity(self):
         """
@@ -192,7 +203,7 @@ class Module(RegisteredClass):
         """
         try:
             # Get all sensitivity values of the outputs
-            sens_in = [s.get_sens() for s in self.sig_out]
+            sens_in = [s.sensitivity for s in self.sig_out]
 
             if len(self.sig_out) > 0 and all([s is None for s in sens_in]):
                 return  # If none of the adjoint variables is set
@@ -202,15 +213,15 @@ class Module(RegisteredClass):
 
             # Check if enough sensitivities are calculated
             if len(sens_out) != len(self.sig_in):
-                raise TypeError("Number of sensitivities calculated ({}) is unequal to number of input signals ({}) {}"
-                                .format(len(sens_out), len(self.sig_in), type(self)))
+                raise TypeError(f"Number of sensitivities calculated ({len(sens_out)}) is unequal to "
+                                f"number of input signals ({len(self.sig_in)})")
 
             # Add the sensitivities to the signals
             for i, ds in enumerate(sens_out):
-                self.sig_in[i].add_sens(ds)
+                self.sig_in[i].add_sensitivity(ds)
 
         except Exception as e:
-            raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e) + self._error_str()).with_traceback(sys.exc_info()[2]) from None
 
     def reset(self):
         try:
@@ -218,12 +229,13 @@ class Module(RegisteredClass):
             [s.reset() for s in self.sig_in]
             self._reset()
         except Exception as e:
-            raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e) + self._error_str()).with_traceback(sys.exc_info()[2]) from None
 
     # METHODS TO BE DEFINED BY USER
     def _prepare(self, *args, **kwargs):
         pass
 
+    @abstractmethod
     def _response(self, *args):
         raise NotImplementedError("No response behavior defined")
 
@@ -296,3 +308,30 @@ class Network(Module):
 
     def _response(self, *args):
         pass  # Unused
+
+    def append(self, *newmods):
+        # Obtain the internal blocks
+        self.mods.append(*_parse_to_list(*newmods))
+
+        # Check if the blocks are initialized, else create them
+        for i, b in enumerate(self.mods):
+            if isinstance(b, dict):
+                exclude_keys = ['type']
+                b_ex = {k: b[k] for k in set(list(b.keys())) - set(exclude_keys)}
+                self.mods[i] = Module.create(b['type'], **b_ex)
+
+        # Check validity of modules
+        [_check_valid_module(m) for m in self.mods]
+
+        # Gather all the input and output signals of the internal blocks
+        all_in = set()
+        all_out = set()
+        [all_in.update(b.sig_in) for b in self.mods]
+        [all_out.update(b.sig_out) for b in self.mods]
+        in_unique = all_in - all_out
+
+        self.sig_in = _parse_to_list(in_unique)
+        [_check_valid_signal(s) for s in self.sig_in]
+        self.sig_out = _parse_to_list(all_out)
+        [_check_valid_signal(s) for s in self.sig_out]
+
