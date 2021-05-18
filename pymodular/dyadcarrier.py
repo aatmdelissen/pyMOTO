@@ -4,11 +4,28 @@ import numpy as np
 from .utils import _parse_to_list
 
 
-class DyadCarrier:
+def isdyad(x):
+    return isinstance(x, DyadCarrier)
+
+
+def isdense(x):
+    return isinstance(x, np.ndarray)
+
+
+def isscalarlike(x):
+    """Is x either a scalar, an array scalar, or a 0-dim array?"""
+    return np.isscalar(x) or (isdense(x) and x.ndim == 0)
+
+
+class DyadCarrier(object):
     """ Sparse rank-N matrix
     Stores only the vectors instead of creating a rank-N matrix
     A_ij = sum_k u_{ki} v_{kj}
     """
+
+    __array_priority__ = 11.0  # For overriding numpy's ufuncs
+    ndim = 2
+
     def __init__(self, u: Iterable = None, v: Iterable = None):
         """ This is a class for efficient storage of dyadic / outer products.
         Two vectors u and v can construct a matrix A = uv^T, but this takes a lot of memory to store. Therefore, this
@@ -44,38 +61,63 @@ class DyadCarrier:
         n = len(ulist)
 
         for i, ui, vi in zip(range(n), ulist, vlist):
-            if isinstance(ui, np.ndarray):
-                if ui.ndim > 1:
-                    ui = ui.sum(axis=tuple(range(ui.ndim - 1)))
+            if not isinstance(ui, np.ndarray):
+                raise TypeError(f"Vector in dyadcarrier should be np.ndarray. Got {type(ui)} instead.")
+            if not isinstance(vi, np.ndarray):
+                raise TypeError(f"Vector in dyadcarrier should be np.ndarray. Got {type(vi)} instead.")
 
-                if self.ulen < 0:
-                    self.ulen = ui.shape[-1]
-                else:
-                    if ui.shape[-1] != self.ulen:
-                        raise TypeError("U vector {} of shape {}, not conforming to dyad size {}."
-                                        .format(i, ui.shape, self.ulen))
+            # Sum if it is a block-matrix U.V^T = sum u_i.v_j^T
+            if ui.ndim > 1:
+                ui = ui.sum(axis=tuple(range(ui.ndim - 1)))
 
-                self.u.append(ui.copy() if fac is None else fac*ui)
-                self.dtype = np.result_type(self.dtype, ui.dtype)
-            else:
-                raise TypeError("Vector in dyadcarrier should be np.ndarray. Got {} instead.".format(type(ui)))
+            if vi.ndim > 1:
+                vi = vi.sum(axis=tuple(range(vi.ndim - 1)))
 
-            if isinstance(vi, np.ndarray):
-                if vi.ndim > 1:
-                    vi = vi.sum(axis=tuple(range(vi.ndim - 1)))
+            # Update the dyadic matrix dimensions
+            if self.ulen < 0:
+                self.ulen = ui.shape[-1]
 
-                if self.vlen < 0:
-                    self.vlen = vi.shape[-1]
-                else:
-                    if vi.shape[-1] != self.vlen:
-                        raise TypeError("V vector {} of shape {}, not conforming to dyad size {}."
-                                        .format(i, vi.shape, self.vlen))
-                self.v.append(vi.copy())
-                self.dtype = np.result_type(self.dtype, vi.dtype)
-            else:
-                raise TypeError("Vector in dyadcarrier should be np.ndarray. Got {} instead.".format(type(vi)))
+            if self.vlen < 0:
+                self.vlen = vi.shape[-1]
 
+            # Check dimensions
+            if ui.shape[-1] != self.ulen:
+                raise TypeError(f"U vector {i} of shape {ui.shape}, not conforming to dyad size {self.ulen}.")
+
+            if vi.shape[-1] != self.vlen:
+                raise TypeError(f"V vector {i} of shape {vi.shape}, not conforming to dyad size {self.vlen}.")
+
+            # Don't add zero vectors
+            if np.linalg.norm(ui) == 0 or np.linalg.norm(vi) == 0:
+                continue
+
+            # Add the vectors
+            self.u.append(ui.copy() if fac is None else fac*ui)
+            self.v.append(vi.copy())
+
+            # Update the type
+            self.dtype = np.result_type(self.dtype, ui.dtype)
+            self.dtype = np.result_type(self.dtype, vi.dtype)
+
+        # Update the shape
         self.shape = (self.ulen, self.vlen)
+
+    def __getitem__(self, subscript):
+        assert len(subscript) == self.ndim, "Invalid number of slices"
+        usub = [ui[subscript[0]] for ui in self.u]
+        vsub = [vi[subscript[1]] for vi in self.v]
+        if isscalarlike(usub[0]):
+            val = np.zeros_like(vsub[0])
+            for ui, vi in zip(usub, vsub):
+                val += ui*vi
+            return val
+        elif isscalarlike(vsub[0]):
+            val = np.zeros_like(usub[0])
+            for ui, vi in zip(usub, vsub):
+                val += ui*vi
+            return val
+        else:
+            return DyadCarrier(usub, vsub)
 
     def __pos__(self):
         return DyadCarrier(self.u, self.v)
@@ -87,15 +129,49 @@ class DyadCarrier:
         self.add_dyad(other.u, other.v)
         return self
 
+    def __add__(self, other):  # self + other
+        if isscalarlike(other):
+            if other == 0:
+                return self.copy()
+            raise NotImplementedError('adding a nonzero scalar from a '
+                                      'dyadcarrier is not supported')
+        elif isdyad(other):
+            if other.shape != self.shape:
+                raise ValueError("Inconsistent shapes")
+            return DyadCarrier(self.u, self.v).__iadd__(other)
+        elif isdense(other):
+            other = np.broadcast_to(other, self.shape)
+            return other + self.expand()
+        else:
+            return NotImplemented
+
+    def __radd__(self, other):  # other + self
+        return self.__add__(other)
+
     def __isub__(self, other):
         self.add_dyad(other.u, other.v, fac=-1.0)
         return self
 
-    def __add__(self, other):
-        return DyadCarrier(self.u, self.v).__iadd__(other)
-
-    def __sub__(self, other):
+    def __sub__(self, other):  # self - other
         return self.__add__(-other)
+
+    def __rsub__(self, other):  # other - self
+        if isscalarlike(other):
+            if other == 0:
+                return -self.copy()
+            raise NotImplementedError('subtracting a dyadcarrier from a '
+                                      'nonzero scalar  is not supported')
+        elif isdense(other):
+            other = np.broadcast_to(other, self.shape)
+            return other - self.expand()
+        else:
+            return NotImplemented
+
+    def __rmul__(self, other):  # other * self
+        return DyadCarrier([other*ui for ui in self.u], self.v)
+
+    def __mul__(self, other):  # self * other
+        return DyadCarrier(self.u, [vi*other for vi in self.v])
 
     def copy(self):
         """
@@ -208,7 +284,8 @@ class DyadCarrier:
 
         :return: Rank-N dyadic matrix
         """
-        if max(self.shape) > 1000:
+        warning_size = 100e+6 # Bytes
+        if (self.shape[0]*self.shape[1]*self.dtype.itemsize) > warning_size:
             warnings.warn("Expanding a dyad results into a dense matrix. This is not advised for large matrices {}"
                           .format(self.shape), RuntimeWarning, stacklevel=2)
 
@@ -222,3 +299,61 @@ class DyadCarrier:
     def iscomplex(self):
         """ Check if the DyadCarrier is of complex type """
         return np.iscomplexobj(np.array([], dtype=self.dtype))
+
+    def diagonal(self, k=0):
+        """ Gets the diagonal of the DyadCarrier """
+        if (self.shape[0] == 0) or (self.shape[1] == 0):
+            return np.zeros(0, dtype=self.dtype)
+
+        ustart = max(0, -k)
+        vstart = max(0,  k)
+        n = min(self.shape[0]-ustart, self.shape[1]-vstart)
+
+        if n < 0:
+            return np.zeros(0, dtype=self.dtype)
+
+        diag = np.zeros(n, dtype=self.dtype)
+
+        for ui, vi in zip(self.u, self.v):
+            diag += ui[ustart:ustart+n] * vi[vstart:vstart+n]
+
+        return diag
+
+    @property
+    def T(self):
+        return self.transpose()
+
+    def transpose(self):
+        return DyadCarrier(self.v, self.u)
+
+    def dot(self, other):
+        return self.__dot__(other)
+
+    def __dot__(self, other):  # self.dot(other)
+        if other.ndim == 2:
+            return self.__matmul__(other)
+
+        val = np.zeros_like(self.u[0])
+        for ui, vi in zip(self.u, self.v):
+            val += ui * vi.dot(other)
+        return val
+
+    def __rdot__(self, other):  # other.dot(self)
+        if other.ndim == 2:
+            return self.__rmatmul__(other)
+
+        val = np.zeros_like(self.v[0])
+        for ui, vi in zip(self.u, self.v):
+            val += vi * other.dot(ui)
+        return val
+
+    def __matmul__(self, other):  # self @ other
+        if other.ndim == 1:
+            return self.__dot__(other)
+
+        return DyadCarrier(self.u, [vi@other for vi in self.v])
+
+    def __rmatmul__(self, other):  # other @ self
+        if other.ndim == 1:
+            return self.__rdot__(other)
+        return DyadCarrier([other@ui for ui in self.u], self.v)

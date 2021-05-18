@@ -3,7 +3,46 @@ import pymodular as pym
 import numpy as np
 
 
+def generate_random(*dn, lower=-1.0, upper=1.0):
+    return np.random.rand(*dn)*(upper-lower) + lower
+
 class TestDyadCarrier(TestCase):
+    @staticmethod
+    def setup_dyads(n=10, complex=False, nonsquare=False, empty=True, rnd=generate_random):
+        dyads = {}
+
+        if empty:
+            dyads['empty'] = pym.DyadCarrier()
+
+        ndyads = [1, 2, 10]
+        for s in ndyads:
+            dyads[f'square_{s}_dyads'] = pym.DyadCarrier([rnd(n) for _ in range(s)], [rnd(n) for _ in range(s)])
+
+        if complex:
+            for s in ndyads:
+                dyads[f'square_complex_{s}_dyads'] = pym.DyadCarrier([rnd(n)+1j*rnd(n) for _ in range(s)], [rnd(n)+1j*rnd(n) for _ in range(s)])
+
+        if nonsquare:
+            nonsquare_offsets_u = [1]
+            nonsquare_offsets_v = [2]
+
+            for off_u in nonsquare_offsets_u:
+                for s in ndyads:
+                    dyads[f'nonsquare_u_{s}_dyads'] = pym.DyadCarrier([rnd(n+off_u) for _ in range(s)], [rnd(n) for _ in range(s)])
+            for off_v in nonsquare_offsets_v:
+                for s in ndyads:
+                    dyads[f'nonsquare_v_{s}_dyads'] = pym.DyadCarrier([rnd(n) for _ in range(s)], [rnd(n+off_v) for _ in range(s)])
+
+            if complex:
+                for off_u in nonsquare_offsets_u:
+                    for s in ndyads:
+                        dyads[f'nonsquare_u_complex_{s}_dyads'] = pym.DyadCarrier([rnd(n+off_u)+1j*rnd(n+off_u) for _ in range(s)], [rnd(n)+1j*rnd(n) for _ in range(s)])
+                for off_v in nonsquare_offsets_v:
+                    for s in ndyads:
+                        dyads[f'nonsquare_v_complex_{s}_dyads'] = pym.DyadCarrier([rnd(n)+1j*rnd(n) for _ in range(s)], [rnd(n+off_v)+1j*rnd(n+off_v) for _ in range(s)])
+        return dyads
+
+
     def test_initialize(self):
         n = 10
         u1 = np.random.rand(n)
@@ -359,3 +398,118 @@ class TestDyadCarrier(TestCase):
         rows_fail = np.array([[3, 5, 5], [5, 6, 7]])
         self.assertRaises(ValueError, a.contract, a_submat2, rows_fail, cols)
 
+    def test_diagonal(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True)
+        k_list = np.arange(-12, 12)
+        for k in k_list:
+            for key, d in dyads.items():
+                self.assertTrue(np.allclose(d.diagonal(k), np.diagonal(d.expand(), offset=k)),
+                                msg=f"Failed diagonal test with offset \"{k}\" and dyad \"{key}\"")
+
+
+    def test_add_to_zeroarray(self):
+        n = 10
+        zer = np.array(0, dtype=np.object)
+        zer += pym.DyadCarrier(np.random.rand(n), np.random.rand(n))
+        self.assertTrue(isinstance(zer, pym.DyadCarrier))
+
+    def test_dot(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            q = generate_random(d.shape[1])
+            chk = d.expand().dot(q)
+            self.assertTrue(np.allclose(d.dot(q), chk), msg=f"Failed dot test with dyad \"{key}\"")
+            # np.dot(d, q) # This form cannot be overridden, so it will result in a list of dyadcarriers
+
+    def test_transpose(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            chk = d.expand().T
+            res1 = d.T.expand()
+            self.assertTrue(np.allclose(chk, res1), msg=f"Failed transpose test with dyad \"{key}\"")
+
+    def test_matmul_vec(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            q = generate_random(d.shape[1])
+            chk = d.expand()@q
+            res = d@q
+            self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
+
+    def test_rmatmul_vec(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            q = generate_random(d.shape[0])
+            chk = q@(d.expand())
+            res = q@d
+            self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
+
+    def test_matmul(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            A = generate_random(d.shape[1], d.shape[1])
+            chk = d.expand()@A
+            res = (d@A).expand()
+            self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
+
+    def test_rmatmul(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            A = generate_random(d.shape[0], d.shape[0])
+            chk = A@(d.expand())
+            res = (A@d).expand()
+            self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
+
+    def test_matmul_dyad(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            A = d.expand()
+            chk = A.T@A
+            res = (d.T@d).expand()
+            self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with 2 dyads \"{key}\"")
+
+    def test_slice(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            A = d.expand()
+
+            self.assertTrue(np.allclose(A[0:3, :], d[0:3, :].expand()))
+            self.assertTrue(np.allclose(A[0, :], d[0, :]))
+            self.assertTrue(np.allclose(A[:, 1], d[:, 1]))
+            self.assertTrue(np.allclose(A[0:5, 1:3], d[0:5, 1:3].expand()))
+
+    def test_mul_with_scalar(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            A = d.expand()
+
+            if np.iscomplexobj(A):
+                c = generate_random(1) + 1j*generate_random(1)
+            else:
+                c = generate_random(1)
+
+            chk = A*c
+            res = (d*c).expand()
+            self.assertTrue(np.allclose(chk, res))
+
+            chk = A*c[0]
+            res = (d*c[0]).expand()
+            self.assertTrue(np.allclose(chk, res))
+
+            chk = c*A
+            res = (c*d).expand()
+            self.assertTrue(np.allclose(chk, res))
+
+            chk = c[0]*A
+            res = (c[0]*d).expand()
+            self.assertTrue(np.allclose(chk, res))
