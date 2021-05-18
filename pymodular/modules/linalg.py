@@ -56,11 +56,14 @@ class LinSolve(Module):
         # Check if the adjoint rhs vector is linearly dependent on rhs vector b
         if islinear:
             # Projection of dfdu onto right-hand-side
-            # TODO: Check for multiple rhs
-            dfdunorm = dfdu.dot(dfdu)
-            alpha = rhs.dot(dfdu) / dfdunorm
-            tol = 1e-5
-            islinear = np.linalg.norm(dfdu - alpha * rhs) / dfdunorm < tol
+            if dfdu.ndim > 1:
+                islinear = False  # Just do the linear solve for now
+                # TODO: Check for multiple rhs
+            else:
+                dfdunorm = dfdu.dot(dfdu)
+                alpha = rhs.dot(dfdu) / dfdunorm
+                tol = 1e-5
+                islinear = np.linalg.norm(dfdu - alpha * rhs) / dfdunorm < tol
 
         if islinear:
             lam = alpha * self.u
@@ -73,7 +76,10 @@ class LinSolve(Module):
             else:
                 dmat = DyadCarrier(-lam, self.u)
         else:
-            dmat = np.outer(-np.conj(lam), np.conj(self.u))
+            if self.u.ndim > 1:
+                dmat = np.einsum("iB,jB->ij", -np.conj(lam), np.conj(self.u))
+            else:
+                dmat = np.outer(-np.conj(lam), np.conj(self.u))
             if self.iscomplex:
                 dmat = np.real(dmat)
 

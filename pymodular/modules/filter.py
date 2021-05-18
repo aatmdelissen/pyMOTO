@@ -5,7 +5,7 @@ from scipy.sparse import coo_matrix
 
 
 class Filter(Module):
-    def _prepare(self, nonpadding=None, *args, **kwargs):
+    def _prepare(self, *args, nonpadding=None, **kwargs):
         self.H = self.calculate_h(*args, **kwargs).tocsc()
 
         self.Hs = self.H.sum(1)

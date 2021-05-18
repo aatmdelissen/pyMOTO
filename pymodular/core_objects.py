@@ -1,9 +1,10 @@
 from typing import Union, List, Any
 import warnings
 import sys
-import functools
+import inspect
 from .utils import _parse_to_list
 from abc import ABC, abstractmethod
+
 
 class Signal:
     """
@@ -130,9 +131,6 @@ class RegisteredClass(object):
     def print_children(cls):
         print(": ".join([cls.__name__+" subtypes", ", ".join(cls.all_subclasses().keys())]))
 
-import inspect
-import functools
-import traceback
 
 class Module(ABC, RegisteredClass):
     """
@@ -289,10 +287,11 @@ class Network(Module):
             raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
 
     def response(self):
-        try:
-            [b.response() for b in self.mods]
-        except Exception as e:
-            raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
+        for b in self.mods:
+            try:
+                b.response()
+            except Exception as e:
+                raise type(e)(str(e) + f', in module {type(self).__name__}' + b._error_str()).with_traceback(sys.exc_info()[2]) from None
 
     def sensitivity(self):
         try:
@@ -302,7 +301,7 @@ class Network(Module):
 
     def reset(self):
         try:
-            [b.reset() for b in self.mods]
+            [b.reset() for b in reversed(self.mods)]
         except Exception as e:
             raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
 

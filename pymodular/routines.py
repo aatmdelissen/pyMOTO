@@ -1,20 +1,23 @@
 import numpy as np
 from .utils import _parse_to_list, _concatenate_to_array
 from .core_objects import Signal, Module
-from typing import List, Iterable, Union
+from typing import List, Iterable, Union, Callable
 
 
 def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = None,
                       tosig: Union[Signal, Iterable[Signal]] = None,
-                      dx: float = 1e-8, tol: float = 1e-5, random: bool = True, use_df: list = None):
+                      dx: float = 1e-8, tol: float = 1e-5, random: bool = True, use_df: list = None,
+                      test_fn: Callable = None):
     """ Performs a finite difference check on the given module or network
 
     :param blk: The module or network
     :param fromsig: Specify input signals of interest
     :param tosig: Specify output signals of interest
     :param dx: Perturbation size
-    :param random: Randomize sensitivity data
     :param tol: Tolerance
+    :param random: Randomize sensitivity data
+    :param use_df: Give pre-defined sensitivity data
+    :param test_fn: A generic test function (x, dx, df_an, df_fd)
     """
     print("=========================================================================================================\n")
     print("Starting finite difference of \"{0}\" with dx = {1}, and tol = {2}".format(type(blk).__name__, dx, tol))
@@ -119,6 +122,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             for Iout, Sout in enumerate(outps):
                 # Obtain perturbed response
                 fp = Sout.state
+                # print(fp)
 
                 # Finite difference sensitivity
                 df = (fp - f0[Iout])/dx
@@ -138,6 +142,9 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                       % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
                 if error > tol:
                     print("ERROR!")
+
+                if test_fn is not None:
+                    test_fn(x0, dx, dgdx_an, dgdx_fd)
 
             # Restore original state
             if is_iterable:
@@ -178,6 +185,9 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
 
                     print("d%s/d%s (I) i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s"
                           % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
+
+                    if test_fn is not None:
+                        test_fn(x0, dx, dgdx_an, dgdx_fd)
 
                 # Restore original state
                 if is_iterable:

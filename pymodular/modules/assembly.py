@@ -1,7 +1,15 @@
-""" Assembly modules for finite element analysis """
+""" Assembly modules for finite element analysis
+Assuming node numbering:
+
+ 3 -------- 4
+ |          |
+ |          |
+ 1 -------- 2
+
+"""
 from pymodular import Module, DyadCarrier
 import numpy as np
-from scipy.sparse import csc_matrix
+from scipy.sparse import csr_matrix
 
 
 class DomainDefinition:
@@ -53,7 +61,7 @@ class DomainDefinition:
 
 
 class AssembleGeneral(Module):
-    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=1.0, *args, **kwargs):
+    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None, *args, **kwargs):
         self.elmat = element_matrix
         self.ndof = self.elmat.shape[-1] // domain.elemnodes  # Number of dofs per node
         self.n = self.ndof * domain.nnodes  # Matrix size
@@ -67,7 +75,7 @@ class AssembleGeneral(Module):
 
         # Boundary conditions
         self.bc = bc
-        self.bcdiagval = bcdiagval
+        self.bcdiagval = np.max(element_matrix) if bcdiagval is None else bcdiagval
         if bc is not None:
             self.bcselect = np.argwhere(np.bitwise_not(np.bitwise_or(np.isin(self.rows, self.bc),
                                                                      np.isin(self.cols, self.bc)))).flatten()
@@ -86,31 +94,46 @@ class AssembleGeneral(Module):
         else:
             mat_values = scaled_el
 
-        mat = csc_matrix((mat_values, (self.rows, self.cols)), shape=(self.n, self.n))
+        mat = csr_matrix((mat_values, (self.rows, self.cols)), shape=(self.n, self.n))
 
         return mat
 
     def _sensitivity(self, dgdmat: DyadCarrier):
-        return dgdmat.contract(self.elmat, self.dofconn, self.dofconn)
+        if isinstance(dgdmat, np.ndarray):
+            if self.bc is not None:
+                dgdmat = dgdmat.copy()
+                indi, indj = np.meshgrid(self.bc)
+                dgdmat[indi, indj] = 0.0
+            dx = np.zeros_like(self.sig_in[0].state)
+            for i in range(len(dx)):
+                indu, indv = np.meshgrid(self.dofconn[i], self.dofconn[i], indexing='ij')
+                dx[i] = np.einsum("ij,ij->", self.elmat, dgdmat[indu, indv])
+            return dx
+        else:
+            if self.bc is not None:
+                dgdmat = dgdmat.copy()
+                for ui, vi in zip(dgdmat.u, dgdmat.v):
+                    ui[self.bc] = 0.0
+                    vi[self.bc] = 0.0
+            return dgdmat.contract(self.elmat, self.dofconn, self.dofconn)
 
 
 class AssembleStiffness(AssembleGeneral):
     """ Stiffness matrix assembly by scaling elements
     K = sum xScale_e K_e
     """
-    def _prepare(self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, *args, **kwargs):
+    def _prepare(self, domain: DomainDefinition, *args, e_modulus: float = 1.0, poisson_ratio: float = 0.3, lx: float = 1.0, ly: float = 1.0, lz: float = 1.0, **kwargs):
         """
         :param e_modulus: Base Young's modulus
         :param poisson_ratio: Base Poisson's ratio
+        :param lx: Element size in x-direction
+        :param ly: Element size in y-direction
+        :param lz: Element size in z-direction (thickness)
         """
         self.E = e_modulus
         self.nu = poisson_ratio
 
         # Element stiffness matrix
-        ly = 1.0
-        lx = 1.0
-        lz = 1.0
-
         c = ly / lx
         ka = (4 * c) * (1 - self.nu)
         kc = (4 / c) * (1 - self.nu)
@@ -130,3 +153,31 @@ class AssembleStiffness(AssembleGeneral):
             [3 / 2, -kc / 2 - kd / 2, kf, kc / 2 - kd, -kf, -kc + kd / 2, -3 / 2, kc + kd],
         ])
         super()._prepare(domain, self.KE, *args, **kwargs)
+
+
+class AssembleMass(AssembleGeneral):
+    """ Consistent mass matrix assembly by scaling elements
+    M = sum xScale_e M_e
+    """
+    def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, lx: float = 1.0, ly: float = 1.0, lz: float = 1.0, **kwargs):
+        """
+        :param rho: Base density
+        :param lx: Element size in x-direction
+        :param ly: Element size in y-direction
+        :param lz: Element size in z-direction (thickness)
+        """
+
+        # Element mass matrix
+        # 1/36 Mass of one element
+        mel = rho * lx * ly * lz
+
+        # Consistent mass matrix
+        ME = mel / 36 * np.array([[4.0, 0.0, 2.0, 0.0, 2.0, 0.0, 1.0, 0.0],
+                                  [0.0, 4.0, 0.0, 2.0, 0.0, 2.0, 0.0, 1.0],
+                                  [2.0, 0.0, 4.0, 0.0, 1.0, 0.0, 2.0, 0.0],
+                                  [0.0, 2.0, 0.0, 4.0, 0.0, 1.0, 0.0, 2.0],
+                                  [2.0, 0.0, 1.0, 0.0, 4.0, 0.0, 2.0, 0.0],
+                                  [0.0, 2.0, 0.0, 1.0, 0.0, 4.0, 0.0, 2.0],
+                                  [1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 4.0, 0.0],
+                                  [0.0, 1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 4.0]])
+        super()._prepare(domain, ME, *args, **kwargs)
