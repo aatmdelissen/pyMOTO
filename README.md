@@ -16,3 +16,6 @@ After installing, execute tests by typing:
 ```bash
 python setup.py test
 ```
+
+# License
+PyModular is available under te [MIT License](https://opensource.org/licenses/MIT).
