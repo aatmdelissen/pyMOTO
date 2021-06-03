@@ -118,11 +118,62 @@ class AssembleGeneral(Module):
             return dgdmat.contract(self.elmat, self.dofconn, self.dofconn)
 
 
+def get_B(x, y, a, b):
+    '''
+       Quadrangle element:
+
+          y
+          ^
+          |
+    2-----------3
+    |     |     |
+    |     |     |
+    |     +---- | --> x
+    |           |
+    |           |
+    0-----------1
+
+    Natural coordinates: xi [-1, 1], eta [-1, 1]
+    Shape functions: Cook eq. (6.2-3)
+       N0 = 1/(4ab) (a - x) (b - y)
+       N1 = 1/(4ab) (a + x) (b - y)
+       N2 = 1/(4ab) (a - x) (b + y)
+       N3 = 1/(4ab) (a + x) (b + y)
+    :param x: Evaluation point, x-coordinate
+    :param y: Evaluation point, y-coordinate
+    :param a: Half width (x-direction)
+    :param b: Half height (y-direction)
+    :return: B (shape function derivatives)
+    '''
+    der_x = np.array([-(b-y),   b-y, -(b+y), b+y]) / (4*a*b)
+    der_y = np.array([-(a-x), -(a+x),  a-x,  a+x]) / (4*a*b)
+    return np.array([[der_x[0], 0,        der_x[1], 0,        der_x[2], 0,        der_x[3], 0],
+                     [0,        der_y[0], 0,        der_y[1], 0,        der_y[2], 0,        der_y[3]],
+                     [der_y[0], der_x[0], der_y[1], der_x[1], der_y[2], der_x[2], der_y[3], der_x[3]]])
+
+
+def get_D(E, nu, mode='strain'):
+    if mode == 'strain':
+        mu = E/(2*(1+nu))
+        lam = (E*nu) / ((1+nu)*(1-2*nu))
+        c1 = 2*mu + lam
+        return np.array([[c1, lam, 0],
+                         [lam, c1, 0],
+                         [0,   0, mu]])
+    elif mode == 'stress':
+        a = E / (1 - nu * nu)
+        return a*np.array([[1, nu, 0],
+                           [nu, 1, 0],
+                           [0, 0, (1-nu)/2]])
+    else:
+        raise RuntimeError("Only for plane-stress or plane-strain")
+
+
 class AssembleStiffness(AssembleGeneral):
-    """ Stiffness matrix assembly by scaling elements
+    """ Stiffness matrix assembly by scaling elements ( Plane stress )
     K = sum xScale_e K_e
     """
-    def _prepare(self, domain: DomainDefinition, *args, e_modulus: float = 1.0, poisson_ratio: float = 0.3, lx: float = 1.0, ly: float = 1.0, lz: float = 1.0, **kwargs):
+    def _prepare(self, domain: DomainDefinition, *args, e_modulus: float = 1.0, poisson_ratio: float = 0.3, lx: float = 1.0, ly: float = 1.0, lz: float = 1.0, plane='strain', **kwargs):
         """
         :param e_modulus: Base Young's modulus
         :param poisson_ratio: Base Poisson's ratio
@@ -130,28 +181,22 @@ class AssembleStiffness(AssembleGeneral):
         :param ly: Element size in y-direction
         :param lz: Element size in z-direction (thickness)
         """
-        self.E = e_modulus
-        self.nu = poisson_ratio
+        self.E, self.nu = e_modulus, poisson_ratio
+
+        # Get material relation
+        D = get_D(self.E, self.nu, plane.lower()) * lz
 
         # Element stiffness matrix
-        c = ly / lx
-        ka = (4 * c) * (1 - self.nu)
-        kc = (4 / c) * (1 - self.nu)
-        kd = (2 * c) * (1 - 2 * self.nu)
-        kb = (2 / c) * (1 - 2 * self.nu)
-        ke = self.E * lz / (12 * (1 + self.nu) * (1 - 2 * self.nu))
-        kf = 6 * self.nu - 3 / 2
+        self.KE = np.zeros((8,8))
 
-        self.KE = ke * np.array([
-            [ka + kb, -3 / 2, ka / 2 - kb, kf, -ka + kb / 2, -kf, -ka / 2 - kb / 2, 3 / 2],
-            [-3 / 2, kc + kd, -kf, -kc + kd / 2, kf, kc / 2 - kd, 3 / 2, -kc / 2 - kd / 2],
-            [ka / 2 - kb, -kf, ka + kb, 3 / 2, -ka / 2 - kb / 2, -3 / 2, -ka + kb / 2, kf],
-            [kf, -kc + kd / 2, 3 / 2, kc + kd, -3 / 2, -kc / 2 - kd / 2, -kf, kc / 2 - kd],
-            [-ka + kb / 2, kf, -ka / 2 - kb / 2, -3 / 2, ka + kb, 3 / 2, ka / 2 - kb, -kf],
-            [-kf, kc / 2 - kd, -3 / 2, -kc / 2 - kd / 2, 3 / 2, kc + kd, kf, -kc + kd / 2],
-            [-ka / 2 - kb / 2, 3 / 2, -ka + kb / 2, -kf, ka / 2 - kb, kf, ka + kb, -3 / 2],
-            [3 / 2, -kc / 2 - kd / 2, kf, kc / 2 - kd, -kf, -kc + kd / 2, -3 / 2, kc + kd],
-        ])
+        # Numerical integration
+        a, b = lx/2, ly/2
+        w = a*b
+        for px in np.array([-1.0, 1.0])*a/np.sqrt(3):
+            for py in np.array([-1.0, 1.0])*b/np.sqrt(3):
+                B = get_B(px, py, a, b)
+                self.KE += w * B.T@D@B
+
         super()._prepare(domain, self.KE, *args, **kwargs)
 
 
