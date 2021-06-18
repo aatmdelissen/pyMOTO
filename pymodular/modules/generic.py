@@ -1,6 +1,10 @@
 """ Generic modules, valid for general mathematical operations """
 import numpy as np
 from pymodular.core_objects import Module
+try:
+    from opt_einsum import contract as einsum
+except ModuleNotFoundError:
+    from numpy import einsum
 
 
 class MathGeneral(Module):
@@ -81,6 +85,7 @@ class EinSum(Module):
     Elementwise multiply   "i,i->i"       w = u * v
     Dot product            "i,i->"        y = np.dot(u,v)
     Outer product          "i,j->ij"      A = np.outer(u,v)
+    Matrix trace           "ii->"         y = np.trace(A)
     Matrix-vector product  "ij,j->i"      x = A.dot(b)
     Quadratic form         "i,ij,j->"     y = b.dot(A.dot(b))
     Matrix-matrix product  "ij,ij->ij"    C = A * B
@@ -100,7 +105,7 @@ class EinSum(Module):
         self.indices_out = cmd[1] if "->" in self.expr else ''
 
     def _response(self, *args):
-        return [np.einsum(self.expr, *args)]
+        return [einsum(self.expr, *args)]
 
     def _sensitivity(self, df_in):
         n_in = len(self.sig_in)
@@ -134,7 +139,7 @@ class EinSum(Module):
 
             da_i = np.zeros_like(self.sig_in[ar].state)
             op = ",".join(ind_in)+"->"+ind_out
-            np.einsum(op, np.conj(df_in), *arg_in, out=da_i)
+            einsum(op, np.conj(df_in), *arg_in, out=da_i)
             df_out.append(np.conj(da_i))
         return df_out
 
