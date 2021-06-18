@@ -58,15 +58,15 @@ class PlotIter(Module):
                 plt.show(block=False)
 
         for i, xx in enumerate(args):
-            if not hasattr(xx, '__len__'):
-                xadd = xx
-                self.line[i].set_ydata(np.append(self.line[i].get_ydata(), xadd))
-                self.line[i].set_xdata(np.append(self.line[i].get_xdata(), self.iter))
-            elif len(xx):
-
+            try:
                 xadd = xx.reshape(xx.size)
                 self.line[i].set_ydata(np.concatenate([self.line[i].get_ydata(), xadd]))
                 self.line[i].set_xdata(np.concatenate([self.line[i].get_xdata(), self.iter*np.ones_like(xadd)]))
+            except:
+                xadd = xx
+                self.line[i].set_ydata(np.append(self.line[i].get_ydata(), xadd))
+                self.line[i].set_xdata(np.append(self.line[i].get_xdata(), self.iter))
+
 
             self.minlim = min(self.minlim, np.min(xadd))
             self.maxlim = max(self.maxlim, np.max(xadd))
