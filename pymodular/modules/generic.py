@@ -64,9 +64,10 @@ class MathGeneral(Module):
                 except TypeError:
                     state_len = 1
 
-            sens_len = 1
-            if hasattr(dg_dx[i], "__len__"):
+            try:
                 sens_len = len(dg_dx[i])
+            except TypeError:
+                sens_len = 1
 
             if state_len == 1 and sens_len > 1:
                 dg_dx[i] = np.sum(dg_dx[i])
