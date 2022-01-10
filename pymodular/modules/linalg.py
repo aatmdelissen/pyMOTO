@@ -174,16 +174,20 @@ def _find_libmkl():
     # - if there are multiple matches for `mkl_rt`, try shorter paths
     #   first
     if mkl_rt is None:
-        mkl_rt_path = sorted(
-            glob.glob(f'{sys.prefix}/[Ll]ib*/**/*mkl_rt*', recursive=True),
-            key=len
-        )
-        for path in mkl_rt_path:
-            try:
-                libmkl = ctypes.CDLL(path)
+        roots = [sys.prefix, os.environ['MKLROOT']]
+        for root in roots:
+            mkl_rt_path = sorted(
+                glob.glob(f'{root}/[Ll]ib*/**/*mkl_rt*', recursive=True),
+                key=len
+            )
+            for path in mkl_rt_path:
+                try:
+                    libmkl = ctypes.CDLL(path)
+                    break
+                except (OSError, ImportError):
+                    pass
+            if libmkl is not None:
                 break
-            except (OSError, ImportError):
-                pass
 
         if libmkl is None:
             raise ImportError('Shared library mkl_rt not found')
