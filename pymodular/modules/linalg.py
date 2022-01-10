@@ -244,7 +244,7 @@ if __libmkl is not None:
             :param size_limit_storage: 
             """
     
-            self.libmkl = __libmkl
+            self.libmkl = _find_libmkl()
             self._mkl_pardiso = self.libmkl.pardiso
     
             # determine 32bit or 64bit architecture
