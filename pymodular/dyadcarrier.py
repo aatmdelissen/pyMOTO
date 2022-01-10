@@ -17,6 +17,11 @@ def isscalarlike(x):
     return np.isscalar(x) or (isdense(x) and x.ndim == 0)
 
 
+def isnullslice(x):
+    """ Checks if argument is ':' slice """
+    return isinstance(x, slice) and x == slice(None, None, None)
+
+
 class DyadCarrier(object):
     """ Sparse rank-N matrix
     Stores only the vectors instead of creating a rank-N matrix
@@ -61,17 +66,22 @@ class DyadCarrier(object):
         n = len(ulist)
 
         for i, ui, vi in zip(range(n), ulist, vlist):
+            # Make sure they are numpy arrays
             if not isinstance(ui, np.ndarray):
-                raise TypeError(f"Vector in dyadcarrier should be np.ndarray. Got {type(ui)} instead.")
+                ui = np.array(ui)
             if not isinstance(vi, np.ndarray):
-                raise TypeError(f"Vector in dyadcarrier should be np.ndarray. Got {type(vi)} instead.")
+                vi = np.array(vi)
 
             # Sum if it is a block-matrix U.V^T = sum u_i.v_j^T
             if ui.ndim > 1:
                 ui = ui.sum(axis=tuple(range(ui.ndim - 1)))
+            elif ui.ndim == 0:
+                ui = ui[np.newaxis]
 
             if vi.ndim > 1:
                 vi = vi.sum(axis=tuple(range(vi.ndim - 1)))
+            elif vi.ndim == 0:
+                vi = vi[np.newaxis]
 
             # Update the dyadic matrix dimensions
             if self.ulen < 0:
@@ -103,21 +113,35 @@ class DyadCarrier(object):
         self.shape = (self.ulen, self.vlen)
 
     def __getitem__(self, subscript):
-        assert len(subscript) == self.ndim, "Invalid number of slices"
+        assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
         usub = [ui[subscript[0]] for ui in self.u]
         vsub = [vi[subscript[1]] for vi in self.v]
-        if isscalarlike(usub[0]):
-            val = np.zeros_like(vsub[0])
-            for ui, vi in zip(usub, vsub):
-                val += ui*vi
-            return val
-        elif isscalarlike(vsub[0]):
-            val = np.zeros_like(usub[0])
-            for ui, vi in zip(usub, vsub):
-                val += ui*vi
-            return val
+        subdyad = DyadCarrier(usub, vsub)
+        if isscalarlike(usub[0]) or isscalarlike(vsub[0]):
+            mat = subdyad.todense()
+            if isscalarlike(usub[0]) and isscalarlike(vsub[0]):
+                return mat[0, 0]
+            else:
+                return mat.flatten()
+        elif isinstance(subscript[0], np.ndarray) and isinstance(subscript[1], np.ndarray):
+            if subscript[0].shape != subscript[1].shape:
+                raise IndexError(f"shape mismatch: indexing arrays could not be broadcast together "
+                                 f"with shapes {subscript[0].shape} {subscript[1].shape}")
+            return subdyad.diagonal()
         else:
-            return DyadCarrier(usub, vsub)
+            return subdyad
+
+    def __setitem__(self, subscript, value):
+        assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
+        if value != 0.0:
+            raise ValueError("Setting entries to other than 0 makes no sense")
+        if not isnullslice(subscript[0]) and not isnullslice(subscript[1]):
+            raise IndexError("Only full-column or full-row slices can be set, e.g. [:, 3] or [3:8, :]")
+        for ui, vi in zip(self.u, self.v):
+            if not isnullslice(subscript[0]):
+                ui[subscript[0]] = value
+            if not isnullslice(subscript[1]):
+                vi[subscript[1]] = value
 
     def __pos__(self):
         return DyadCarrier(self.u, self.v)
@@ -141,7 +165,7 @@ class DyadCarrier(object):
             return DyadCarrier(self.u, self.v).__iadd__(other)
         elif isdense(other):
             other = np.broadcast_to(other, self.shape)
-            return other + self.expand()
+            return other + self.todense()
         else:
             return NotImplemented
 
@@ -163,7 +187,7 @@ class DyadCarrier(object):
                                       'nonzero scalar  is not supported')
         elif isdense(other):
             other = np.broadcast_to(other, self.shape)
-            return other - self.expand()
+            return other - self.todense()
         else:
             return NotImplemented
 
@@ -279,7 +303,7 @@ class DyadCarrier(object):
 
         return val
 
-    def expand(self):
+    def todense(self):
         """ Convert to a full (dense) matrix
 
         :return: Rank-N dyadic matrix

@@ -6,9 +6,12 @@ import os
 
 
 class PlotDomain2D(Module):
-    def _prepare(self, domain: DomainDefinition, saveto: str = None):
-        self.shape = (domain.nx, domain.ny)
-        self.fig, _ = plt.subplots(1, 1)
+    def _prepare(self, domain: DomainDefinition, saveto: str = None, clim=None, cmap='gray_r'):
+        self.clim = clim
+        self.cmap = cmap
+        self.domain = domain
+        # assert domain.nz < 2, "Only for 2D or 1-element thick 2D models"
+        self.fig = plt.figure()
         if saveto is not None:
             self.saveloc, self.saveext = os.path.splitext(saveto)
         else:
@@ -16,16 +19,14 @@ class PlotDomain2D(Module):
         self.iter = 0
 
     def _response(self, x):
-        ax = self.fig.axes[0]
-        data = x.reshape(self.shape, order='F').T
-        if hasattr(self, 'im'):
-            self.im.set_data(data)
-            self.im.set_clim(vmin=np.min(data), vmax=np.max(data))
+        if self.domain.dim == 2:
+            self.plot_2d(x)
+        elif self.domain.dim == 3:
+            self.plot_3d(x)
         else:
-            ax.set_title(self.sig_in[0].tag)
-            self.im = ax.imshow(data, origin='lower', cmap='gray_r')
-            self.cbar = self.fig.colorbar(self.im, orientation='horizontal')
-            plt.show(block=False)
+            raise NotImplementedError("Only 2D and 3D plots are implemented")
+        assert len(self.fig.axes) > 0, "Figure must contain axes"
+        self.fig.axes[0].set_title(f"{self.sig_in[0].tag}, Iteration {self.iter}")
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -34,6 +35,56 @@ class PlotDomain2D(Module):
             self.fig.savefig("{0:s}_{1:04d}{2:s}".format(self.saveloc, self.iter, self.saveext))
 
         self.iter += 1
+
+    def plot_2d(self, x):
+        data = x.reshape((self.domain.nx, self.domain.ny), order='F').T
+        if hasattr(self, 'im'):
+            self.im.set_data(data)
+        else:
+            ax = self.fig.add_subplot()
+            self.im = ax.imshow(data, origin='lower', cmap=self.cmap)
+            self.cbar = self.fig.colorbar(self.im, orientation='horizontal')
+            ax.set(xlabel='x', ylabel='y')
+            plt.show(block=False)
+        clim = [np.min(data), np.max(data)] if self.clim is None else self.clim
+        self.im.set_clim(vmin=clim[0], vmax=clim[1])
+
+    def plot_3d(self, x):
+        # prepare some coordinates, and attach rgb values to each
+        ei, ej, ek = np.indices((self.domain.nx, self.domain.ny, self.domain.nz))
+        els = self.domain.get_elemnumber(ei, ej, ek)
+        densities = x[els]
+
+        sel = densities > 0.4
+
+        # combine the color components
+        colors = np.zeros(sel.shape + (3,))
+        colors[..., 0] = np.clip(1-densities, 0, 1)
+        colors[..., 1] = np.clip(1-densities, 0, 1)
+        colors[..., 2] = np.clip(1-densities, 0, 1)
+
+        # and plot everything
+        if len(self.fig.axes) ==0:
+            from mpl_toolkits.mplot3d import Axes3D
+            ax = self.fig.add_subplot(projection='3d')
+            max_ext = max(self.domain.nx, self.domain.ny, self.domain.nz)
+            ax.set(xlabel='x', ylabel='y', zlabel='z',
+                   xlim=[(self.domain.nx-max_ext)/2, (self.domain.nx+max_ext)/2],
+                   ylim=[(self.domain.ny-max_ext)/2, (self.domain.ny+max_ext)/2],
+                   zlim=[(self.domain.nz-max_ext)/2, (self.domain.nz+max_ext)/2])
+            plt.show(block=False)
+        else:
+            ax = self.fig.axes[0]
+
+        if hasattr(self, 'fac'):
+            for i, f in self.fac.items():
+                f.remove()
+
+        self.fac = ax.voxels(sel,
+                  facecolors=colors,
+                  edgecolors='k',#np.clip(2*colors - 0.5, 0, 1),  # brighter
+                  linewidth=0.5)
+
 
 
 class PlotIter(Module):

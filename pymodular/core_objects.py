@@ -20,9 +20,16 @@ class Signal:
 
     """
     def __init__(self, tag: str = "", state: Any = None, sensitivity: Any = None):
+        """
+
+        :param tag: The name of the signal (string)
+        :param state: The initialized state (optional)
+        :param sensitivity: The initialized sensitivity (optional)
+        """
         self.tag = tag
         self.state = state
         self.sensitivity = sensitivity
+        self.keep_alloc = sensitivity is not None
 
     def add_sensitivity(self, ds: Any):
         try:
@@ -33,20 +40,30 @@ class Signal:
             else:
                 self.sensitivity += ds
         except Exception as e:
-            raise type(e)(str(e) + ', in signal %s' % self.tag).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(f"{e}, in signal {self.tag}").with_traceback(sys.exc_info()[2]) from None
 
     def reset(self, keep_alloc: bool = False):
-        if keep_alloc and self.sensitivity is not None:
+        if self.keep_alloc and keep_alloc and self.sensitivity is not None:
             self.sensitivity *= 0
         else:
             self.sensitivity = None
 
 
 def make_signals(*args):
+    """ Batch-initialize a number of Signals
+
+    :param args: Tags for a number of Signals
+    :return: List of Signals
+    """
     return [Signal(s) for s in args]
 
 
 def _check_valid_signal(sig: Any):
+    """ Checks if the argument is a valid Signal object
+
+    :param sig: The object to check
+    :return: True if it is a valid Signal
+    """
     if isinstance(sig, Signal):
         return True
     if hasattr(sig, "state") and hasattr(sig, "sensitivity"):
@@ -57,11 +74,43 @@ def _check_valid_signal(sig: Any):
 
 
 def _check_valid_module(mod: Any):
+    """ Checks if the argument is a valid Module object
+
+    :param mod: The object to check
+    :return: True if it is a valid Module
+    """
     if issubclass(type(mod), Module):
         return True
     if hasattr(mod, "response") and hasattr(mod, "sensitivity") and hasattr(mod, "reset"):
         return True
     raise TypeError("Entry {} is not a Module".format(mod))
+
+
+def _check_function_signature(fn, signals):
+    """ Checks the function signature against given signal list
+
+    :param fn: response_ or sensitivity_ function of a Module
+    :param signals: The signals involved
+    """
+    min_args, max_args = 0, 0
+    callstr = f"{type(fn.__self__).__name__}.{fn.__name__}{inspect.signature(fn)}"
+    for s, p in inspect.signature(fn).parameters.items():
+        if p.kind==inspect.Parameter.POSITIONAL_ONLY or p.kind==inspect.Parameter.POSITIONAL_OR_KEYWORD:
+            if p.default!=inspect.Parameter.empty:
+                raise SyntaxError(f"{callstr} must not have default values \"{p}\"")
+            min_args += 1
+            if max_args>=0:
+                max_args += 1
+        elif p.kind==inspect.Parameter.VAR_POSITIONAL:
+            max_args = -1
+        elif p.kind==inspect.Parameter.KEYWORD_ONLY:
+            raise SyntaxError(f"{callstr} may not contain keyword arguments \"{p}\"")
+        elif p.kind==inspect.Parameter.VAR_KEYWORD:
+            raise SyntaxError(f"{callstr} may not contain \"{p}\"")
+    if len(signals) < min_args:
+        raise TypeError(f"Not enough arguments ({len(signals)}) for {callstr}")
+    if max_args >=0 and len(signals) > max_args:
+        raise TypeError(f"Too many arguments ({len(signals)}) for {callstr}")
 
 
 class RegisteredClass(object):
@@ -153,27 +202,69 @@ class Module(ABC, RegisteredClass):
     >> Module(sig_in=[inputs], sig_out=[outputs]
     """
 
-    def _error_str(self, add_signal: bool=True):
+    def _error_str(self, add_signal: bool=True, fn=None):
         sig_str = ""
         if add_signal:
             sig_str = f"{[s.tag for s in self.sig_in]}->{[s.tag for s in self.sig_out]}"
-        lineno = inspect.getsourcelines(self.__class__)[1]
-        filename = inspect.getfile(self.__class__)
-        return f"\n\tFile \"{filename}\", line {lineno}, in module {type(self).__name__}{sig_str}"
+
+        if fn is None:
+            name = self.__class__.__name__
+            lineno = inspect.getsourcelines(self.__class__)[1]
+            filename = inspect.getfile(self.__class__)
+        else:
+            name = f"{fn.__self__.__class__.__name__}.{fn.__name__}{inspect.signature(fn)}"
+            lineno = inspect.getsourcelines(fn)[1]
+            filename = inspect.getfile(fn)
+        return f"\n\tModule File \"{filename}\", line {lineno}, in {name} {sig_str}"
 
     def __init__(self, sig_in: Union[Signal, List[Signal]] = None, sig_out: Union[Signal, List[Signal]] = None,
                  *args, **kwargs):
         try:
+            # Parse input and output signals
             self.sig_in = _parse_to_list(sig_in)
-            [_check_valid_signal(s) for s in self.sig_in]
-
             self.sig_out = _parse_to_list(sig_out)
-            [_check_valid_signal(s) for s in self.sig_out]
 
+            # Check if the signals are valid
+            [_check_valid_signal(s) for s in self.sig_in]
+            [_check_valid_signal(s) for s in self.sig_out]
+        except Exception as e:
+            raise type(e)(str(e) + self._error_str(add_signal=True)).with_traceback(sys.exc_info()[2]) from None
+
+        try:
             # Call preparation of submodule with remaining arguments
             self._prepare(*args, **kwargs)
+
+            # Save error string to location where it is initialized
+            _, filename, line, func, _, _ = inspect.stack()[1]
+            self._init_err_str = f"\n\tInitialized in File \"{filename}\", line {line}, in {func}"
         except Exception as e:
             raise type(e)(str(e) + self._error_str(add_signal=False)).with_traceback(sys.exc_info()[2]) from None
+
+        try:
+            # Check if the signals match _response() signature
+            _check_function_signature(self._response, self.sig_in)
+        except Exception as e:
+            raise type(e)(str(e) + self._error_str(add_signal=False, fn=self._response)).with_traceback(sys.exc_info()[2]) from None
+
+        try:
+            # If no output signals are given, but are required, try to initialize them here
+            req_args = 0
+            for s, p in inspect.signature(self._sensitivity).parameters.items():
+                if p.kind==inspect.Parameter.POSITIONAL_ONLY or p.kind==inspect.Parameter.POSITIONAL_OR_KEYWORD:
+                    if req_args>=0:
+                        req_args += 1
+                elif p.kind==inspect.Parameter.VAR_POSITIONAL:
+                    req_args = -1
+            if len(self.sig_out)==0 and req_args>=0 and req_args != len(self.sig_out):
+                # Initialize a number of output signals with default names
+                self.sig_out = [Signal(f"{type(self).__name__}_output{i}") for i in range(req_args)]
+
+            # Check if signals match _sensitivity() signature
+            _check_function_signature(self._sensitivity, self.sig_out)
+        except Exception as e:
+            raise type(e)(str(e) + self._error_str(add_signal=False, fn=self._sensitivity)).with_traceback(sys.exc_info()[2]) from None
+
+
 
     def response(self):
         """
@@ -193,7 +284,7 @@ class Module(ABC, RegisteredClass):
                 self.sig_out[i].state = val
 
         except Exception as e:
-            raise type(e)(str(e) + self._error_str()).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e) + self._error_str(fn=self._response) + self._init_err_str).with_traceback(sys.exc_info()[2]) from None
 
     def sensitivity(self):
         """
@@ -219,7 +310,7 @@ class Module(ABC, RegisteredClass):
                 self.sig_in[i].add_sensitivity(ds)
 
         except Exception as e:
-            raise type(e)(str(e) + self._error_str()).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e) + self._error_str(fn=self._sensitivity) + self._init_err_str).with_traceback(sys.exc_info()[2]) from None
 
     def reset(self):
         try:
@@ -227,7 +318,7 @@ class Module(ABC, RegisteredClass):
             [s.reset() for s in self.sig_in]
             self._reset()
         except Exception as e:
-            raise type(e)(str(e) + self._error_str()).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e) + self._error_str(fn=self._reset)).with_traceback(sys.exc_info()[2]) from None
 
     # METHODS TO BE DEFINED BY USER
     def _prepare(self, *args, **kwargs):
@@ -245,41 +336,47 @@ class Module(ABC, RegisteredClass):
     def _reset(self):
         pass
 
+try:
+    import jax
+    import numpy as np
+    class AutoMod(Module):
+        """ Module that automatically differentiates the response function """
+        def response(self):
+            # Calculate the response and tangent operator (JAX Vector-Jacobian product)
+            y, self.vjp_fn = jax.vjp(self._response, *[s.state for s in self.sig_in])
+            y = _parse_to_list(y)
 
-import jax
-import numpy as np
-class AutoMod(Module):
-    """ Module that automatically differentiates the response function """
-    def response(self):
-        # Calculate the response and tangent operator (JAX Vector-Jacobian product)
-        y, self.vjp_fn = jax.vjp(self._response, *[s.state for s in self.sig_in])
-        y = _parse_to_list(y)
+            # Assign all the states
+            for i, s in enumerate(self.sig_out):
+                s.state = y[i]
 
-        # Assign all the states
-        for i, s in enumerate(self.sig_out):
-            s.state = y[i]
+        def sensitivity(self):
+            # Gather the output sensitivities
+            dfdv = [s.sensitivity for s in self.sig_out]
+            if np.all([df is None for df in dfdv]):
+                return
+            for i in range(len(dfdv)):
+                if dfdv[i] is None:  # JAX does not accept None as 0
+                    dfdv[i] = np.zeros_like(self.sig_out[i].state)
+                elif np.iscomplexobj(dfdv[i]):
+                    dfdv[i] = np.conj(dfdv[i])
+            dfdv = tuple(dfdv) if len(dfdv) > 1 else dfdv[0]
 
-    def sensitivity(self):
-        # Gather the output sensitivities
-        dfdv = [s.sensitivity for s in self.sig_out]
-        if np.all([df is None for df in dfdv]):
-            return
-        for i in range(len(dfdv)):
-            if dfdv[i] is None:  # JAX does not accept None as 0
-                dfdv[i] = np.zeros_like(self.sig_out[i].state)
-            elif np.iscomplexobj(dfdv[i]):
-                dfdv[i] = np.conj(dfdv[i])
-        dfdv = tuple(dfdv) if len(dfdv) > 1 else dfdv[0]
+            # Calculate backward sensitivity
+            dfdx = _parse_to_list(self.vjp_fn(dfdv))
 
-        # Calculate backward sensitivity
-        dfdx = _parse_to_list(self.vjp_fn(dfdv))
+            # Assign the sensitivities
+            for i, s in enumerate(self.sig_in):
+                if np.iscomplexobj(dfdx[i]):
+                    s.add_sensitivity(np.conj(dfdx[i]))
+                else:
+                    s.add_sensitivity(dfdx[i])
+except ImportError:
+    class AutoMod(Module):
+        def __init__(self):
+            super().__init__()
+            raise ImportError("Could not create this object, as it is dependent on the Python library \"jax\"")
 
-        # Assign the sensitivities
-        for i, s in enumerate(self.sig_in):
-            if np.iscomplexobj(dfdx[i]):
-                s.add_sensitivity(np.conj(dfdx[i]))
-            else:
-                s.add_sensitivity(dfdx[i])
 
 class Network(Module):
     """ Binds multiple Modules together as one Module
@@ -322,30 +419,24 @@ class Network(Module):
             raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
 
     def response(self):
-        for b in self.mods:
-            try:
-                b.response()
-            except Exception as e:
-                raise type(e)(str(e) + f', in module {type(self).__name__}' + b._error_str()).with_traceback(sys.exc_info()[2]) from None
+        [b.response() for b in self.mods]
 
     def sensitivity(self):
-        try:
-            [b.sensitivity() for b in reversed(self.mods)]
-        except Exception as e:
-            raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
+        [b.sensitivity() for b in reversed(self.mods)]
 
     def reset(self):
-        try:
-            [b.reset() for b in reversed(self.mods)]
-        except Exception as e:
-            raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
+        [b.reset() for b in reversed(self.mods)]
 
     def _response(self, *args):
         pass  # Unused
 
+    def __getitem__(self, item):
+        return self.mods[item]
+
     def append(self, *newmods):
+        modlist = _parse_to_list(*newmods)
         # Obtain the internal blocks
-        self.mods.append(*_parse_to_list(*newmods))
+        self.mods.extend(modlist)
 
         # Check if the blocks are initialized, else create them
         for i, b in enumerate(self.mods):
@@ -369,3 +460,4 @@ class Network(Module):
         self.sig_out = _parse_to_list(all_out)
         [_check_valid_signal(s) for s in self.sig_out]
 
+        return modlist[-1].sig_out[0] if len(modlist[-1].sig_out)==1 else modlist[-1].sig_out

@@ -240,7 +240,7 @@ class TestDyadCarrier(TestCase):
         self.assertTrue(np.allclose(np.conj(d.v[0]), dconj.v[0]))
         self.assertTrue(np.allclose(np.conj(d.v[1]), dconj.v[1]))
 
-    def test_expand(self):
+    def test_todense(self):
         n = 10
         u1 = np.random.rand(n)
         u2 = np.random.rand(n)
@@ -250,14 +250,14 @@ class TestDyadCarrier(TestCase):
         a = pym.DyadCarrier([u1, u2], [v1, v2])
 
         achk = np.outer(u1, v1) + np.outer(u2, v2)
-        self.assertTrue(np.allclose(achk, a.expand()))
+        self.assertTrue(np.allclose(achk, a.todense()))
 
         uu1 = np.random.rand(2, n)
         vv1 = np.random.rand(2, n)
         b = pym.DyadCarrier(uu1, vv1)
         bchk = np.outer(uu1[0, :], vv1[0, :]) + np.outer(uu1[1, :], vv1[0, :]) + \
                np.outer(uu1[0, :], vv1[1, :]) + np.outer(uu1[1, :], vv1[1, :])
-        self.assertTrue(np.allclose(b.expand(), bchk))
+        self.assertTrue(np.allclose(b.todense(), bchk))
 
         cu1 = np.random.rand(2, 2, n)
         cv1 = np.random.rand(2, 2, n)
@@ -270,26 +270,26 @@ class TestDyadCarrier(TestCase):
                np.outer(cu1[0, 0, :], cv1[1, 1, :]) + np.outer(cu1[0, 1, :], cv1[1, 1, :]) + \
                np.outer(cu1[1, 0, :], cv1[1, 0, :]) + np.outer(cu1[1, 1, :], cv1[1, 0, :]) + \
                np.outer(cu1[1, 0, :], cv1[1, 1, :]) + np.outer(cu1[1, 1, :], cv1[1, 1, :])
-        self.assertTrue(np.allclose(c.expand(), cchk))
+        self.assertTrue(np.allclose(c.todense(), cchk))
 
         d = pym.DyadCarrier([u1, uu1], [vv1, v1])
         dchk = np.outer(u1, vv1[0, :]) + np.outer(u1, vv1[1, :]) + np.outer(uu1[0, :], v1) + np.outer(uu1[1, :], v1)
-        self.assertTrue(np.allclose(d.expand(), dchk))
+        self.assertTrue(np.allclose(d.todense(), dchk))
 
         large_dyad = pym.DyadCarrier(np.random.rand(2000))
-        self.assertWarns(RuntimeWarning, large_dyad.expand)
+        self.assertWarns(RuntimeWarning, large_dyad.todense)
 
         empty_dyad = pym.DyadCarrier()
-        self.assertEqual(empty_dyad.expand().shape, (0, 0))
+        self.assertEqual(empty_dyad.todense().shape, (0, 0))
 
         u3 = np.random.rand(15)
         u4 = np.random.rand(15)
 
         dyad5 = pym.DyadCarrier([u3, u4], [v1, v2])
         dyad5chk = np.outer(u3, v1) + np.outer(u4, v2)
-        self.assertTrue(np.allclose(dyad5chk, dyad5.expand()))
+        self.assertTrue(np.allclose(dyad5chk, dyad5.todense()))
 
-    def test_expand_complex(self):
+    def test_todense_complex(self):
         n = 10
         u1 = np.random.rand(n) + 1j*np.random.rand(n)
         u2 = np.random.rand(n)
@@ -298,11 +298,11 @@ class TestDyadCarrier(TestCase):
 
         dyad1 = pym.DyadCarrier([u1, u2], [v1, v2])
         dyad1chk = np.outer(u1, v1) + np.outer(u2, v2)
-        self.assertTrue(np.allclose(dyad1chk, dyad1.expand()))
+        self.assertTrue(np.allclose(dyad1chk, dyad1.todense()))
 
         dyad2 = dyad1.conj()
         dyad2chk = np.conj(dyad1chk)
-        self.assertTrue(np.allclose(dyad2chk, dyad2.expand()))
+        self.assertTrue(np.allclose(dyad2chk, dyad2.todense()))
 
     def test_contract(self):
         n = 10
@@ -404,7 +404,7 @@ class TestDyadCarrier(TestCase):
         k_list = np.arange(-12, 12)
         for k in k_list:
             for key, d in dyads.items():
-                self.assertTrue(np.allclose(d.diagonal(k), np.diagonal(d.expand(), offset=k)),
+                self.assertTrue(np.allclose(d.diagonal(k), np.diagonal(d.todense(), offset=k)),
                                 msg=f"Failed diagonal test with offset \"{k}\" and dyad \"{key}\"")
 
 
@@ -419,7 +419,7 @@ class TestDyadCarrier(TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             q = generate_random(d.shape[1])
-            chk = d.expand().dot(q)
+            chk = d.todense().dot(q)
             self.assertTrue(np.allclose(d.dot(q), chk), msg=f"Failed dot test with dyad \"{key}\"")
             # np.dot(d, q) # This form cannot be overridden, so it will result in a list of dyadcarriers
 
@@ -427,8 +427,8 @@ class TestDyadCarrier(TestCase):
         n = 10
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
-            chk = d.expand().T
-            res1 = d.T.expand()
+            chk = d.todense().T
+            res1 = d.T.todense()
             self.assertTrue(np.allclose(chk, res1), msg=f"Failed transpose test with dyad \"{key}\"")
 
     def test_matmul_vec(self):
@@ -436,7 +436,7 @@ class TestDyadCarrier(TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             q = generate_random(d.shape[1])
-            chk = d.expand()@q
+            chk = d.todense()@q
             res = d@q
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
 
@@ -445,7 +445,7 @@ class TestDyadCarrier(TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             q = generate_random(d.shape[0])
-            chk = q@(d.expand())
+            chk = q@(d.todense())
             res = q@d
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
 
@@ -454,8 +454,8 @@ class TestDyadCarrier(TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             A = generate_random(d.shape[1], d.shape[1])
-            chk = d.expand()@A
-            res = (d@A).expand()
+            chk = d.todense()@A
+            res = (d@A).todense()
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
 
     def test_rmatmul(self):
@@ -463,35 +463,113 @@ class TestDyadCarrier(TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             A = generate_random(d.shape[0], d.shape[0])
-            chk = A@(d.expand())
-            res = (A@d).expand()
+            chk = A@(d.todense())
+            res = (A@d).todense()
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
 
     def test_matmul_dyad(self):
         n = 10
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
-            A = d.expand()
+            A = d.todense()
             chk = A.T@A
-            res = (d.T@d).expand()
+            res = (d.T@d).todense()
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with 2 dyads \"{key}\"")
 
     def test_slice(self):
         n = 10
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
-            A = d.expand()
+            A = d.todense()
 
-            self.assertTrue(np.allclose(A[0:3, :], d[0:3, :].expand()))
+            self.assertTrue(np.allclose(A[0:3, :], d[0:3, :].todense()))
             self.assertTrue(np.allclose(A[0, :], d[0, :]))
             self.assertTrue(np.allclose(A[:, 1], d[:, 1]))
-            self.assertTrue(np.allclose(A[0:5, 1:3], d[0:5, 1:3].expand()))
+            self.assertTrue(np.allclose(A[0:5, 1:3], d[0:5, 1:3].todense()))
+            self.assertTrue(np.allclose(A[0, 1], d[0, 1]))
+            self.assertTrue(np.allclose(A[3, 1], d[3, 1]))
+            
+            indi = np.arange(0, 4)
+            
+            self.assertTrue(np.allclose(A[indi, :], d[indi, :].todense()))
+            self.assertTrue(np.allclose(A[:, indi], d[:, indi].todense()))
+            self.assertTrue(np.allclose(A[indi, indi], d[indi, indi]))
+
+            indi = np.array([1, 1, 2, 3, 3])
+            self.assertTrue(np.allclose(A[indi, :], d[indi, :].todense()))
+            self.assertTrue(np.allclose(A[:, indi], d[:, indi].todense()))
+            self.assertTrue(np.allclose(A[indi, indi], d[indi, indi]))
+
+            fn = lambda: d[np.array([1, 2]), np.array([1, 2, 3])]
+            self.assertRaises(IndexError, fn)
+
+    def test_slice_asignment(self):
+        n = 10
+        dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
+        for key, d in dyads.items():
+            d0 = d.copy()
+            A = d0.todense()
+            A[0:3, :] = 0.0
+            d[0:3, :] = 0.0
+            self.assertTrue(np.allclose(A, d.todense()))
+
+            A, d = d0.todense(), d0.copy()
+            A[0, :] = 0.0
+            d[0, :] = 0.0
+            self.assertTrue(np.allclose(A, d.todense()))
+
+            A, d = d0.todense(), d0.copy()
+            A[:, 1] = 0.0
+            d[:, 1] = 0.0
+            self.assertTrue(np.allclose(A, d.todense()))
+
+            # "Impossible" options for a low-rank matrix
+            # A, d = d0.todense(), d0.copy()
+            # A[0:5, 1:3] = 0.0
+            # d[0:5, 1:3] = 0.0
+            # self.assertTrue(np.allclose(A, d.todense()))
+
+            # A, d = d0.todense(), d0.copy()
+            # A[0, 1] = 0.0
+            # d[0, 1] = 0.0
+            # self.assertTrue(np.allclose(A, d.todense()))
+
+            # A, d = d0.todense(), d0.copy()
+            # A[3, 1] = 0.0
+            # d[3, 1] = 0.0
+            # self.assertTrue(np.allclose(A, d.todense()))
+
+            indi = np.arange(0, 4)
+
+            A, d = d0.todense(), d0.copy()
+            A[indi, :] = 0.0
+            d[indi, :] = 0.0
+            self.assertTrue(np.allclose(A, d.todense()))
+
+            A, d = d0.todense(), d0.copy()
+            A[:, indi] = 0.0
+            d[:, indi] = 0.0
+            self.assertTrue(np.allclose(A, d.todense()))
+
+            # self.assertTrue(np.allclose(A[indi, indi], d[indi, indi]))
+
+            indi = np.array([1, 1, 2, 3, 3])
+            A, d = d0.todense(), d0.copy()
+            A[indi, :] = 0.0
+            d[indi, :] = 0.0
+            self.assertTrue(np.allclose(A, d.todense()))
+
+            A, d = d0.todense(), d0.copy()
+            A[:, indi] = 0.0
+            d[:, indi] = 0.0
+            self.assertTrue(np.allclose(A, d.todense()))
+            # self.assertTrue(np.allclose(A[indi, indi], d[indi, indi]))
 
     def test_mul_with_scalar(self):
         n = 10
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
-            A = d.expand()
+            A = d.todense()
 
             if np.iscomplexobj(A):
                 c = generate_random(1) + 1j*generate_random(1)
@@ -499,17 +577,17 @@ class TestDyadCarrier(TestCase):
                 c = generate_random(1)
 
             chk = A*c
-            res = (d*c).expand()
+            res = (d*c).todense()
             self.assertTrue(np.allclose(chk, res))
 
             chk = A*c[0]
-            res = (d*c[0]).expand()
+            res = (d*c[0]).todense()
             self.assertTrue(np.allclose(chk, res))
 
             chk = c*A
-            res = (c*d).expand()
+            res = (c*d).todense()
             self.assertTrue(np.allclose(chk, res))
 
             chk = c[0]*A
-            res = (c[0]*d).expand()
+            res = (c[0]*d).todense()
             self.assertTrue(np.allclose(chk, res))

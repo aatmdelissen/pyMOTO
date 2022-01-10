@@ -1,6 +1,6 @@
 import numpy as np
 from .utils import _parse_to_list, _concatenate_to_array
-from .core_objects import Signal, Module
+from .core_objects import Signal, Module, Network
 from typing import List, Iterable, Union, Callable
 
 
@@ -31,6 +31,20 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
         outps = blk.sig_out
     else:
         outps = _parse_to_list(tosig)
+
+    if isinstance(blk, Network):
+        i_first, i_last = -1, -1
+        for i, b in enumerate(blk.mods):
+            # Find the first module which requires any of the input signals
+            if i_first<0 and any([s in inps for s in b.sig_in]):
+                i_first = i
+            # Find the last module that generates any of the output signals
+            if any([s in outps for s in b.sig_out]):
+                i_last = i
+        blks_pre = Network(blk.mods[:i_first])
+        blk = Network(blk.mods[i_first:i_last+1])
+        # blks_post = Network(blk.mods[i_last+1:])
+        blks_pre.response()
 
     print("Inputs:")
     [print("{}\t{} = {}".format(i, s.tag, s.state)) for i, s in enumerate(inps)]
@@ -111,6 +125,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             if is_iterable:
                 x0 = it[0].copy()
                 it[0] += dx
+                Sin.state = x
             else:
                 x0 = np.asscalar(it[0])
                 Sin.state = x0 + dx
@@ -129,7 +144,10 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 dgdx_fd = np.real(np.sum(df*np.conj(df_an[Iout])))
 
                 if dx_an[Iout][Iin] is not None:
-                    dgdx_an = (np.real(dx_an[Iout][Iin][it.multi_index] if is_iterable else dx_an[Iout][Iin]))
+                    try:
+                        dgdx_an = np.real(dx_an[Iout][Iin][it.multi_index])
+                    except IndexError:
+                        dgdx_an = np.real(dx_an[Iout][Iin])
                 else:
                     dgdx_an = 0.0
 
@@ -149,6 +167,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             # Restore original state
             if is_iterable:
                 it[0] = x0
+                Sin.state = x
             else:
                 Sin.state = x0
 
@@ -158,7 +177,6 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 if is_iterable:
                     it[0] += dx*1j
                 else:
-                    print("is x (= {}) equal to x0 (= {})???".format(x, x0))
                     Sin.state = x0 + dx*1j
 
                 # Calculate perturbed solution
@@ -174,7 +192,10 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                     dgdx_fd = np.real(np.sum(df*np.conj(df_an[Iout])))
 
                     if dx_an[Iout][Iin] is not None:
-                        dgdx_an = (np.imag(dx_an[Iout][Iin][it.multi_index] if is_iterable else dx_an[Iout][Iin]))
+                        try:
+                            dgdx_an = np.imag(dx_an[Iout][Iin][it.multi_index])
+                        except IndexError:
+                            dgdx_an = np.imag(dx_an[Iout][Iin])
                     else:
                         dgdx_an = 0.0
 

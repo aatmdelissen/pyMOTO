@@ -35,11 +35,11 @@ class MyNewModule(Module):
         if x1 is None or x2 is None:
             raise RuntimeError("You forgot to set {} and {}".format(self.sig_in[0].tag, self.sig_in[1].tag))
 
-        # Store data
+        # Store data, which might be needed for the sensitivity calculation
         self.x1 = x1
         self.x2 = x2
 
-        # Calculate response
+        # Calculate two response values
         v1 = x1 * x2
         v2 = x1 + x2
 
@@ -58,9 +58,17 @@ class MyNewModule(Module):
         print('>> Do my sensitivity calculation')
 
         # Calculate the gradients with chain-rule
+        # First initialize sensitivities with the correct size containing all zeros
         df_dx1 = self.x1 * 0
         df_dx2 = self.x2 * 0
 
+        # In case the data of x1 and x2 were not stored, it could still be obtained here by directly accessing the state
+        # of the input signals.
+        also_x1 = self.sig_in[0].state
+        also_x2 = self.sig_in[0].state
+
+        # If the sensitivity of the output signal is empty, it is None. So we only need to do calculations whenever it
+        # is not None. In case both sensitivities of the output signals are None, this function won't be called.
         if df_dv1 is not None:
             df_dx1 += df_dv1*self.x2
             df_dx2 += df_dv1*self.x1
@@ -89,16 +97,25 @@ if __name__ == "__main__":
     print("Show all possible modules defined, it also lists the new locally defined module")
     Module.print_children()
 
+    # Create signals for the inputs. The argument is the 'tag' of the signal, which is optional.
+    # The signal's 'tag' can be seen as its name, which can be useful for printing or when
     x1 = Signal("x1")
+
+    # Also create a second input signal (as our module has two inputs)
     x2 = Signal("x2")
+
+    # And create two signals for the outputs
     y1 = Signal("y1")
     y2 = Signal("y2")
 
-    # The module can be instantiated using the constructor
+    # The module can be instantiated using the constructor. The first argument is a list of input signals, and the
+    # second argument is a list of output arguments. The other (keyword) arguments are directly passed to the _prepare()
+    # function of the module.
     print("\nInstantiate directly:")
     the_mod = MyNewModule([x1, x2], [y1, y2], 'my_arg_data', optional_arg=3.14)
 
-    # It can also be instantiated using Module.create, by referencing its name (case insensitive):
+    # It can also be instantiated using Module.create, by referencing its name (case insensitive) as first argument.
+    # All the other arguments remain identical to before.
     print("\nInstantiate by Module.create:")
     also_the_mod = Module.create("MyNewModule", [x1, x2], [y1, y2], 'my_arg_data1', optional_arg='bar')
 
@@ -111,15 +128,17 @@ if __name__ == "__main__":
     except RuntimeError as e:
         print("ERROR OBTAINED: ", e.__str__())
 
-    # Set the initial values
+    # Set the initial values to the state of the input signals using <Signal>.state
     x1.state = 2.0
     x2.state = 3.0
 
     print("\nState initialized to {0} = {1}, {2} = {3}".format(x1.tag, x1.state, x2.tag, x2.state))
     print("Call response")
     the_mod.response()
+    # The states of the output signals can be accessed using <Signal>.state
     print("The results: {0} = {1}, {2} = {3}".format(y1.tag, y1.state, y2.tag, y2.state))
 
+    # Sensitivity analysis
     print("_"*80)
     print("PART 3: Backpropagation (sensitivity analysis)")
 
@@ -130,8 +149,11 @@ if __name__ == "__main__":
     print("dg/d{} = {}".format(x2.tag, x2.sensitivity))
 
     print("\nSeed dg/dy1 = 1.0, so we can calculate dy1/dx1 and dy1/dx2")
+    # An initial 'seed' sensitivity of the last response you're interested in needs to be set. We can do this by setting
+    # the <Signal>.sensitivity property
     y1.sensitivity = 1.0
     the_mod.sensitivity()
+    # The sensitivities of the initial signals can also be accessed by <Signal>.sensitivity
     print("dy1/d{} = {}".format(x1.tag, x1.sensitivity))
     print("dy1/d{} = {}".format(x2.tag, x2.sensitivity))
 

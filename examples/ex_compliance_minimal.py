@@ -14,7 +14,7 @@ el = E / (12 * (1 + nu) * (1 - 2 * nu)) * np.array([
     [-ka + kb / 2, kf, -ka / 2 - kb / 2, -3 / 2, ka + kb, 3 / 2, ka / 2 - kb, -kf],
     [-kf, ka / 2 - kb, -3 / 2, -ka / 2 - kb / 2, 3 / 2, ka + kb, kf, -ka + kb / 2],
     [-ka / 2 - kb / 2, 3 / 2, -ka + kb / 2, -kf, ka / 2 - kb, kf, ka + kb, -3 / 2],
-    [3 / 2, -ka / 2 - kb / 2, kf, ka / 2 - kb, -kf, -ka + kb / 2, -3 / 2, ka + kb]])
+    [3 / 2, -ka / 2 - kb / 2, kf, ka / 2 - kb, -kf, -ka + kb / 2, -3 / 2, ka + kb]]) # TODO somehow the x and y are mixed up
 # OC update scheme
 def oc_update(x, dfdx):
     l1, l2, move = 0, 100000, 0.2
@@ -34,14 +34,13 @@ f[2*domain.get_nodenumber(nx, ny//2)] = 1.0
 # Initialize input signals
 sf = pym.Signal('f', state=f)  # Force signal
 sx = pym.Signal('x', state=np.ones(domain.nel)*volfrac)  # Design signal, with initial values
-sxfilt, sSIMP, sK, su, sg0 = pym.make_signals('xfiltered', 'x3', 'K', 'u', 'compliance')
 # Start building the modular network
 func = pym.Network()
-func.append(pym.Density(sx, sxfilt, domain=domain, radius=filter_radius))  # Filter
-func.append(pym.MathGeneral(sxfilt, sSIMP, expression="{0} + (1.0-{0})*inp0^3".format(xmin)))  # SIMP material interpolation
-func.append(pym.AssembleGeneral(sSIMP, sK, domain=domain, element_matrix=el, bc=boundary_dofs))  # Add stiffness assembly module
-func.append(pym.LinSolve([sK, sf], su))  # Linear system solver
-func.append(pym.EinSum([su, sf], sg0, expression='i,i->'))  # Compliance calculation
+sxfilt = func.append(pym.Density(sx, domain=domain, radius=filter_radius))  # Filter
+sSIMP  = func.append(pym.MathGeneral(sxfilt, expression=f"{xmin} + {1-xmin}*inp0^3"))  # SIMP material interpolation
+sK     = func.append(pym.AssembleGeneral(sSIMP, domain=domain, element_matrix=el, bc=boundary_dofs))  # Add stiffness assembly module
+su     = func.append(pym.LinSolve([sK, sf]))  # Linear system solver
+sg0    = func.append(pym.EinSum([su, sf], expression='i,i->'))  # Compliance calculation
 func.append(pym.PlotDomain2D(sxfilt, domain=domain, saveto="out/design"), pym.PlotIter([sg0]))  # Plot design and history
 # Perform the actual optimization, using OC
 loop, change = 0, 1.0
