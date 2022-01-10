@@ -695,7 +695,7 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
             if np.alltrue(A.diagonal()>0) or np.alltrue(A.diagonal()<0):
                 if SolverSparseCholeskyScikit.defined:
                     return SolverSparseCholeskyScikit()
-                elif SolverSparseCholeskyPardiso.defined:
+                elif SolverSparsePardiso.defined:
                     return SolverSparsePardiso()
                 elif SolverSparseCholeskyCVXOPT.defined:
                     return SolverSparseCholeskyCVXOPT()
