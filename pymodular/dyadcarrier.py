@@ -37,16 +37,26 @@ class DyadCarrier(object):
         class only stores the two vectors. Contractions B:uv^T = u^T.B.v can be calculated (
 
         :param u: List of vectors
-        :param v: List of vectors
+        :param v: List of vectors (if u is given and v not, a symmetric dyad is used)
         """
 
         self.u = []
         self.v = []
         self.ulen = -1
         self.vlen = -1
-        self.shape = (self.ulen, self.vlen)
         self.dtype = np.dtype('float64')  # Standard data type
         self.add_dyad(u, v)
+
+    @property
+    def shape(self):
+        return (self.ulen, self.vlen)
+
+    @property
+    def size(self):
+        if self.ulen < 0 or self.vlen < 0:
+            return 0
+        else:
+            return self.ulen * self.vlen
 
     def add_dyad(self, u: Iterable, v: Iterable = None, fac: Union[float, None] = None):
         """ Adds a list of vectors to the dyad carrier
@@ -108,9 +118,6 @@ class DyadCarrier(object):
             # Update the type
             self.dtype = np.result_type(self.dtype, ui.dtype)
             self.dtype = np.result_type(self.dtype, vi.dtype)
-
-        # Update the shape
-        self.shape = (self.ulen, self.vlen)
 
     def __getitem__(self, subscript):
         assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
@@ -310,8 +317,7 @@ class DyadCarrier(object):
         """
         warning_size = 100e+6 # Bytes
         if (self.shape[0]*self.shape[1]*self.dtype.itemsize) > warning_size:
-            warnings.warn("Expanding a dyad results into a dense matrix. This is not advised for large matrices {}"
-                          .format(self.shape), RuntimeWarning, stacklevel=2)
+            warnings.warn(f"Expanding a dyad results into a dense matrix. This is not advised for large matrices {self.shape}", ResourceWarning, stacklevel=2)
 
         val = np.zeros((max(0, self.shape[0]), max(0, self.shape[1])), dtype=self.dtype)
 

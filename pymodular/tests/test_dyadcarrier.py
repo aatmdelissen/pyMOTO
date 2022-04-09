@@ -1,4 +1,4 @@
-from unittest import TestCase
+import unittest
 import pymodular as pym
 import numpy as np
 
@@ -6,7 +6,7 @@ import numpy as np
 def generate_random(*dn, lower=-1.0, upper=1.0):
     return np.random.rand(*dn)*(upper-lower) + lower
 
-class TestDyadCarrier(TestCase):
+class TestDyadCarrier(unittest.TestCase):
     @staticmethod
     def setup_dyads(n=10, complex=False, nonsquare=False, empty=True, rnd=generate_random):
         dyads = {}
@@ -276,8 +276,8 @@ class TestDyadCarrier(TestCase):
         dchk = np.outer(u1, vv1[0, :]) + np.outer(u1, vv1[1, :]) + np.outer(uu1[0, :], v1) + np.outer(uu1[1, :], v1)
         self.assertTrue(np.allclose(d.todense(), dchk))
 
-        large_dyad = pym.DyadCarrier(np.random.rand(2000))
-        self.assertWarns(RuntimeWarning, large_dyad.todense)
+        large_dyad = pym.DyadCarrier(np.random.rand(4000))
+        self.assertWarns(ResourceWarning, large_dyad.todense)
 
         empty_dyad = pym.DyadCarrier()
         self.assertEqual(empty_dyad.todense().shape, (0, 0))
@@ -410,7 +410,7 @@ class TestDyadCarrier(TestCase):
 
     def test_add_to_zeroarray(self):
         n = 10
-        zer = np.array(0, dtype=np.object)
+        zer = np.array(0, dtype=object)
         zer += pym.DyadCarrier(np.random.rand(n), np.random.rand(n))
         self.assertTrue(isinstance(zer, pym.DyadCarrier))
 
@@ -591,3 +591,6 @@ class TestDyadCarrier(TestCase):
             chk = c[0]*A
             res = (c[0]*d).todense()
             self.assertTrue(np.allclose(chk, res))
+
+if __name__ == '__main__':
+    unittest.main()
