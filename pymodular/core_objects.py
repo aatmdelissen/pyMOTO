@@ -6,6 +6,60 @@ from .utils import _parse_to_list
 from abc import ABC, abstractmethod
 
 
+# Local helper functions
+def err_fmt(*args):
+    """ Format error strings for locating Modules and Signals"""
+    err_str = ""
+    for a in args:
+        err_str += f"\n\t[ {a} ]"
+    return err_str
+
+
+def colored(r, g, b, text):
+    """ Colored console text """
+    return "\033[38;2;{};{};{}m{} \033[0;0m".format(r, g, b, text)
+
+
+def stderr_warning(text):
+    """ Issue a (colored) warning """
+    filename, line, func = get_init_loc()
+    warnings.warn_explicit(colored(128, 128, 0, "\nWarning: " + text), RuntimeWarning, filename, line)
+
+
+def get_init_loc():
+    """ Get the location (outside of this file) where the 'current' function is called"""
+    stk = inspect.stack()
+    frame = None
+    for fr in stk:
+        if fr[1] != __file__:
+            frame = fr
+            break
+    if frame is None:
+        return ""
+    _, filename, line, func, _, _ = frame
+    return filename, line, func
+
+def get_init_str():
+    filename, line, func = get_init_loc()
+    return f"File \"{filename}\", line {line}, in {func}"
+
+
+def fmt_slice(sl):
+    """ Formats slices as string
+    :param sl: Generic slice or tuple of slices
+    :return: Slice(s) formatted as string
+    """
+    if isinstance(sl, tuple):
+        return ", ".join([fmt_slice(sli) for sli in sl])
+    elif isinstance(sl, slice):
+        return f"{'' if sl.start is None else sl.start}:{'' if sl.stop is None else sl.stop}:{'' if sl.step is None else sl.step}"
+    elif hasattr(sl, 'size') and sl.size > 4:
+        ndim = sl.ndim if hasattr(sl, 'ndim') else 1
+        return "["*ndim + "..." + "]"*ndim
+    else:
+        return str(sl)
+
+
 class Signal:
     """
     Saves the state data, connects input and outputs of blocks and manages sensitivities
@@ -31,6 +85,12 @@ class Signal:
         self.sensitivity = sensitivity
         self.keep_alloc = sensitivity is not None
 
+        # Save error string to location where it is initialized
+        self._init_loc = get_init_str()
+
+    def _err_str(self):
+        return err_fmt(f"Signal \'{self.tag}\', initialized in {self._init_loc}")
+
     def add_sensitivity(self, ds: Any):
         try:
             if ds is None:
@@ -39,43 +99,135 @@ class Signal:
                 self.sensitivity = ds
             else:
                 self.sensitivity += ds
-        except Exception as e:
-            raise type(e)(f"{e}, in signal {self.tag}").with_traceback(sys.exc_info()[2]) from None
+            return self
+        except TypeError as e:
+            if type(ds) == type(self.sensitivity):
+                raise TypeError(f"Cannot add to the sensitivity with type '{type(self.sensitivity).__name__}'"+self._err_str())
+            else:
+                raise TypeError(f"Adding wrong type '{type(ds).__name__}' to the sensitivity '{type(self.sensitivity).__name__}'"+self._err_str())
+        except ValueError as e:
+            sens_shape = self.sensitivity.shape if hasattr(self.sensitivity, 'shape') else ()
+            ds_shape = ds.shape if hasattr(ds, 'shape') else ()
+            raise ValueError(f"Cannot add argument of shape {ds_shape} to the sensitivity of shape {sens_shape}"+self._err_str()) from None
 
-    def reset(self, keep_alloc: bool = False):
-        if self.keep_alloc and keep_alloc and self.sensitivity is not None:
-            self.sensitivity *= 0
+    def reset(self, keep_alloc: bool = None):
+        """ Reset the sensitivities to zero or None
+        This must be called to clear internal memory of subsequent sensitivity calculations.
+        :param keep_alloc: Keep the sensitivity allocation intact?
+        :return: self
+        """
+        if self.sensitivity is None:
+            return
+        if keep_alloc is None:
+            keep_alloc = self.keep_alloc
+        if keep_alloc:
+            try:
+                try:
+                    self.sensitivity[...] = 0
+                except TypeError:
+                    self.sensitivity *= 0
+            except TypeError:
+                stderr_warning(f"reset() - Cannot keep allocation because the operands *= or [] are not defined for sensitivity type \'{type(self.sensitivity).__name__}\'" + self._err_str())
+                self.sensitivity = None
         else:
             self.sensitivity = None
+        return self
+            
+    def __getitem__(self, item):
+        """ Obtain a sliced signal, for using its partial contents.
+        :param item: Slice indices
+        :return: Sliced signal (SignalSlice)
+        """
+        return SignalSlice(self, item)
+
+
+class SignalSlice(Signal):
+    def __init__(self, orig_signal, sl, tag=None):
+        self.orig_signal = orig_signal
+        self.slice = sl
+        self.keep_alloc = True # This parameter probably doesn't matter
+
+        # for s in slice:
+        if tag is None:
+            self.tag = f"{self.orig_signal.tag}[{fmt_slice(self.slice)}]"
+        else:
+            self.tag = tag
+
+        # Save error string to location where it is initialized
+        self._init_loc = get_init_str()
+
+    @property
+    def state(self):
+        try:
+            return None if self.orig_signal.state is None else self.orig_signal.state[self.slice]
+        except Exception as e:
+            # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
+            raise type(e)("Get state - " + e.args[0] + self._err_str(), *e.args[1:]) from None
+
+    @state.setter
+    def state(self, new_state):
+        try:
+            self.orig_signal.state[self.slice] = new_state
+        except Exception as e:
+            # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
+            raise type(e)("Set state - " + e.args[0] + self._err_str(), *e.args[1:]) from None
+
+    @property
+    def sensitivity(self):
+        try:
+            return None if self.orig_signal.sensitivity is None else self.orig_signal.sensitivity[self.slice]
+        except Exception as e:
+            # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
+            raise type(e)("Get sensitivity - " + e.args[0] + self._err_str(), *e.args[1:]) from None
+    
+    @sensitivity.setter
+    def sensitivity(self, new_sens):
+        if self.orig_signal.sensitivity is None:
+            if new_sens is None:
+                return # Sensitivity doesn't need to be initialized when it is set to None
+            try:
+                self.orig_signal.sensitivity = self.orig_signal.state*0  # Make a new copy with 0 values
+            except TypeError:
+                if self.orig_signal.state is None:
+                    raise TypeError(f"Could not initialize sensitivity because state is not set" + self._err_str()) from None
+                else:
+                    raise TypeError(f"Could not initialize sensitivity for type \'{type(self.orig_signal.state).__name__}\'" + self._err_str()) from None
+
+        if new_sens is None:
+            new_sens = 0 # reset() uses this
+
+        try:
+            self.orig_signal.sensitivity[self.slice] = new_sens
+        except Exception as e:
+            # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
+            raise type(e)("Set sensitivity - " + e.args[0] + self._err_str(), *e.args[1:]) from None
 
 
 def make_signals(*args):
     """ Batch-initialize a number of Signals
-
     :param args: Tags for a number of Signals
-    :return: List of Signals
+    :return: Dictionary of Signals, with key index equal to the signal tag
     """
-    return [Signal(s) for s in args]
+    ret = dict()
+    for a in args:
+        ret[a] = Signal(a)
+    return ret
 
 
 def _check_valid_signal(sig: Any):
     """ Checks if the argument is a valid Signal object
-
     :param sig: The object to check
     :return: True if it is a valid Signal
     """
     if isinstance(sig, Signal):
         return True
-    if hasattr(sig, "state") and hasattr(sig, "sensitivity"):
+    if all([hasattr(sig, f) for f in ["state", "sensitivity", "add_sensitivity", "reset"]]):
         return True
-    if hasattr(sig, "add_sensitivity"):
-        return True
-    raise TypeError("Entry {} is not a Signal".format(sig))
+    raise TypeError(f"Given argument with type \'{type(sig).__name__}\' is not a valid Signal")
 
 
 def _check_valid_module(mod: Any):
     """ Checks if the argument is a valid Module object
-
     :param mod: The object to check
     :return: True if it is a valid Module
     """
@@ -83,12 +235,11 @@ def _check_valid_module(mod: Any):
         return True
     if hasattr(mod, "response") and hasattr(mod, "sensitivity") and hasattr(mod, "reset"):
         return True
-    raise TypeError("Entry {} is not a Module".format(mod))
+    raise TypeError(f"Given argument with type \'{type(mod).__name__}\' is not a valid Module")
 
 
 def _check_function_signature(fn, signals):
     """ Checks the function signature against given signal list
-
     :param fn: response_ or sensitivity_ function of a Module
     :param signals: The signals involved
     """
@@ -202,49 +353,51 @@ class Module(ABC, RegisteredClass):
     >> Module(sig_in=[inputs], sig_out=[outputs]
     """
 
-    def _error_str(self, add_signal: bool=True, fn=None):
-        sig_str = ""
+    def _err_str(self, init: bool=True, add_signal: bool=True, fn=None):
+        str_list = []
+        if init:
+            str_list.append(f"Module \'{type(self).__name__}\', initialized in {self._init_loc}")
         if add_signal:
-            sig_str = f"{[s.tag for s in self.sig_in]}->{[s.tag for s in self.sig_out]}"
-
-        if fn is None:
-            name = self.__class__.__name__
-            lineno = inspect.getsourcelines(self.__class__)[1]
-            filename = inspect.getfile(self.__class__)
-        else:
+            inp_str = "Inputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_in]) if len(self.sig_in)>0 else "No inputs"
+            out_str = "Outputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_out]) if len(self.sig_out)>0 else "No outputs"
+            str_list.append(inp_str + " --> " + out_str)
+        if fn is not None:
             name = f"{fn.__self__.__class__.__name__}.{fn.__name__}{inspect.signature(fn)}"
             lineno = inspect.getsourcelines(fn)[1]
             filename = inspect.getfile(fn)
-        return f"\n\tModule File \"{filename}\", line {lineno}, in {name} {sig_str}"
+            str_list.append(f"Implemented in File \"{filename}\", line {lineno}, in {name}")
+        return err_fmt(*str_list)
+
 
     def __init__(self, sig_in: Union[Signal, List[Signal]] = None, sig_out: Union[Signal, List[Signal]] = None,
                  *args, **kwargs):
-        try:
-            # Parse input and output signals
-            self.sig_in = _parse_to_list(sig_in)
-            self.sig_out = _parse_to_list(sig_out)
+        self._init_loc = get_init_str()
 
-            # Check if the signals are valid
-            [_check_valid_signal(s) for s in self.sig_in]
-            [_check_valid_signal(s) for s in self.sig_out]
-        except Exception as e:
-            raise type(e)(str(e) + self._error_str(add_signal=True)).with_traceback(sys.exc_info()[2]) from None
+        self.sig_in = _parse_to_list(sig_in)
+        self.sig_out = _parse_to_list(sig_out)
+        for i, s in enumerate(self.sig_in):
+            try:
+                _check_valid_signal(s)
+            except Exception as e:
+                raise type(e)(f"Invalid input signal #{i+1} - " + str(e.args[0]) + self._err_str(), *e.args[1:]) from None
+
+        for i, s in enumerate(self.sig_out):
+            try:
+                _check_valid_signal(s)
+            except Exception as e:
+                raise type(e)(f"Invalid output signal #{i+1} - " + str(e.args[0]) + self._err_str(), *e.args[1:]) from None
 
         try:
             # Call preparation of submodule with remaining arguments
             self._prepare(*args, **kwargs)
-
-            # Save error string to location where it is initialized
-            _, filename, line, func, _, _ = inspect.stack()[1]
-            self._init_err_str = f"\n\tInitialized in File \"{filename}\", line {line}, in {func}"
         except Exception as e:
-            raise type(e)(str(e) + self._error_str(add_signal=False)).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)("_prepare() - " + str(e.args[0]) + self._err_str(fn=self._prepare), *e.args[1:]) from None
 
         try:
             # Check if the signals match _response() signature
             _check_function_signature(self._response, self.sig_in)
         except Exception as e:
-            raise type(e)(str(e) + self._error_str(add_signal=False, fn=self._response)).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e.args[0]) + self._err_str(fn=self._response), *e.args[1:]) from None
 
         try:
             # If no output signals are given, but are required, try to initialize them here
@@ -262,7 +415,7 @@ class Module(ABC, RegisteredClass):
             # Check if signals match _sensitivity() signature
             _check_function_signature(self._sensitivity, self.sig_out)
         except Exception as e:
-            raise type(e)(str(e) + self._error_str(add_signal=False, fn=self._sensitivity)).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e.args[0]) + self._err_str(fn=self._sensitivity), *e.args[1:]) from None
 
 
 
@@ -284,7 +437,7 @@ class Module(ABC, RegisteredClass):
                 self.sig_out[i].state = val
 
         except Exception as e:
-            raise type(e)(str(e) + self._error_str(fn=self._response) + self._init_err_str).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)("response() - " + str(e.args[0]) + self._err_str(fn=self._response), *e.args[1:]) from None
 
     def sensitivity(self):
         """
@@ -310,7 +463,7 @@ class Module(ABC, RegisteredClass):
                 self.sig_in[i].add_sensitivity(ds)
 
         except Exception as e:
-            raise type(e)(str(e) + self._error_str(fn=self._sensitivity) + self._init_err_str).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)("sensitivity() - " + str(e.args[0]) + self._err_str(fn=self._sensitivity), *e.args[1:]) from None
 
     def reset(self):
         try:
@@ -318,7 +471,7 @@ class Module(ABC, RegisteredClass):
             [s.reset() for s in self.sig_in]
             self._reset()
         except Exception as e:
-            raise type(e)(str(e) + self._error_str(fn=self._reset)).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)("reset() - " + str(e.args[0]) + self._err_str(fn=self._reset), *e.args[1:]) from None
 
     # METHODS TO BE DEFINED BY USER
     def _prepare(self, *args, **kwargs):
@@ -330,12 +483,13 @@ class Module(ABC, RegisteredClass):
 
     def _sensitivity(self, *args):
         if len(self.sig_out) > 0 and len(self.sig_in) > 0:
-            warnings.warn("Sensitivity routine is used, but not defined, in {}".format(type(self).__name__), Warning)
+            stderr_warning(f"Sensitivity routine is used, but not defined, in {type(self).__name__}")
         return [None for _ in self.sig_in]
 
     def _reset(self):
         pass
 
+# AutoDiff module
 try:
     import jax
     import numpy as np
@@ -392,6 +546,7 @@ class Network(Module):
 
     """
     def __init__(self, *args):
+        self._init_loc = get_init_str()
         try:
             # Obtain the internal blocks
             self.mods = _parse_to_list(*args)
@@ -416,7 +571,7 @@ class Network(Module):
             # Initialize the parent module, with correct inputs and outputs
             super().__init__(list(in_unique), list(all_out))
         except Exception as e:
-            raise type(e)(str(e) + ', in module %s' % type(self).__name__).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
 
     def response(self):
         [b.response() for b in self.mods]
@@ -430,23 +585,42 @@ class Network(Module):
     def _response(self, *args):
         pass  # Unused
 
-    def __getitem__(self, item):
-        return self.mods[item]
+    def __copy__(self):
+        return Network(*self.mods)
+
+    def copy(self):
+        return self.__copy__()
+
+    def __len__(self):
+        return len(self.mods)
+
+    def __getitem__(self, i):
+        return self.mods[i]
+
+    def __iter__(self):
+        return iter(self.mods)
 
     def append(self, *newmods):
         modlist = _parse_to_list(*newmods)
-        # Obtain the internal blocks
-        self.mods.extend(modlist)
 
         # Check if the blocks are initialized, else create them
-        for i, b in enumerate(self.mods):
+        for i, b in enumerate(modlist):
             if isinstance(b, dict):
-                exclude_keys = ['type']
-                b_ex = {k: b[k] for k in set(list(b.keys())) - set(exclude_keys)}
-                self.mods[i] = Module.create(b['type'], **b_ex)
+                try:
+                    if 'type' not in b.keys():
+                        raise ValueError('The type must be defined')
+                    exclude_keys = ['type']
+                    b_ex = {k: b[k] for k in set(list(b.keys())) - set(exclude_keys)}
+                    modlist[i] = Module.create(b['type'], **b_ex)
+                except e:
+                    raise type(e)("append() - Trying to append invalid module " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
+            try: # Check validity of modules
+                _check_valid_module(modlist[i])
+            except e:
+                raise type(e)("append() - Trying to append invalid module " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
 
-        # Check validity of modules
-        [_check_valid_module(m) for m in self.mods]
+        # Obtain the internal blocks
+        self.mods.extend(modlist)
 
         # Gather all the input and output signals of the internal blocks
         all_in = set()
@@ -456,8 +630,14 @@ class Network(Module):
         in_unique = all_in - all_out
 
         self.sig_in = _parse_to_list(in_unique)
-        [_check_valid_signal(s) for s in self.sig_in]
+        try:
+            [_check_valid_signal(s) for s in self.sig_in]
+        except e:
+            raise type(e)("append() - Invalid input signals " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
         self.sig_out = _parse_to_list(all_out)
-        [_check_valid_signal(s) for s in self.sig_out]
+        try:
+            [_check_valid_signal(s) for s in self.sig_out]
+        except e:
+            raise type(e)("append() - Invalid output signals " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
 
-        return modlist[-1].sig_out[0] if len(modlist[-1].sig_out)==1 else modlist[-1].sig_out
+        return modlist[-1].sig_out[0] if len(modlist[-1].sig_out)==1 else modlist[-1].sig_out  # Returns the output signal
