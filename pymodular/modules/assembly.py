@@ -8,6 +8,9 @@ Assuming node numbering:
 
 """
 import sys
+import base64  # For binary writing
+import struct  # For binary writing
+import os.path
 from pymodular import Module, DyadCarrier
 import numpy as np
 from scipy.sparse import csc_matrix
@@ -40,27 +43,26 @@ class DomainDefinition:
 
     """
 
-    def __init__(self, nx: int, ny: int, nz: int = 0, unitx: float = 1.0, unity: float = 1.0, unitz: float = 1.0):
+    def __init__(self, nelx: int, nely: int, nelz: int = 0, unitx: float = 1.0, unity: float = 1.0, unitz: float = 1.0):
         """ Creates a domain definition object of a structured mesh
 
-        :param nx: Number of elements in x-direction
-        :param ny: Number of elements in y-direction
-        :param nz: (Optional) Number of elements in z-direction; if zero it is a 2D model
+        :param nelx: Number of elements in x-direction
+        :param nely: Number of elements in y-direction
+        :param nelz: (Optional) Number of elements in z-direction; if zero it is a 2D model
         :param unitx: Element size in x-direction
         :param unity: Element size in y-direction
         :param unitz: Element size in z-direction
         """
-        self.nx = nx
-        self.ny = ny
-        self.nz = nz
+        self.nelx, self.nely, self.nelz = nelx, nely, nelz
+        self.unitx, self.unity, self.unitz = unitx, unity, unitz
 
-        self.dim = 2 if self.nz == 0 or self.nz is None else 3
+        self.dim = 2 if self.nelz == 0 or self.nelz is None else 3
 
         self.element_size = np.array([unitx, unity, unitz])
         assert np.prod(self.element_size[:self.dim]) > 0.0, 'Element volume needs to be positive'
 
-        self.nel = self.nx * self.ny * max(self.nz, 1)  # Total number of elements
-        self.nnodes = (self.nx + 1) * (self.ny + 1) * (self.nz + 1)  # Total number of nodes
+        self.nel = self.nelx * self.nely * max(self.nelz, 1)  # Total number of elements
+        self.nnodes = (self.nelx + 1) * (self.nely + 1) * (self.nelz + 1)  # Total number of nodes
 
         self.elemnodes = 2 ** self.dim  # Number of nodes in each element
 
@@ -78,9 +80,9 @@ class DomainDefinition:
             self.node_numbering[7] = [+1, +1, +1]
 
         # Get the element numbers
-        elx = np.repeat(np.arange(self.nx), self.ny * max(self.nz, 1))
-        ely = np.tile(np.repeat(np.arange(self.ny), max(self.nz, 1)), self.nx)
-        elz = np.tile(np.arange(max(self.nz, 1)), self.nx * self.ny)
+        elx = np.repeat(np.arange(self.nelx), self.nely * max(self.nelz, 1))
+        ely = np.tile(np.repeat(np.arange(self.nely), max(self.nelz, 1)), self.nelx)
+        elz = np.tile(np.arange(max(self.nelz, 1)), self.nelx * self.nely)
         el = self.get_elemnumber(elx, ely, elz)
 
         # Setup node-element connectivity
@@ -88,10 +90,10 @@ class DomainDefinition:
         self.conn[el, :] = self.get_elemconnectivity(elx, ely, elz)
 
     def get_elemnumber(self, eli: Union[int, np.ndarray], elj: Union[int, np.ndarray], elk: Union[int, np.ndarray] = 0):
-        return (elk * self.ny + elj) * self.nx + eli
+        return (elk * self.nely + elj) * self.nelx + eli
 
     def get_nodenumber(self, nodi: Union[int, np.ndarray], nodj: Union[int, np.ndarray], nodk: Union[int, np.ndarray] = 0):
-        return (nodk * (self.ny + 1) + nodj) * (self.nx + 1) + nodi
+        return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
     def get_elemconnectivity(self, i: Union[int, np.ndarray], j: Union[int, np.ndarray], k: Union[int, np.ndarray] = 0):
         """ Get the connectivity for element identified with cartesian indices (i, j, k)
@@ -152,6 +154,119 @@ class DomainDefinition:
             dN_dx[i, :] *= np.array([n[i] for n in self.node_numbering])  # Flip +/- signs according to node position
         return dN_dx
 
+    def write_to_vti(self, vectors: dict, filename="out.vti", scale=1.0, origin=(0.0, 0.0, 0.0)):
+        """ Write all given vectors to a Paraview (VTI) file
+        :param vectors: A dictionary of vectors to write. Keys are used as vector names
+        :param filename: The file loction
+        :param scale: Uniform scaling of the gridpoints
+        :param origin: Origin of the domain
+        """
+        ext = '.vti'
+        if ext not in os.path.splitext(filename)[-1].lower():
+            filename += ext
+
+        # Sort into point-data and cell-data
+        point_dat = {}
+        cell_dat = {}
+        for key, vec in vectors.items():
+            if vec.size%self.nel == 0:
+                cell_dat[key] = vec
+            elif vec.size%self.nnodes == 0:
+                point_dat[key] = vec
+            else:
+                warnings.warn(f"Vector {key} is neither cell- nor point-data. Skipping vector...")
+
+        if len(point_dat) == 0 and len(cell_dat) == 0:
+            warnings.warn(f"Nothing to write to {filename}. Skipping file...")
+            return
+
+        len_enc = ('<' if sys.byteorder=='little' else '>') + 'Q'
+
+        with open(filename, 'wb') as file:
+            # XML header
+            file.write(b'<?xml version=\"1.0\"?>\n')
+
+            # Vtk header
+            file.write(f'<VTKFile type=\"ImageData\" version=\"0.1\" header_type=\"UInt64\" byte_order=\"{"LittleEndian" if sys.byteorder=="little" else "BigEndian"}\">\n'.encode())
+
+            # Extend of coordinates
+            file.write(f"<ImageData WholeExtent=\"0 {self.nelx} 0 {self.nely} 0 {self.nelz}\"".encode())
+
+            # Origin of domain
+            file.write(f" Origin=\"{origin[0]*scale} {origin[1]*scale} {origin[2]*scale}\"".encode())
+
+            # Spacing of points (dx, dy, dz)
+            file.write(f" Spacing=\"{self.element_size[0]*scale} {self.element_size[1]*scale} {self.element_size[2]*scale}\">\n".encode())
+
+            # Start new piece
+            file.write(f"<Piece Extent=\"0 {self.nelx} 0 {self.nely} 0 {self.nelz}\">\n".encode())
+
+            # Start writing pointdata
+            if len(point_dat) > 0:
+                file.write(b'<PointData>\n')
+                for key, vec in point_dat.items():
+                    vecax = next((i for i, s in enumerate(vec.shape) if s%self.nnodes==0), None)
+                    ncomponents = vec.shape[vecax]//self.nnodes
+                    pad_to_vector = ncomponents == 2 and self.dim==2  # Vectorize 2D vectors, by padding with 0's
+                    assert vec.ndim <=2, "Only for 1D and 2D numpy arrays"
+                    nvectors = 1 if vec.ndim == 1 else vec.shape[(vecax+1)%2]
+                    nzeros = int(np.ceil(np.log10(nvectors)))
+                    for i in range(nvectors):
+                        vecname = key
+                        if nvectors > 1:
+                            intstr = i.__format__(f'0{nzeros}d')
+                            vecname += f"({intstr})"
+                            ind = [slice(None), slice(None)]
+                            ind[(vecax+1)%2] = i
+                            vec_to_write = vec[tuple(ind)].astype(np.float32)
+                        else:
+                            vec_to_write = vec.astype(np.float32)
+
+                        if pad_to_vector:
+                            vec_pad = np.zeros(3*self.nnodes, dtype=np.float32)
+                            vec_pad[0::3] = vec_to_write[0::2]
+                            vec_pad[1::3] = vec_to_write[1::2]
+                            vec_to_write = vec_pad
+                  
+                        file.write(f'<DataArray type=\"Float32\" Name=\"{vecname}\" NumberOfComponents=\"{3 if pad_to_vector else ncomponents}\" format=\"binary\">\n'.encode())
+                        enc_data = base64.b64encode(vec_to_write)  # Encode the data
+                        enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))  # Get the length of encoded data block
+                        file.write(enc_len)  # Write length
+                        file.write(enc_data)  # Write data
+                        file.write(b'\n</DataArray>\n')
+                file.write(b'</PointData>\n')
+
+            # Start writing celldata
+            if len(cell_dat) > 0:
+                file.write(b'<CellData>\n')
+                for key, vec in cell_dat.items():
+                    vecax = next((i for i, s in enumerate(vec.shape) if s%self.nel==0), None)
+                    ncomponents = vec.shape[vecax]//self.nel
+                    assert vec.ndim <=2, "Only for 1D and 2D numpy arrays"
+                    nvectors = 1 if vec.ndim == 1 else vec.shape[(vecax+1)%2]
+
+                    for i in range(nvectors):
+                        vecname = key
+                        if nvectors > 1:
+                            vecname += f"({i})"
+                            ind = [slice(None), slice(None)]
+                            ind[(vecax+1)%2] = i
+                            vec_to_write = vec[tuple(ind)].astype(np.float32)
+                        else:
+                            vec_to_write = vec.astype(np.float32)
+
+                        file.write(f'<DataArray type=\"Float32\" Name=\"{vecname}\" NumberOfComponents=\"{ncomponents}\" format=\"binary\">\n'.encode())
+                        enc_data = base64.b64encode(vec_to_write)  # Encode the data
+                        enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))  # Get the length of encoded data block
+                        file.write(enc_len)  # Write length
+                        file.write(enc_data)  # Write data
+                        file.write(b'\n</DataArray>\n')
+                file.write(b'</CellData>\n')
+
+            file.write(b'</Piece>\n')
+            file.write(b'</ImageData>\n')
+            file.write(b'</VTKFile>')
+
 
 class AssembleGeneral(Module):
     """ Assembles a sparse matrix according to element scaling
@@ -199,6 +314,8 @@ class AssembleGeneral(Module):
         return mat
 
     def _sensitivity(self, dgdmat: Union[DyadCarrier, np.ndarray]):
+        if dgdmat.size <= 0:
+            return [None]
         if self.bc is not None:
             dgdmat[self.bc, :] = 0.0
             dgdmat[:, self.bc] = 0.0

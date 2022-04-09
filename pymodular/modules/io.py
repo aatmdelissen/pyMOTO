@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from .assembly import DomainDefinition
 import os
+from pathlib import Path
 
 
 class PlotDomain2D(Module):
@@ -93,6 +94,10 @@ class PlotIter(Module):
         self.minlim = 1e+200
         self.maxlim = -1e+200
 
+    def __del__(self):
+        if hasattr(self, 'fig'):
+            plt.close(self.fig)
+
     def _response(self, *args):
         if not hasattr(self, 'fig'):
             self.fig, self.ax = plt.subplots(1, 1)
@@ -135,3 +140,23 @@ class PlotIter(Module):
         self.iter += 1
 
         return []
+
+
+class WriteToParaview(Module):
+    """ Writes vectors to a Paraview VTI file"""
+    def _prepare(self, domain: DomainDefinition, saveto: str, scale=1.0):
+        self.domain = domain
+        self.saveto = saveto
+        Path(saveto).parent.mkdir(parents=True, exist_ok=True)
+        self.iter = 0
+        self.scale = scale
+    def _response(self, *args):
+        data = {}
+        for s in self.sig_in:
+            data[s.tag] = s.state
+        pth = os.path.splitext(self.saveto)
+        filen = pth[0] + '.{0:04d}'.format(self.iter) + pth[1]
+        self.domain.write_to_vti(data, filename=filen, scale=self.scale)
+        self.iter+=1
+        
+        
