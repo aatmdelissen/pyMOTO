@@ -6,6 +6,7 @@ import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
 import scipy
 import pymodular as pym
+import sys
 
 # TODO: Check hermitian and symmetry in complex matrices; check in which cases the adjoint system is solved
 class Symm(pym.Module):
@@ -14,7 +15,7 @@ class Symm(pym.Module):
     def _sensitivity(self, dB):
         return (dB + dB.T)/2
 
-'''
+
 class TestDenseSolvers(unittest.TestCase):
     def run_solver(self, solver, A, b):
         Aadj = A.conj().T
@@ -111,7 +112,6 @@ class TestDenseSolvers(unittest.TestCase):
         self.run_solver(pym.auto_determine_solver(A), A, b)
         self.assertIsInstance(pym.auto_determine_solver(A), pym.SolverDenseCholesky)
 
-
     def test_real_symmetric_positive_definite(self):
         N = 10
         Q = np.random.rand(N, N)
@@ -147,59 +147,9 @@ class TestDenseSolvers(unittest.TestCase):
         self.run_solver(pym.SolverDenseCholesky(), A, b)
         self.run_solver(pym.auto_determine_solver(A), A, b)
         self.assertIsInstance(pym.auto_determine_solver(A), pym.SolverDenseCholesky)
-        
-'''
-        
-class TestSparseSolvers(unittest.TestCase):
-    def run_sparse(self, solver, Acoo, b):
-        Acsr = Acoo.tocsr()
-        Acsc = Acoo.tocsc()
-        self.run_solver(solver, Acoo, b)
-        self.run_solver(solver, Acsr, b)
-        self.run_solver(solver, Acsc, b)
-    def run_solver(self, solver, A, b):
-        xref = spspla.spsolve(A, b)
-        Aadj = A.conj().T
-        
-        xrefadj = spspla.spsolve(A.conj().T, b)
-        solver.update(A)
-        x = solver.solve(b)
-        self.assertTrue(np.allclose(x, xref))
-        self.assertTrue(np.allclose(A@x-b, 0.0))
-        xadj = solver.adjoint(b)
-        self.assertTrue(np.allclose(xadj, xrefadj))
-        self.assertTrue(np.allclose(Aadj@xadj-b, 0.0))
-        
-    def test_real_symmetric_positive_definite(self):
-        matrix = "data/bcsstk14.mtx.gz"
-
-        A = mmread(matrix)
-        b = np.random.rand(A.shape[0])
-
-        self.run_sparse(pym.SolverSparsePardiso(mtype=2), A, b)
-        if pym.SolverSparseCholesky.defined:
-            self.run_sparse(pym.SolverSparseCholesky(), A, b)
-        self.run_sparse(pym.SolverSparseLU(), A, b)
-
-    def test_real_symmetric_indefinite(self):
-        matrix = "data/bcsstk26.mtx.gz"
-        # matrix = "data/e40r0000.mtx.gz"
-
-        A = mmread(matrix)
-        b = np.random.rand(A.shape[0])
-
-        self.run_sparse(pym.SolverSparsePardiso(mtype=-2), A, b)
-        if pym.SolverSparseCholesky.defined:
-            self.run_sparse(pym.SolverSparseCholesky(), A, b)
-        self.run_sparse(pym.SolverSparseLU(), A, b)
 
 
-
-        
-        
-'''
-
-class TestLinSolve(unittest.TestCase):
+class TestLinSolveModule_dense(unittest.TestCase):
 
     def use_solver(self, A, b, symmetry=False):
         sA = pym.Signal("A", A)
@@ -222,31 +172,31 @@ class TestLinSolve(unittest.TestCase):
         # Check finite difference
         test_fn = lambda x0, dx, df_an, df_fd: self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
         # test_fn = lambda x0, dx, df_an, df_fd:np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
-        pym.finite_difference(fn, [sA, sb], sx, test_fn=test_fn)
+        pym.finite_difference(fn, [sA, sb], sx, test_fn=test_fn, verbose=False)
 
     # ------------- Asymmetric -------------
-    def test_dense_asymmetric_real(self):
+    def test_asymmetric_real(self):
         """ Test asymmetric real dense matrix """
         N = 10
         A = np.random.rand(N, N)
         b = np.random.rand(N)
         self.use_solver(A, b)
 
-    def test_dense_asymmetric_real_multirhs(self):
+    def test_asymmetric_real_multirhs(self):
         """ Test asymmetric real dense matrix with multiple rhs """
         N, M = 10, 3
         A = np.random.rand(N, N)
         b = np.random.rand(N, M)
         self.use_solver(A, b)
 
-    def test_dense_asymmetric_complex(self):
+    def test_asymmetric_complex(self):
         """ Test asymmetric complex dense matrix """
         N = 10
         A = np.random.rand(N, N)+1j*np.random.rand(N, N)
         b = np.random.rand(N)+1j*np.random.rand(N)
         self.use_solver(A, b)
 
-    def test_dense_asymmetric_complex_multirhs(self):
+    def test_asymmetric_complex_multirhs(self):
         """ Test asymmetric complex dense matrix with multiple rhs """
         N, M = 10, 3
         A = np.random.rand(N, N)+1j*np.random.rand(N, N)
@@ -254,31 +204,34 @@ class TestLinSolve(unittest.TestCase):
         self.use_solver(A, b)
 
     # # ------------- Symmetric -------------
-    def test_dense_symmetric_real(self):
+    def test_symmetric_real(self):
         """ Test symmetric real dense matrix """
         N = 10
         A = np.random.rand(N, N)
         b = np.random.rand(N)
         self.use_solver(A, b, symmetry=True)
 
-    def test_dense_symmetric_real_multirhs(self):
+    def test_symmetric_real_multirhs(self):
         """ Test symmetric real dense matrix with multiple rhs """
         N, M = 10, 3
         A = np.random.rand(N, N)
         b = np.random.rand(N, M)
         self.use_solver(A, b, symmetry=True)
 
-    def test_dense_symmetric_complex(self):
+    def test_symmetric_complex(self):
         """ Test symmetric complex dense matrix """
         N = 10
         A = np.random.rand(N, N)+1j*np.random.rand(N, N)
         b = np.random.rand(N)+1j*np.random.rand(N)
         self.use_solver(A, b, symmetry=True)
 
-    def test_dense_symmetric_complex_multirhs(self):
+    def test_symmetric_complex_multirhs(self):
         """ Test symmetric complex dense matrix with multiple rhs """
         N, M = 10, 3
         A = np.random.rand(N, N)+1j*np.random.rand(N, N)
         b = np.random.rand(N, M)+1j*np.random.rand(N, M)
         self.use_solver(A, b, symmetry=True)
-'''
+
+
+if __name__ == '__main__':
+    unittest.main()  #TestSparseSolvers())

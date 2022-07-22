@@ -38,7 +38,7 @@ class PlotDomain2D(Module):
         self.iter += 1
 
     def plot_2d(self, x):
-        data = x.reshape((self.domain.nx, self.domain.ny), order='F').T
+        data = x.reshape((self.domain.nelx, self.domain.nely), order='F').T
         if hasattr(self, 'im'):
             self.im.set_data(data)
         else:
@@ -52,7 +52,7 @@ class PlotDomain2D(Module):
 
     def plot_3d(self, x):
         # prepare some coordinates, and attach rgb values to each
-        ei, ej, ek = np.indices((self.domain.nx, self.domain.ny, self.domain.nz))
+        ei, ej, ek = np.indices((self.domain.nelx, self.domain.nely, self.domain.nelz))
         els = self.domain.get_elemnumber(ei, ej, ek)
         densities = x[els]
 
@@ -65,14 +65,14 @@ class PlotDomain2D(Module):
         colors[..., 2] = np.clip(1-densities, 0, 1)
 
         # and plot everything
-        if len(self.fig.axes) ==0:
-            from mpl_toolkits.mplot3d import Axes3D
+        if len(self.fig.axes) == 0:
+            from mpl_toolkits.mplot3d import Axes3D  # TODO can this be removed?
             ax = self.fig.add_subplot(projection='3d')
-            max_ext = max(self.domain.nx, self.domain.ny, self.domain.nz)
+            max_ext = max(self.domain.nelx, self.domain.nely, self.domain.nelz)
             ax.set(xlabel='x', ylabel='y', zlabel='z',
-                   xlim=[(self.domain.nx-max_ext)/2, (self.domain.nx+max_ext)/2],
-                   ylim=[(self.domain.ny-max_ext)/2, (self.domain.ny+max_ext)/2],
-                   zlim=[(self.domain.nz-max_ext)/2, (self.domain.nz+max_ext)/2])
+                   xlim=[(self.domain.nelx-max_ext)/2, (self.domain.nelx+max_ext)/2],
+                   ylim=[(self.domain.nely-max_ext)/2, (self.domain.nely+max_ext)/2],
+                   zlim=[(self.domain.nelz-max_ext)/2, (self.domain.nelz+max_ext)/2])
             plt.show(block=False)
         else:
             ax = self.fig.axes[0]
@@ -82,10 +82,9 @@ class PlotDomain2D(Module):
                 f.remove()
 
         self.fac = ax.voxels(sel,
-                  facecolors=colors,
-                  edgecolors='k',#np.clip(2*colors - 0.5, 0, 1),  # brighter
-                  linewidth=0.5)
-
+                             facecolors=colors,
+                             edgecolors='k',  # np.clip(2*colors - 0.5, 0, 1),  # brighter
+                             linewidth=0.5)
 
 
 class PlotIter(Module):
@@ -118,11 +117,10 @@ class PlotIter(Module):
                 xadd = xx.reshape(xx.size)
                 self.line[i].set_ydata(np.concatenate([self.line[i].get_ydata(), xadd]))
                 self.line[i].set_xdata(np.concatenate([self.line[i].get_xdata(), self.iter*np.ones_like(xadd)]))
-            except:
+            except:  # TODO what is the exception?
                 xadd = xx
                 self.line[i].set_ydata(np.append(self.line[i].get_ydata(), xadd))
                 self.line[i].set_xdata(np.append(self.line[i].get_xdata(), self.iter))
-
 
             self.minlim = min(self.minlim, np.min(xadd))
             self.maxlim = max(self.maxlim, np.max(xadd))
@@ -150,6 +148,7 @@ class WriteToParaview(Module):
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
         self.iter = 0
         self.scale = scale
+
     def _response(self, *args):
         data = {}
         for s in self.sig_in:
@@ -157,6 +156,4 @@ class WriteToParaview(Module):
         pth = os.path.splitext(self.saveto)
         filen = pth[0] + '.{0:04d}'.format(self.iter) + pth[1]
         self.domain.write_to_vti(data, filename=filen, scale=self.scale)
-        self.iter+=1
-        
-        
+        self.iter += 1

@@ -12,6 +12,4 @@ setup(name='pymodular',
       packages=['pymodular'],
       install_requires=['numpy', 'sympy'],
       zip_safe=False,
-      test_suite='nose.collector',
-      tests_require=['nose']
       )

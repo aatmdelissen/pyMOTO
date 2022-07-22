@@ -7,7 +7,7 @@ from typing import List, Iterable, Union, Callable
 def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = None,
                       tosig: Union[Signal, Iterable[Signal]] = None,
                       dx: float = 1e-8, tol: float = 1e-5, random: bool = True, use_df: list = None,
-                      test_fn: Callable = None):
+                      test_fn: Callable = None, keep_zero_structure=True, verbose=True):
     """ Performs a finite difference check on the given module or network
 
     :param blk: The module or network
@@ -42,12 +42,18 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             if any([s in outps for s in b.sig_out]):
                 i_last = i
         blks_pre = Network(blk.mods[:i_first])
-        blk = Network(blk.mods[i_first:i_last+1])
+        if i_last<0:
+            blk = Network(blk.mods[i_first:])
+        else:
+            blk = Network(blk.mods[i_first:i_last+1])
         # blks_post = Network(blk.mods[i_last+1:])
         blks_pre.response()
 
     print("Inputs:")
-    [print("{}\t{} = {}".format(i, s.tag, s.state)) for i, s in enumerate(inps)]
+    if verbose:
+        [print("{}\t{} = {}".format(i, s.tag, s.state)) for i, s in enumerate(inps)]
+    else:
+        print(", ".join([s.tag for s in inps]))
     print("")
 
     # Setup some internal storage
@@ -62,12 +68,15 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
     blk.response()
 
     print("Outputs:")
+    if not verbose:
+        print(", ".join([s.tag for s in outps]))
+
     # Get analytical response and sensitivities, by looping over all outputs
     for Iout, Sout in enumerate(outps):
         # Obtain the output state
         output = Sout.state
-
-        print("{}\t{} = {}".format(Iout, Sout.tag, output))
+        if verbose:
+            print("{}\t{} = {}".format(Iout, Sout.tag, output))
 
         # Store the output value
         f0[Iout] = (output.copy() if hasattr(output, "copy") else output)
@@ -124,6 +133,9 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             # Get original value and do the perturbation
             if is_iterable:
                 x0 = it[0].copy()
+                if x0 == 0 and keep_zero_structure:
+                    it.iternext()
+                    continue
                 it[0] += dx
                 Sin.state = x
             else:
@@ -137,10 +149,13 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             for Iout, Sout in enumerate(outps):
                 # Obtain perturbed response
                 fp = Sout.state
+                # print('fp = ')
                 # print(fp)
 
                 # Finite difference sensitivity
                 df = (fp - f0[Iout])/dx
+                # print('df = ')
+                # print(df)
                 dgdx_fd = np.real(np.sum(df*np.conj(df_an[Iout])))
 
                 if dx_an[Iout][Iin] is not None:
@@ -156,10 +171,9 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 else:
                     error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
 
-                print("d%s/d%s     i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s"
-                      % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
-                if error > tol:
-                    print("ERROR!")
+                if verbose or error > tol:
+                    print("d%s/d%s     i = %s \tAn :% .3e\tFD : % .3e\tError: % .3e %s"
+                          % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
 
                 if test_fn is not None:
                     test_fn(x0, dx, dgdx_an, dgdx_fd)
@@ -204,8 +218,9 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                     else:
                         error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
 
-                    print("d%s/d%s (I) i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s"
-                          % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
+                    if verbose or error > tol:
+                        print("d%s/d%s (I) i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s"
+                              % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
 
                     if test_fn is not None:
                         test_fn(x0, dx, dgdx_an, dgdx_fd)
@@ -298,5 +313,3 @@ def minimize_mma(function, variables, responses, tolx=1e-4, tolf=1e-4, maxit=100
     opt.set_ftol_rel(tolf)
 
     opt.optimize(xval)
-
-

@@ -1,12 +1,12 @@
-from unittest import TestCase
+import unittest
 
 import pymodular as pym
 import numpy as np
 
 
-class TestEinSum(TestCase):
+class TestEinSum(unittest.TestCase):
     def assert_fd(self, x0, dx, dg_an, dg_fd):
-        self.assertAlmostEqual(dg_an, dg_fd)
+        self.assertAlmostEqual(dg_an, dg_fd, places=6)
 
     def test_vec_sum(self):
         n = 4
@@ -150,3 +150,6 @@ class TestEinSum(TestCase):
             self.assertTrue(np.allclose(out_chk, s_out.state))
             pym.finite_difference(blk, test_fn=self.assert_fd)
 
+
+if __name__ == '__main__':
+    unittest.main()

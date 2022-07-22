@@ -1,7 +1,11 @@
 from typing import Union, Iterable
 import warnings
 import numpy as np
-from .utils import _parse_to_list
+from ..utils import _parse_to_list
+try:
+    from opt_einsum import contract as einsum
+except ModuleNotFoundError:
+    from numpy import einsum
 
 
 def isdyad(x):
@@ -216,8 +220,22 @@ class DyadCarrier(object):
         """
         return DyadCarrier([u.conj() for u in self.u], [v.conj() for v in self.v])
 
+    @property
+    def real(self):
+        """ Gets the real part of the DyadCarrier
+        :return: DyadCarrier with real part
+        """
+        return DyadCarrier([*[u.real for u in self.u], *[-u.imag for u in self.u]], [*[v.real for v in self.v], *[v.imag for v in self.v]])
+
+    @property
+    def imag(self):
+        """ Gets the imaginary part of the DyadCarrier
+        :return: DyadCarrier with imaginary part
+        """
+        return DyadCarrier([*[u.real for u in self.u], *[u.imag for u in self.u]], [*[v.imag for v in self.v], *[v.real for v in self.v]])
+
     def contract(self, mat: np.ndarray = None, rows: np.ndarray = None, cols: np.ndarray = None):
-        """ Performs contraction of the dyadcarrier
+        """ Performs contraction of the DyadCarrier
         Calculates the result(s) of the quadratic form:
         y = sum_k u_k^T A v_k
 
@@ -306,7 +324,7 @@ class DyadCarrier(object):
             uarg = ui if rows is None else ui[rows]
             varg = vi if cols is None else vi[cols]
             argums = (uarg, varg) if mat is None else (uarg, mat, varg)
-            val += np.einsum(expr, *argums)
+            val += einsum(expr, *argums)
 
         return val
 

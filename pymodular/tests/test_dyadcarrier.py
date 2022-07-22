@@ -228,17 +228,38 @@ class TestDyadCarrier(unittest.TestCase):
         self.assertTrue(c.iscomplex(), msg="DyadCarrier should be recognized as complex")
         self.assertFalse(d.iscomplex(), msg="DyadCarrier should be recognized as real")
 
+        # Complex conjugations
+        self.assertTrue(np.allclose(np.conj(a.todense()), a.conj().todense()))
+        self.assertTrue(np.allclose(np.conj(b.todense()), b.conj().todense()))
+
         cconj = c.conj()
         self.assertTrue(np.allclose(np.conj(c.u[0]), cconj.u[0]))
         self.assertTrue(np.allclose(np.conj(c.u[1]), cconj.u[1]))
         self.assertTrue(np.allclose(np.conj(c.v[0]), cconj.v[0]))
         self.assertTrue(np.allclose(np.conj(c.v[1]), cconj.v[1]))
+        self.assertTrue(np.allclose(np.conj(c.todense()), cconj.todense()))
 
         dconj = d.conj()
         self.assertTrue(np.allclose(np.conj(d.u[0]), dconj.u[0]))
         self.assertTrue(np.allclose(np.conj(d.u[1]), dconj.u[1]))
         self.assertTrue(np.allclose(np.conj(d.v[0]), dconj.v[0]))
         self.assertTrue(np.allclose(np.conj(d.v[1]), dconj.v[1]))
+        self.assertTrue(np.allclose(np.conj(d.todense()), dconj.todense()))
+
+        # Get real part
+        self.assertTrue(np.allclose(np.real(a.todense()), a.real.todense()))
+        self.assertTrue(np.allclose(np.real(b.todense()), b.real.todense()))
+        self.assertTrue(np.allclose(np.real(c.todense()), c.real.todense()))
+        self.assertTrue(np.allclose(np.real(d.todense()), d.real.todense()))
+
+        # Get imaginary part
+        self.assertTrue(np.allclose(np.imag(a.todense()), a.imag.todense()))
+        self.assertTrue(np.allclose(np.imag(b.todense()), b.imag.todense()))
+        self.assertTrue(np.allclose(np.imag(c.todense()), c.imag.todense()))
+        self.assertTrue(np.allclose(np.imag(d.todense()), d.imag.todense()))
+
+
+
 
     def test_todense(self):
         n = 10

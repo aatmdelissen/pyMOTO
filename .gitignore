@@ -1,6 +1,7 @@
 *.pyc
-/dist/
-/*.egg-info
+dist/
+*.egg-info
 *.swp
-/build/
-/.idea
+build/
+.idea/
+out/

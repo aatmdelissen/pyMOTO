@@ -1,9 +1,9 @@
-from unittest import TestCase
+import unittest
 import numpy as np
 import pymodular as pym
 
 
-class TestMath(TestCase):
+class TestMath(unittest.TestCase):
 
     def testVec_Scalar(self):
         """ Test functionality where a vector is multiplied with a scalar """
@@ -58,3 +58,6 @@ class TestMath(TestCase):
         # Check results
         self.assertAlmostEqual(sScalar.sensitivity, 1.0*1.0 - 0.0*2.0 + 3.8*0.0 - 4.6*4.0)
         self.assertTrue(np.allclose(sVec.sensitivity, np.array([1.0*3.5, -2.0*3.5, 0.0*3.5, -4.0*3.5])))
+
+if __name__ == '__main__':
+    unittest.main()

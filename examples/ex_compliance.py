@@ -16,7 +16,7 @@ def oc_update(x, dfdx):
     xL = np.maximum(x - move, xmin)
     c = x * np.sqrt(-dfdx)
     vmax = volfrac*nx*ny
-    while (l2 - l1)/( l1 + l2) > 1e-4:
+    while (l2 - l1)/(l1 + l2) > 1e-4:
         lmid = 0.5 * (l1 + l2)
         xnew = np.clip(c/np.sqrt(lmid), xL, xU)
         if np.sum(xnew) > vmax:
@@ -62,7 +62,10 @@ if __name__ == "__main__":
     func = pym.Network()
 
     # Filter
-    sxfilt = func.append(pym.Density(sx, domain=domain, radius=filter_radius))
+    sxfilt1 = func.append(pym.Density(sx, domain=domain, radius=filter_radius))
+    ep = 0.1
+    sxfilt = func.append(pym.FilterConv(sx, domain=domain, mode='wrap', weights=np.array([[0, ep, 0], [ep, 1, ep], [0, ep, 0]])/(1+4*ep)))
+    func[-1].set_filter_radius(10.0, element_units=True)
     # sxprint1 = func.append(pym.OverhangFilter(sxfilt, domain=domain, direction='y'))
     # sxprint = func.append(pym.OverhangFilter(sxprint1, domain=domain, direction='y-'))
 
@@ -85,6 +88,8 @@ if __name__ == "__main__":
     # solver = pym.SolverSparseCholeskyScikit()
     su = func.append(pym.LinSolve([sK, sf], hermitian=True, solver=None))
 
+    func.append(pym.WriteToParaview([sx_analysis, su, sf], domain=domain, saveto='out/dat.vti'))
+
     # Compliance calculation
     sg0 = func.append(pym.EinSum([su, sf], expression='i,i->'))
 
@@ -98,8 +103,8 @@ if __name__ == "__main__":
     sg1 = func.append(pym.MathGeneral(svol, expression='10*(inp0/{} - {})'.format(domain.nel, volfrac)))
     sg1.tag = "volume constraint"
 
-    # pym.finite_difference(func, sx, [sg0], dx=1e-8)
-    # exit()
+    pym.finite_difference(func, sx, [sg0], dx=1e-4)
+    exit()
 
     # subprob = sao.problems.Subproblem(
     #     approximation=sao.approximations.Taylor1(intervening=sao.intervening_variables.mma.MMA02(x_min=0, x_max=1)),
@@ -108,7 +113,7 @@ if __name__ == "__main__":
     df = np.zeros((2, sx.state.size))
     f = np.zeros(2)
     print(f"Setup in {time.time()-start} s")
-    max_iter = 20
+    max_iter = 50
     t_solver = np.zeros(max_iter)
     for loop in range(max_iter):
         itstart = time.time()
@@ -151,7 +156,6 @@ if __name__ == "__main__":
         sx.state[:] = oc_update(sx.state, sx.sensitivity)[0]
         # sx.state[:] = sao.solvers.scipy_solver(subprob)
         print(f"New design in {time.time()-start} s")
-
 
         print("It {0: 3d}, g0 {1:.3e}, vol {2:.3f}".format(loop, sg0.state, np.sum(sx.state)/(nx*ny)))
         print(f"Iteration finished in {time.time()-itstart} s")

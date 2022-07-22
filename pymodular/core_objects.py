@@ -1,6 +1,5 @@
 from typing import Union, List, Any
 import warnings
-import sys
 import inspect
 from .utils import _parse_to_list
 from abc import ABC, abstractmethod
@@ -27,7 +26,7 @@ def stderr_warning(text):
 
 
 def get_init_loc():
-    """ Get the location (outside of this file) where the 'current' function is called"""
+    """ Get the location (outside of this file) where the 'current' function is called """
     stk = inspect.stack()
     frame = None
     for fr in stk:
@@ -38,6 +37,7 @@ def get_init_loc():
         return ""
     _, filename, line, func, _, _ = frame
     return filename, line, func
+
 
 def get_init_str():
     filename, line, func = get_init_loc()
@@ -52,7 +52,9 @@ def fmt_slice(sl):
     if isinstance(sl, tuple):
         return ", ".join([fmt_slice(sli) for sli in sl])
     elif isinstance(sl, slice):
-        return f"{'' if sl.start is None else sl.start}:{'' if sl.stop is None else sl.stop}:{'' if sl.step is None else sl.step}"
+        return f"{'' if sl.start is None else sl.start}:" \
+               f"{'' if sl.stop is None else sl.stop}:" \
+               f"{'' if sl.step is None else sl.step}"
     elif hasattr(sl, 'size') and sl.size > 4:
         ndim = sl.ndim if hasattr(sl, 'ndim') else 1
         return "["*ndim + "..." + "]"*ndim
@@ -62,7 +64,7 @@ def fmt_slice(sl):
 
 class Signal:
     """
-    Saves the state data, connects input and outputs of blocks and manages sensitivities
+    Manages the state data, sensitivities, and connects module in- and outputs
 
     Initialize using Signal()
     Optional arguments: tag (string)
@@ -100,12 +102,12 @@ class Signal:
             else:
                 self.sensitivity += ds
             return self
-        except TypeError as e:
-            if type(ds) == type(self.sensitivity):
+        except TypeError:
+            if isinstance(ds, type(self.sensitivity)):
                 raise TypeError(f"Cannot add to the sensitivity with type '{type(self.sensitivity).__name__}'"+self._err_str())
             else:
                 raise TypeError(f"Adding wrong type '{type(ds).__name__}' to the sensitivity '{type(self.sensitivity).__name__}'"+self._err_str())
-        except ValueError as e:
+        except ValueError:
             sens_shape = self.sensitivity.shape if hasattr(self.sensitivity, 'shape') else ()
             ds_shape = ds.shape if hasattr(ds, 'shape') else ()
             raise ValueError(f"Cannot add argument of shape {ds_shape} to the sensitivity of shape {sens_shape}"+self._err_str()) from None
@@ -132,7 +134,7 @@ class Signal:
         else:
             self.sensitivity = None
         return self
-            
+
     def __getitem__(self, item):
         """ Obtain a sliced signal, for using its partial contents.
         :param item: Slice indices
@@ -145,7 +147,7 @@ class SignalSlice(Signal):
     def __init__(self, orig_signal, sl, tag=None):
         self.orig_signal = orig_signal
         self.slice = sl
-        self.keep_alloc = True # This parameter probably doesn't matter
+        self.keep_alloc = True  # This parameter probably doesn't matter
 
         # for s in slice:
         if tag is None:
@@ -179,22 +181,22 @@ class SignalSlice(Signal):
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
             raise type(e)("Get sensitivity - " + e.args[0] + self._err_str(), *e.args[1:]) from None
-    
+
     @sensitivity.setter
     def sensitivity(self, new_sens):
         if self.orig_signal.sensitivity is None:
             if new_sens is None:
-                return # Sensitivity doesn't need to be initialized when it is set to None
+                return  # Sensitivity doesn't need to be initialized when it is set to None
             try:
                 self.orig_signal.sensitivity = self.orig_signal.state*0  # Make a new copy with 0 values
             except TypeError:
                 if self.orig_signal.state is None:
-                    raise TypeError(f"Could not initialize sensitivity because state is not set" + self._err_str()) from None
+                    raise TypeError("Could not initialize sensitivity because state is not set" + self._err_str()) from None
                 else:
                     raise TypeError(f"Could not initialize sensitivity for type \'{type(self.orig_signal.state).__name__}\'" + self._err_str()) from None
 
         if new_sens is None:
-            new_sens = 0 # reset() uses this
+            new_sens = 0  # reset() uses this
 
         try:
             self.orig_signal.sensitivity[self.slice] = new_sens
@@ -246,21 +248,21 @@ def _check_function_signature(fn, signals):
     min_args, max_args = 0, 0
     callstr = f"{type(fn.__self__).__name__}.{fn.__name__}{inspect.signature(fn)}"
     for s, p in inspect.signature(fn).parameters.items():
-        if p.kind==inspect.Parameter.POSITIONAL_ONLY or p.kind==inspect.Parameter.POSITIONAL_OR_KEYWORD:
-            if p.default!=inspect.Parameter.empty:
+        if p.kind == inspect.Parameter.POSITIONAL_ONLY or p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:
+            if p.default != inspect.Parameter.empty:
                 raise SyntaxError(f"{callstr} must not have default values \"{p}\"")
             min_args += 1
-            if max_args>=0:
+            if max_args >= 0:
                 max_args += 1
-        elif p.kind==inspect.Parameter.VAR_POSITIONAL:
+        elif p.kind == inspect.Parameter.VAR_POSITIONAL:
             max_args = -1
-        elif p.kind==inspect.Parameter.KEYWORD_ONLY:
+        elif p.kind == inspect.Parameter.KEYWORD_ONLY:
             raise SyntaxError(f"{callstr} may not contain keyword arguments \"{p}\"")
-        elif p.kind==inspect.Parameter.VAR_KEYWORD:
+        elif p.kind == inspect.Parameter.VAR_KEYWORD:
             raise SyntaxError(f"{callstr} may not contain \"{p}\"")
     if len(signals) < min_args:
         raise TypeError(f"Not enough arguments ({len(signals)}) for {callstr}")
-    if max_args >=0 and len(signals) > max_args:
+    if max_args >= 0 and len(signals) > max_args:
         raise TypeError(f"Too many arguments ({len(signals)}) for {callstr}")
 
 
@@ -353,13 +355,13 @@ class Module(ABC, RegisteredClass):
     >> Module(sig_in=[inputs], sig_out=[outputs]
     """
 
-    def _err_str(self, init: bool=True, add_signal: bool=True, fn=None):
+    def _err_str(self, init: bool = True, add_signal: bool = True, fn=None):
         str_list = []
         if init:
             str_list.append(f"Module \'{type(self).__name__}\', initialized in {self._init_loc}")
         if add_signal:
-            inp_str = "Inputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_in]) if len(self.sig_in)>0 else "No inputs"
-            out_str = "Outputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_out]) if len(self.sig_out)>0 else "No outputs"
+            inp_str = "Inputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_in]) if len(self.sig_in) > 0 else "No inputs"
+            out_str = "Outputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_out]) if len(self.sig_out) > 0 else "No outputs"
             str_list.append(inp_str + " --> " + out_str)
         if fn is not None:
             name = f"{fn.__self__.__class__.__name__}.{fn.__name__}{inspect.signature(fn)}"
@@ -367,7 +369,6 @@ class Module(ABC, RegisteredClass):
             filename = inspect.getfile(fn)
             str_list.append(f"Implemented in File \"{filename}\", line {lineno}, in {name}")
         return err_fmt(*str_list)
-
 
     def __init__(self, sig_in: Union[Signal, List[Signal]] = None, sig_out: Union[Signal, List[Signal]] = None,
                  *args, **kwargs):
@@ -391,7 +392,7 @@ class Module(ABC, RegisteredClass):
             # Call preparation of submodule with remaining arguments
             self._prepare(*args, **kwargs)
         except Exception as e:
-            raise type(e)("_prepare() - " + str(e.args[0]) + self._err_str(fn=self._prepare), *e.args[1:]) from None
+            raise type(e)("_prepare() - " + str(e.args[0]) + self._err_str(fn=self._prepare), *e.args[1:]) from e
 
         try:
             # Check if the signals match _response() signature
@@ -403,12 +404,12 @@ class Module(ABC, RegisteredClass):
             # If no output signals are given, but are required, try to initialize them here
             req_args = 0
             for s, p in inspect.signature(self._sensitivity).parameters.items():
-                if p.kind==inspect.Parameter.POSITIONAL_ONLY or p.kind==inspect.Parameter.POSITIONAL_OR_KEYWORD:
-                    if req_args>=0:
+                if p.kind == inspect.Parameter.POSITIONAL_ONLY or p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:
+                    if req_args >= 0:
                         req_args += 1
-                elif p.kind==inspect.Parameter.VAR_POSITIONAL:
+                elif p.kind == inspect.Parameter.VAR_POSITIONAL:
                     req_args = -1
-            if len(self.sig_out)==0 and req_args>=0 and req_args != len(self.sig_out):
+            if len(self.sig_out) == 0 and req_args >= 0 and req_args != len(self.sig_out):
                 # Initialize a number of output signals with default names
                 self.sig_out = [Signal(f"{type(self).__name__}_output{i}") for i in range(req_args)]
 
@@ -416,8 +417,6 @@ class Module(ABC, RegisteredClass):
             _check_function_signature(self._sensitivity, self.sig_out)
         except Exception as e:
             raise type(e)(str(e.args[0]) + self._err_str(fn=self._sensitivity), *e.args[1:]) from None
-
-
 
     def response(self):
         """
@@ -435,9 +434,12 @@ class Module(ABC, RegisteredClass):
             # Update the output signals
             for i, val in enumerate(state_out):
                 self.sig_out[i].state = val
-
+            return self
         except Exception as e:
-            raise type(e)("response() - " + str(e.args[0]) + self._err_str(fn=self._response), *e.args[1:]) from None
+            raise type(e)("response() - " + str(e.args[0]) + self._err_str(fn=self._response), *e.args[1:]) from e
+
+    def __call__(self):
+        return self.response()
 
     def sensitivity(self):
         """
@@ -462,16 +464,18 @@ class Module(ABC, RegisteredClass):
             for i, ds in enumerate(sens_out):
                 self.sig_in[i].add_sensitivity(ds)
 
+            return self
         except Exception as e:
-            raise type(e)("sensitivity() - " + str(e.args[0]) + self._err_str(fn=self._sensitivity), *e.args[1:]) from None
+            raise type(e)("sensitivity() - " + str(e.args[0]) + self._err_str(fn=self._sensitivity), *e.args[1:]) from e
 
     def reset(self):
         try:
             [s.reset() for s in self.sig_out]
             [s.reset() for s in self.sig_in]
             self._reset()
+            return self
         except Exception as e:
-            raise type(e)("reset() - " + str(e.args[0]) + self._err_str(fn=self._reset), *e.args[1:]) from None
+            raise type(e)("reset() - " + str(e.args[0]) + self._err_str(fn=self._reset), *e.args[1:]) from e
 
     # METHODS TO BE DEFINED BY USER
     def _prepare(self, *args, **kwargs):
@@ -489,10 +493,11 @@ class Module(ABC, RegisteredClass):
     def _reset(self):
         pass
 
-# AutoDiff module
-try:
+
+try:  # AutoDiff module
     import jax
     import numpy as np
+
     class AutoMod(Module):
         """ Module that automatically differentiates the response function """
         def response(self):
@@ -612,11 +617,11 @@ class Network(Module):
                     exclude_keys = ['type']
                     b_ex = {k: b[k] for k in set(list(b.keys())) - set(exclude_keys)}
                     modlist[i] = Module.create(b['type'], **b_ex)
-                except e:
+                except Exception as e:
                     raise type(e)("append() - Trying to append invalid module " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
-            try: # Check validity of modules
+            try:  # Check validity of modules
                 _check_valid_module(modlist[i])
-            except e:
+            except Exception as e:
                 raise type(e)("append() - Trying to append invalid module " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
 
         # Obtain the internal blocks
@@ -632,12 +637,12 @@ class Network(Module):
         self.sig_in = _parse_to_list(in_unique)
         try:
             [_check_valid_signal(s) for s in self.sig_in]
-        except e:
+        except Exception as e:
             raise type(e)("append() - Invalid input signals " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
         self.sig_out = _parse_to_list(all_out)
         try:
             [_check_valid_signal(s) for s in self.sig_out]
-        except e:
+        except Exception as e:
             raise type(e)("append() - Invalid output signals " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
 
-        return modlist[-1].sig_out[0] if len(modlist[-1].sig_out)==1 else modlist[-1].sig_out  # Returns the output signal
+        return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out  # Returns the output signal

@@ -2,6 +2,35 @@ from pymodular import Module
 from .assembly import DomainDefinition
 import numpy as np
 from scipy.sparse import coo_matrix
+from scipy.ndimage import convolve
+
+
+class FilterConv(Module):
+    def _prepare(self, domain: DomainDefinition, weights: np.ndarray, mode: str = 'reflect'):
+        self.domain = domain
+        self.weights = weights
+        self.mode = mode
+
+    def set_filter_radius(self, radius: float, element_units=False):
+        if element_units:
+            dx, dy, dz = 1.0, 1.0, 1.0
+        else:
+            dx, dy, dz = self.domain.element_size
+        delemx, delemy = int((radius-1e-10*dx)/dx), int((radius-1e-10*dy)/dy)
+
+        xrange = np.arange(-delemx, delemx+1)*dx
+        yrange = np.arange(-delemy, delemy+1)*dy
+        coords_x, coords_y = np.meshgrid(xrange, yrange)
+        self.weights = np.maximum(0.0, radius - np.sqrt(coords_x*coords_x + coords_y*coords_y))
+        self.weights /= np.sum(self.weights)  # Volume preserving
+
+    def _response(self, x):
+        xbox = x.reshape(self.domain.nelx, self.domain.nely, order='F').T  # TODO 3d?
+        return convolve(xbox, self.weights, mode=self.mode).flatten()
+
+    def _sensitivity(self, dfdv):
+        ybox = dfdv.reshape(self.domain.nelx, self.domain.nely, order='F').T  # TODO 3d
+        return convolve(ybox, self.weights, mode=self.mode).flatten()
 
 
 class Filter(Module):
@@ -26,6 +55,12 @@ class Filter(Module):
 
 
 class Density(Filter):
+    """ Standard density filter for topology optimization
+    References:
+    [1] Bruns, T. E., & Tortorelli, D. A. (2001). Topology optimization of non-linear elastic structures and compliant mechanisms.
+        Computer Methods in Applied Mechanics and Engineering, 190(26–27), 3443–3459. https://doi.org/10.1016/S0045-7825(00)00278-4
+    [2] TODO - What is the other reference that is commonly used?
+    """
     @staticmethod
     def calculate_h(domain: DomainDefinition, radius=2.0):
         """
@@ -37,9 +72,8 @@ class Density(Filter):
         :return: H
         """
         delem = int(radius)
-        nx = domain.nx  # Number of elements in x direction
-        ny = domain.ny  # Number of elements in y direction
-        nz = max(domain.nz, 1)  # Number of elements in z direction
+        # Number of elements
+        nx, ny, nz = domain.nelx, domain.nely, max(domain.nelz, 1)
         nel = domain.nel  # Number of elements
 
         xrange = np.arange(0, nx)
@@ -103,34 +137,39 @@ class Density(Filter):
 
 
 class OverhangFilter(Module):
+    """ Implementation of overhang filter according to the work of Langelaar (2016, 2017)
+
+    2D: Langelaar, M. (2017). An additive manufacturing filter for topology optimization of print-ready designs.
+        Structural and Multidisciplinary Optimization, 55(3), 871–883. https://doi.org/10.1007/s00158-016-1522-2
+    3D: Langelaar, M. (2016). Topology optimization of 3D self-supporting structures for additive manufacturing.
+        Additive Manufacturing, 12, 60–70. https://doi.org/10.1016/j.addma.2016.06.010
+    """
     def _prepare(self,
                  domain: DomainDefinition,
-                 direction=None,
+                 direction=(0.0, 1.0, 0.0),
                  xi_0: float = 0.5,
                  p: float = 40.0,
                  eps: float = 1e-4,
                  nsampling: int = None):
         """
-
-        :param domain:
+        :param domain: The domain layout
         :param direction: Print direction as array or string, e.g. [0, -1] or "y-" for negative y direction. Default is [0, 1, 0]
-        :return:
+        :param xi_0: Density value for which zero overshoot is required ( 0 <= xi_0 <= 1 )
+        :param p: Exponent of the smooth maximum function ( p > 0 ). Higher p increases accuracy, but reduces smoothness.
+        :param eps: Smooth minimum regularization parameter ( eps >= 0 ). Lower eps increases accuracy, but reduces smoothness.
+        :param nsampling: 3 for 2D overhang, 5 or 9 for 3D overhang
         """
 
         # Parse print direction
-        if direction is None:
-            direction = [0.0, 1.0, 0.0]
-        elif isinstance(direction, str):
+        if isinstance(direction, str):
             # Print axis
             axes = np.argwhere([a in direction.lower() for a in ['x', 'y', 'z']]).flatten()
             if axes.size != 1:
                 raise ValueError(f"Wronly specified print direction {direction}, should be e.g. \"+x\", \"-y\"")
 
             # Print direction
-            val = -1.0 if '-' in direction else +1.0
-
             direction = [0.0, 0.0, 0.0]
-            direction[axes[0]] = val
+            direction[axes[0]] = -1.0 if '-' in direction else +1.0
         direction = np.asarray(direction, dtype=np.float64).flatten()
         if direction.size < 3:
             direction = np.pad(direction, (0, 3-direction.size), 'constant', constant_values=0.0)
@@ -157,6 +196,7 @@ class OverhangFilter(Module):
         self.smax = None
 
     def set_parameters(self, typ: np.dtype):
+        """ Set the parameters according to the values in Langelaar, 2017 """
         dbl_min = np.finfo(typ).tiny
         self.q = self.p + np.log(1.0*self.nsampling) / np.log(self.xi_0)
         self.shift = 100.0 * pow(dbl_min, 1.0/self.p)  # Small shift to prevent division by 0
@@ -296,5 +336,3 @@ class OverhangFilter(Module):
         els = self.domain.get_elemnumber(*el)
         dx[els] = dxprint[els]
         return dx
-
-

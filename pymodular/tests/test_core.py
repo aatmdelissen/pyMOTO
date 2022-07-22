@@ -569,10 +569,13 @@ class TestNetwork(unittest.TestCase):
         class PrepErrorModule(pym.Module):
             def _prepare(self):
                 raise RuntimeError("Prepare error")
+
             def _response(self, a1, a2):
                 raise RuntimeError("Response error")
+
         # pym.Network({'type': 'PrepErrorModule','sig_in': [], 'sig_out': []})
-        self.assertRaises(RuntimeError, pym.Network, {'type': 'PrepErrorModule','sig_in': [], 'sig_out': []})
+        self.assertRaises(RuntimeError, pym.Network, {'type': 'PrepErrorModule', 'sig_in': [], 'sig_out': []})
+
 
 if __name__ == '__main__':
     unittest.main()

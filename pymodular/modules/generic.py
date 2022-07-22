@@ -3,6 +3,7 @@ import numpy as np
 from pymodular.core_objects import Module
 try:
     from opt_einsum import contract as einsum
+    print("Use optimized einsum")
 except ModuleNotFoundError:
     from numpy import einsum
 
@@ -143,5 +144,3 @@ class EinSum(Module):
             einsum(op, np.conj(df_in), *arg_in, out=da_i)
             df_out.append(np.conj(da_i))
         return df_out
-
-
