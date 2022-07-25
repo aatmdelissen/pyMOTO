@@ -1,9 +1,15 @@
-from pymodular import Module
-import matplotlib.pyplot as plt
-import numpy as np
-from .assembly import DomainDefinition
 import os
+import platform
 from pathlib import Path
+import numpy as np
+if platform.system() == 'Darwin':  # Avoid "Python is not installed as a framework (Mac OS X)" error
+    # Change backend
+    import matplotlib
+    matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+
+from pymodular import Module
+from .assembly import DomainDefinition
 
 
 class PlotDomain2D(Module):
@@ -38,11 +44,11 @@ class PlotDomain2D(Module):
         self.iter += 1
 
     def plot_2d(self, x):
-        data = x.reshape((self.domain.nelx, self.domain.nely), order='F').T
+        data = x.reshape((self.domain.nelx, self.domain.nely), order='F').T  # TODO Put this reshape inside domain?
         if hasattr(self, 'im'):
             self.im.set_data(data)
         else:
-            ax = self.fig.add_subplot()
+            ax = self.fig.add_subplot(111)
             self.im = ax.imshow(data, origin='lower', cmap=self.cmap)
             self.cbar = self.fig.colorbar(self.im, orientation='horizontal')
             ax.set(xlabel='x', ylabel='y')
