@@ -1,46 +1,8 @@
 import warnings
 import numpy as np
 import scipy.linalg as spla  # Dense matrix solvers
-from .solvers import matrix_is_hermitian
+from .solvers import matrix_is_hermitian, LinearSolver
 
-class LinearSolver:
-    defined = True
-    _err_msg = ""
-
-    def __init__(self, A=None):
-        if A is not None:
-            self.update(A)
-
-    def update(self, A):
-        """ Updates with a new matrix of the same structure
-        :param A: The new matrix
-        :return: self
-        """
-        raise NotImplementedError(f"Solver not implemented {self._err_msg}")
-
-    def solve(self, rhs):
-        """ Solves A x = rhs
-        :param rhs: Right hand side
-        :return: Solution vector x
-        """
-        raise NotImplementedError(f"Solver not implemented {self._err_msg}")
-
-    def adjoint(self, rhs):
-        """Solves A^H x = rhs in case of complex matrix or A^T x = rhs for a real-valued matrix
-        :param rhs: Right hand side
-        :return: Solution vector x
-        """
-        raise NotImplementedError(f"Solver not implemented {self._err_msg}")
-
-    @staticmethod
-    def residual(A, x, b):
-        """ Calculates the residual || A x - b || / || b ||
-        :param A: Matrix
-        :param x: Solution
-        :param b: Right-hand side
-        :return: Residual value
-        """
-        return np.linalg.norm(A.dot(x) - b) / np.linalg.norm(b)
 
 class SolverDiagonal(LinearSolver):
     def update(self, A):
@@ -121,7 +83,7 @@ class SolverDenseLDL(LinearSolver):
     def update(self, A):
         if self.hermitian is None:
             self.hermitian = matrix_is_hermitian(A)
-        self.l, self.d, self.p = spla.ldl(A, hermitian=self.hermitian)
+        self.l, self.d, self.p = spla.ldl(A, hermitian=self.hermitian)  # TODO not all Scipy versions have LDL?
         self.diagonald = np.allclose(self.d, np.diag(np.diag(self.d)))
         if self.diagonald:  # Exact diagonal
             d1 = np.diag(1/np.diag(self.d))

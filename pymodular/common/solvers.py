@@ -50,4 +50,87 @@ def matrix_is_hermitian(A):
         return matrix_is_symmetric(A)
 
 
+class LinearSolver:
+    defined = True
+    _err_msg = ""
 
+    def __init__(self, A=None):
+        if A is not None:
+            self.update(A)
+
+    def update(self, A):
+        """ Updates with a new matrix of the same structure
+        :param A: The new matrix
+        :return: self
+        """
+        raise NotImplementedError(f"Solver not implemented {self._err_msg}")
+
+    def solve(self, rhs):
+        """ Solves A x = rhs
+        :param rhs: Right hand side
+        :return: Solution vector x
+        """
+        raise NotImplementedError(f"Solver not implemented {self._err_msg}")
+
+    def adjoint(self, rhs):
+        """Solves A^H x = rhs in case of complex matrix or A^T x = rhs for a real-valued matrix
+        :param rhs: Right hand side
+        :return: Solution vector x
+        """
+        return self.solve(rhs.conj()).conj()
+        # raise NotImplementedError(f"Solver not implemented {self._err_msg}")
+
+    @staticmethod
+    def residual(A, x, b):
+        """ Calculates the residual || A x - b || / || b ||
+        :param A: Matrix
+        :param x: Solution
+        :param b: Right-hand side
+        :return: Residual value
+        """
+        return np.linalg.norm(A.dot(x) - b) / np.linalg.norm(b)
+
+
+class LDAWrapper(LinearSolver):
+    """ Linear dependency aware solver (LDAS)
+    TODO: Reference
+    """
+    def __init__(self, solver: LinearSolver, tol=1e-8, A=None):
+        self.solver = solver
+        self.tol = tol
+        self.x_stored = []
+        self.b_stored = []
+        self.A = None
+        self._did_solve = False  # For debugging purposes
+        self._last_rtol = 0.
+        super().__init__(A)
+
+    def update(self, A):
+        self.A = A
+        self.x_stored.clear()
+        self.b_stored.clear()
+        self.solver.update(A)
+
+    def solve(self, rhs):
+        rhs_loc = rhs.copy()
+        sol = np.zeros_like(rhs_loc)
+
+        # Check linear dependencies in the rhs using modified Gram-Schmidt
+        for (x, b) in zip(self.x_stored, self.b_stored):
+            alpha = rhs_loc @ b / (b @ b)
+            rhs_loc -= alpha * b
+            sol += alpha * x
+
+        # Check tolerance
+        self._last_rtol = self.residual(self.A, sol, rhs)
+        if self._last_rtol > self.tol:
+            # Calculate a new solution
+            xnew = self.solver.solve(rhs_loc)
+            self.x_stored.append(xnew)
+            self.b_stored.append(rhs_loc)
+            sol += xnew
+            self._did_solve = True
+        else:
+            self._did_solve = False
+
+        return sol

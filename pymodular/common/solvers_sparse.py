@@ -8,8 +8,7 @@ from ctypes.util import find_library  # To find MKL
 import numpy as np
 import scipy.sparse as sps
 from scipy.sparse import SparseEfficiencyWarning
-from .solvers_dense import LinearSolver
-from .solvers import matrix_is_hermitian, matrix_is_complex, matrix_is_symmetric
+from .solvers import matrix_is_hermitian, matrix_is_complex, matrix_is_symmetric, LinearSolver
 try:
     from scikits.umfpack import splu  # UMFPACK solver; this one is faster and has identical interface
 except ImportError:
@@ -33,7 +32,12 @@ def _find_libmkl():
     # - if there are multiple matches for `mkl_rt`, try shorter paths
     #   first
     if mkl_rt is None:
-        roots = [sys.prefix, os.environ['MKLROOT']]
+        roots = [sys.prefix]
+        try:
+            roots.append(os.environ['MKLROOT'])
+        except KeyError:
+            pass
+
         for root in roots:
             mkl_rt_path = sorted(
                 glob.glob(f'{root}/[Ll]ib*/**/*mkl_rt*', recursive=True),
@@ -55,7 +59,10 @@ def _find_libmkl():
     return libmkl
 
 
-__libmkl__ = _find_libmkl()
+try:
+    __libmkl__ = _find_libmkl()
+except ImportError:
+    __libmkl__ = None
 
 if __libmkl__ is not None:
     class SolverSparsePardiso(LinearSolver):
@@ -559,8 +566,6 @@ try:  # SCIKIT CHOLMOD
             else:
                 return (self.inv(rhs).conj() @ self.A).conj()
 
-        def adjoint(self, rhs):
-            return self.solve(rhs.conj()).conj()
 
 except ImportError:
     class SolverSparseCholeskyScikit(LinearSolver):
@@ -597,8 +602,6 @@ try:  # CVXOPT cholmod
             cvxopt.cholmod.solve(self.inv, B, nrhs=nrhs)
             return np.array(B).flatten() if nrhs == 1 else np.array(B)
 
-        def adjoint(self, rhs):
-            return self.solve(rhs.conj()).conj()
 
 except ImportError:
     class SolverSparseCholeskyCVXOPT(LinearSolver):
