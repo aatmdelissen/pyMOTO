@@ -154,7 +154,7 @@ if __libmkl__ is not None:
             self.symmetric = symmetric
             self.positive_definite = positive_definite
             self.phase = 13
-            self.msglvl = True  # Show debug info
+            self.msglvl = False  # Show debug info
 
             self.factorized_A = sps.csr_matrix((0, 0))
             self.size_limit_storage = size_limit_storage
@@ -186,6 +186,7 @@ if __libmkl__ is not None:
             """
             # TODO structural symmetry is not checked, may be added at some point
             self.complex = matrix_is_complex(A)
+            self.dtype = np.complex128 if self.complex else np.float64
             if self.complex:
                 # Check if is Hermitian?
                 if self.hermitian is None:
@@ -216,8 +217,6 @@ if __libmkl__ is not None:
             # Update matrix type
             if self.mtype is None:
                 self.mtype = self.determine_mtype(A)
-
-            self.dtype = np.complex128 if self.complex else np.float64
 
             if self.mtype in {-2, 2, 6}:
                 A = sps.triu(A, format='csr')  # Only use upper part

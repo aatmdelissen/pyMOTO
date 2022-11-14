@@ -1,10 +1,10 @@
 """ Minimal example for a structural compliance topology optimization """
 import pymodular as pym
 import numpy as np
-import sao
+# import sao
 import time
 
-nx, ny = 300, 100
+nx, ny, nz = 40, 40, 40
 xmin = 1e-9
 filter_radius = 4.0
 volfrac = 0.5
@@ -29,8 +29,7 @@ if __name__ == "__main__":
     print(__doc__)
     start = time.time()
 
-    which = '2d'
-    if which == '2d':
+    if nz == 0:  # 2D analysis
         # Generate a grid
         domain = pym.DomainDefinition(nx, ny)
 
@@ -62,10 +61,10 @@ if __name__ == "__main__":
     func = pym.Network()
 
     # Filter
-    sxfilt1 = func.append(pym.Density(sx, domain=domain, radius=filter_radius))
-    ep = 0.1
-    sxfilt = func.append(pym.FilterConv(sx, domain=domain, mode='wrap', weights=np.array([[0, ep, 0], [ep, 1, ep], [0, ep, 0]])/(1+4*ep)))
-    func[-1].set_filter_radius(10.0, element_units=True)
+    sxfilt = func.append(pym.Density(sx, domain=domain, radius=filter_radius))
+    # ep = 0.1
+    # sxfilt = func.append(pym.FilterConv(sx, domain=domain, mode='wrap', weights=np.array([[0, ep, 0], [ep, 1, ep], [0, ep, 0]])/(1+4*ep)))
+    # func[-1].set_filter_radius(10.0, element_units=True)
     # sxprint1 = func.append(pym.OverhangFilter(sxfilt, domain=domain, direction='y'))
     # sxprint = func.append(pym.OverhangFilter(sxprint1, domain=domain, direction='y-'))
 
@@ -103,8 +102,8 @@ if __name__ == "__main__":
     sg1 = func.append(pym.MathGeneral(svol, expression='10*(inp0/{} - {})'.format(domain.nel, volfrac)))
     sg1.tag = "volume constraint"
 
-    pym.finite_difference(func, sx, [sg0], dx=1e-4)
-    exit()
+    # pym.finite_difference(func, sx, [sg0], dx=1e-4)
+    # exit()
 
     # subprob = sao.problems.Subproblem(
     #     approximation=sao.approximations.Taylor1(intervening=sao.intervening_variables.mma.MMA02(x_min=0, x_max=1)),

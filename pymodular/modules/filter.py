@@ -209,7 +209,7 @@ class OverhangFilter(Module):
         self.smax = x.copy()
 
         # Size of the domain
-        size = [self.domain.nx, self.domain.ny, max(self.domain.nz, 1)]
+        size = [self.domain.nelx, self.domain.nely, max(self.domain.nelz, 1)]
 
         dir_layer = int(np.argmax(abs(self.direction)))  # The axis of the print direction
         dx_layer = int(np.sign(self.direction[dir_layer]))  # Iteration direction
@@ -270,7 +270,7 @@ class OverhangFilter(Module):
         dx = np.zeros_like(dxprint)
 
         # Size of the domain
-        size = [self.domain.nx, self.domain.ny, max(self.domain.nz, 1)]
+        size = [self.domain.nelx, self.domain.nely, max(self.domain.nelz, 1)]
 
         dir_layer = int(np.argmax(abs(self.direction)))  # The axis of the print direction
         dx_layer = int(np.sign(self.direction[dir_layer]))  # Iteration direction
