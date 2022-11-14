@@ -12,12 +12,12 @@ from pymodular import Module
 from .assembly import DomainDefinition
 
 
-class PlotDomain2D(Module):
+class PlotDomain(Module):
+    """ Plots the densities of a domain (2D or 3D) """
     def _prepare(self, domain: DomainDefinition, saveto: str = None, clim=None, cmap='gray_r'):
         self.clim = clim
         self.cmap = cmap
         self.domain = domain
-        # assert domain.nz < 2, "Only for 2D or 1-element thick 2D models"
         self.fig = plt.figure()
         if saveto is not None:
             self.saveloc, self.saveext = os.path.splitext(saveto)
@@ -93,7 +93,36 @@ class PlotDomain2D(Module):
                              linewidth=0.5)
 
 
+class PlotGraph(Module):
+    """ Plot a X-Y graph """
+    def __del__(self):
+        if hasattr(self, 'fig'):
+            plt.close(self.fig)
+
+    def _response(self, x, *ys):
+        if not hasattr(self, 'fig'):
+            self.fig, self.ax = plt.subplots(1, 1)
+            self.ax.set_xlabel(self.sig_in[0].tag)
+            self.ax.set_ylabel(self.sig_in[1].tag)
+
+        if not hasattr(self, 'line'):
+            self.line = []
+            for i, s in enumerate(self.sig_in[1:]):
+                self.line.append(plt.plot([], [], label=s.tag)[0])
+            self.ax.legend()
+            plt.show(block=False)
+
+        ymin, ymax = np.inf, -np.inf
+        for i, y in enumerate(ys):
+            self.line[i].set_xdata(x)
+            self.line[i].set_ydata(y)
+            ymin, ymax = min(ymin, min(y)), max(ymax, max(y))
+        self.ax.set_xlim([min(x), max(x)])
+        self.ax.set_ylim([ymin, ymax])
+
+
 class PlotIter(Module):
+    """ Plot iteration history of one or more variables """
     def _prepare(self):
         self.iter = 0
         self.minlim = 1e+200

@@ -151,7 +151,7 @@ if __name__ == "__main__":
     mods.append(ScaleTo(sc, sg0, val=100.0))
 
     # Plot design
-    mods.append(pym.PlotDomain2D(sxNom, domain=domain, saveto="out/design"))
+    mods.append(pym.PlotDomain(sxNom, domain=domain, saveto="out/design"))
     # mods.append(pym.PlotDomain2D(sxEr, domain=domain))
 
     # Volume

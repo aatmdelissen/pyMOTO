@@ -22,9 +22,6 @@ except ModuleNotFoundError:
     from numpy import einsum
 
 
-
-
-
 class AssembleGeneral(Module):
     """ Assembles a sparse matrix according to element scaling
     """

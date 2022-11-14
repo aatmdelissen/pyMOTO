@@ -41,7 +41,7 @@ sSIMP  = func.append(pym.MathGeneral(sxfilt, expression=f"{xmin} + {1-xmin}*inp0
 sK     = func.append(pym.AssembleGeneral(sSIMP, domain=domain, element_matrix=el, bc=boundary_dofs))  # Add stiffness assembly module
 su     = func.append(pym.LinSolve([sK, sf]))  # Linear system solver
 sg0    = func.append(pym.EinSum([su, sf], expression='i,i->'))  # Compliance calculation
-func.append(pym.PlotDomain2D(sxfilt, domain=domain, saveto="out/design"), pym.PlotIter([sg0]))  # Plot design and history
+func.append(pym.PlotDomain(sxfilt, domain=domain, saveto="out/design"), pym.PlotIter([sg0]))  # Plot design and history
 # Perform the actual optimization, using OC
 loop, change = 0, 1.0
 while change > 0.01:

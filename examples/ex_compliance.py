@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     # Plot some information
     # func.append(pym.PlotDomain2D(sxprint, domain=domain, saveto="out/design", clim=[0, 1]))  # Plot design
-    func.append(pym.PlotDomain2D(sx_analysis, domain=domain, saveto="out/design", clim=[0, 1]))  # Plot design
+    func.append(pym.PlotDomain(sx_analysis, domain=domain, saveto="out/design", clim=[0, 1]))  # Plot design
     # func.append(pym.PlotIter([sg0]))  # Plot iteration history
 
     # Volume constraint
