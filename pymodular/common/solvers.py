@@ -93,7 +93,7 @@ class LinearSolver:
 
 class LDAWrapper(LinearSolver):
     """ Linear dependency aware solver (LDAS)
-    TODO: Reference
+    Koppen, van der Kolk, van den Boom (2022) https://doi.org/10.1007/s00158-022-03378-8
     """
     def __init__(self, solver: LinearSolver, tol=1e-8, A=None):
         self.solver = solver

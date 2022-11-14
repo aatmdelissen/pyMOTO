@@ -6,7 +6,7 @@ import warnings
 import hashlib
 from inspect import currentframe, getframeinfo
 
-from pymodular import Module, DyadCarrier
+from pymodular import Module, DyadCarrier, LDAWrapper
 import numpy as np
 import scipy.sparse as sps
 import scipy.linalg as spla  # Dense matrix solvers
@@ -137,6 +137,8 @@ class LinSolve(Module):
         # Determine the solver we want to use
         if self.solver is None:
             self.solver = auto_determine_solver(mat, ishermitian=self.ishermitian)
+        if not isinstance(self.solver, LDAWrapper):
+            self.solver = LDAWrapper(self.solver)
 
         # Do factorication
         self.solver.update(mat)
@@ -144,32 +146,11 @@ class LinSolve(Module):
         # Solution
         self.u = self.solver.solve(rhs)
 
-        # assert np.allclose(mat@self.u, rhs)
         return self.u
 
     def _sensitivity(self, dfdv):
-        dfdu = dfdv
-        rhs = self.sig_in[1].state
-
-        # Check if b is linear dependent on dfdu
-        # Asymmetric matrices are not self-adjoint
-        islinear = self.ishermitian
-
-        # Check if the adjoint rhs vector is linearly dependent on rhs vector b
-        if islinear:
-            # Projection of dfdu onto right-hand-side
-            if dfdu.ndim > 1:
-                islinear = False  # Just do the linear solve for now
-                # TODO: Multiple rhs might be solved by linear combination of previous solutions
-            else:
-                dfdunorm = dfdu.dot(dfdu)
-                alpha = rhs.dot(dfdu) / dfdunorm
-                islinear = np.linalg.norm(dfdu - alpha * rhs) / dfdunorm < self.dep_tol
-
-        if islinear:
-            lam = alpha * self.u
-        else:
-            lam = self.solver.adjoint(dfdu)
+        mat, rhs = [s.state for s in self.sig_in]
+        lam = self.solver.adjoint(dfdv)
 
         if self.issparse:
             if not self.iscomplex and (np.iscomplexobj(self.u) or np.iscomplexobj(lam)):
