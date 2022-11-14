@@ -1,8 +1,39 @@
 ![logo](M_logo_256.png)
 
-Modular framework for optimization with semi-automatic derivatives
+Modular topology optimization framework with semi-automatic derivatives. The two main types `Module` and `Signal`
+are used to implement a problem formulation to be optimized. The `Module` implements functionality (and design 
+sensitivity calculations) and `Signal` carries data of both the variables and their derivatives. 
 
-# Requirements
+Sensitivity calculations are done based on backpropagation. The final value of interest is seeded with sensitivity
+value $\frac{\textup{d}f}{\textup{d}f}=1$. Then the modules are executed in reverse order, each applying the chain rule.
+As example for a `Module` which maps $x\rightarrow y$, only the following operation needs to be implemented:
+$$
+\frac{\textup{d}f}{\textup{d}x} = \frac{\textup{d}f}{\textup{d}y}\frac{\textup{d}y}{\textup{d}x}\text{.}
+$$
+In this way, the order of modules can easily be adapted without having to worry about sensitivities, as these are 
+automatically calculated.
+
+# Installation
+Install by calling `pip install -e .` in the `pyModular` folder (within your virtual environment).
+
+## Dependencies
+* **NumPy** - Dense linear algebra and solvers
+* **SciPy** - Sparse linear algebra and solvers
+* **SymPy** - Symbolic differentiation for `MathGeneral` module
+* **Matplotlib** - Plotting and visualisation
+* (optional) **SAO** - Sequential approximated optimizers
+* (optional) **opt_einsum** - Optimized function for `EinSum` module
+* (optional) **scikit-umfpack** - Fast LU linear solver based on UMFPACK
+* (optional) **sksparse** - Fast Cholesky solver based on CHOLMOD
+* (optional) **CVXopt** - Another fast Cholesky solver based on CHOLMOD
+* (optional) **Intel OneAPI** - Non-python library with a fast PARDISO solver
+
+__Note on linear solvers for sparse matrices:__ Scipy implements a version of LU which is quite slow. To increase the 
+speed of the optimization, `Intel OneAPI` is recommended as it contains a very robust and flexible solver for symmetric 
+and asymmetric matrices. An alternative is `scikit-umfpack` which provides a fast LU factorization. For symmetric 
+matrices a Cholesky factorization is recommended (not provided with Scipy), which can be used by either installing 
+`sksparse` or `cvxopt`.
+
 
 ## How to make Python fast with Intel OneAPI
 Intel provides a toolkit with many fast math operations and solvers called OneAPI (basekit). 
@@ -18,20 +49,6 @@ The nice thing about OneAPI is that it also includes an optimized version of Pyt
 ### Usage of multi-thread linear solvers
 Intel has a Pardiso type linear solver for fast solution of large systems.
 To use it.....
-
-# Installation
-Download the git repository and unzip
-cd to the downloaded directory
-
-Run the following command to install the package:
-```bash
-python setup.py install
-```
-
-After installing, execute tests by typing:
-```bash
-python setup.py test
-```
 
 # License
 PyModular is available under te [MIT License](https://opensource.org/licenses/MIT).

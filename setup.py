@@ -10,6 +10,6 @@ setup(name='pymodular',
       author_email='a.a.t.m.delissen@tudelft.nl',
       license='',
       packages=['pymodular'],
-      install_requires=['numpy', 'sympy'],
+      install_requires=['numpy', 'sympy', 'scipy', 'matplotlib'],
       zip_safe=False,
       )
