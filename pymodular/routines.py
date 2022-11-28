@@ -156,13 +156,15 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 df = (fp - f0[Iout])/dx
                 # print('df = ')
                 # print(df)
-                dgdx_fd = np.real(np.sum(df*np.conj(df_an[Iout])))
+                dgdx_fd = np.sum(df*df_an[Iout])
+                if not np.iscomplexobj(x0):
+                    dgdx_fd = np.real(dgdx_fd)
 
                 if dx_an[Iout][Iin] is not None:
                     try:
-                        dgdx_an = np.real(dx_an[Iout][Iin][it.multi_index])
+                        dgdx_an = dx_an[Iout][Iin][it.multi_index]
                     except IndexError:
-                        dgdx_an = np.real(dx_an[Iout][Iin])
+                        dgdx_an = dx_an[Iout][Iin]
                 else:
                     dgdx_an = 0.0
 
@@ -172,8 +174,9 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                     error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
 
                 if verbose or error > tol:
-                    print("d%s/d%s     i = %s \tAn :% .3e\tFD : % .3e\tError: % .3e %s"
-                          % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
+                    print("δ%s/δ%s     i = %s \tAn :% .3e %s% .3ei\tFD : % .3e %s% .3ei\tError: % .3e %s"
+                          % (Sout.tag, Sin.tag, it.multi_index, np.real(dgdx_an), "+"if np.sign(np.imag(dgdx_an))>=0 else "-", np.absolute(np.imag(dgdx_an)),
+                             np.real(dgdx_fd), "+"if np.sign(np.imag(dgdx_fd))>=0 else "-", np.absolute(np.imag(dgdx_fd)), error, "<--*" if error > tol else ""))
 
                 if test_fn is not None:
                     test_fn(x0, dx, dgdx_an, dgdx_fd)
@@ -202,14 +205,14 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                     fp = Sout.state
 
                     # Finite difference sensitivity
-                    df = (fp - f0[Iout])/dx
-                    dgdx_fd = np.real(np.sum(df*np.conj(df_an[Iout])))
+                    df = (fp - f0[Iout])/(dx*1j)
+                    dgdx_fd = np.sum(df*df_an[Iout])
 
                     if dx_an[Iout][Iin] is not None:
                         try:
-                            dgdx_an = np.imag(dx_an[Iout][Iin][it.multi_index])
+                            dgdx_an = dx_an[Iout][Iin][it.multi_index]
                         except IndexError:
-                            dgdx_an = np.imag(dx_an[Iout][Iin])
+                            dgdx_an = dx_an[Iout][Iin]
                     else:
                         dgdx_an = 0.0
 
@@ -219,8 +222,12 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                         error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
 
                     if verbose or error > tol:
-                        print("d%s/d%s (I) i = %s\tAn :% .3e\tFD : % .3e\tError: % .3e %s"
-                              % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
+                        print("δ%s/δ%s (I) i = %s \tAn :% .3e %s% .3ei\tFD : % .3e %s% .3ei\tError: % .3e %s"
+                              % (Sout.tag, Sin.tag, it.multi_index, np.real(dgdx_an),
+                                 "+" if np.sign(np.imag(dgdx_an)) >= 0 else "-", np.absolute(np.imag(dgdx_an)),
+                                 np.real(dgdx_fd), "+" if np.sign(np.imag(dgdx_fd)) >= 0 else "-",
+                                 np.absolute(np.imag(dgdx_fd)), error, "<--*" if error > tol else ""))
+
 
                     if test_fn is not None:
                         test_fn(x0, dx, dgdx_an, dgdx_fd)

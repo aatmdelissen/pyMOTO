@@ -16,6 +16,18 @@ from pymodular import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagon
 from pymodular import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardiso, SolverSparseCholeskyScikit
 
 
+class Inverse(Module):
+    """ Calculate the exact inverse of a matrix B = A^{-1} """
+    def _response(self, A):
+        return np.linalg.inv(A)
+
+    def _sensitivity(self, dB):
+        A = self.sig_in[0].state
+        B = self.sig_out[0].state
+        dA = - B.T @ dB @ B.T
+        return dA if np.iscomplexobj(A) else np.real(dA)
+
+
 def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertriangular=None, ishermitian=None, issymmetric=None, ispositivedefinite=None):
     """
     Uses parts of Matlab's scheme https://nl.mathworks.com/help/matlab/ref/mldivide.html
@@ -169,3 +181,43 @@ class LinSolve(Module):
         db = np.real(lam) if np.isrealobj(rhs) else lam
 
         return dmat, db
+
+
+class EigenSolve(Module):
+    """ Eigensolver module
+    Solves the eigenvalue problem A q_i = λ_i q_i with normalization q_i^T q_i = 1
+    The eigenvectors are returned as a matrix Q, where eigenvector Q[:, i] belongs to eigenvalue λ[i]
+    """
+    def _response(self, A):
+        W, Q = np.linalg.eig(A)
+        isort = np.argsort(W)
+        W = W[isort]
+        Q = Q[:, isort]
+        for i in range(W.size):
+            qi, wi = Q[:, i], W[i]
+            qi *= np.sign(np.real(qi[0]))
+            qi /= np.sqrt(qi@qi)
+            assert(abs(qi@qi - 1.0) < 1e-5)
+            assert(np.linalg.norm(A@qi - wi*qi) < 1e-5)
+        return W, Q
+
+    def _sensitivity(self, dW, dQ):
+        A = self.sig_in[0].state
+        dA = np.zeros_like(A)
+        W, Q = [s.state for s in self.sig_out]
+        if dW is None:
+            dW = np.zeros_like(W)
+        if dQ is None:
+            dQ = np.zeros_like(Q)
+
+        for i in range(W.size):
+            dqi, dwi = dQ[:, i], dW[i]
+            if np.linalg.norm(dqi)==0 and dwi==0:
+                continue
+            qi, wi = Q[:, i], W[i]
+            P = np.block([[A.T - wi*np.eye(*A.shape), -qi[..., np.newaxis]], [-qi.T, 0]])
+            adj = np.linalg.solve(P, np.block([dqi, dwi])) #  Adjoint solve Lee(1999)
+            nu = adj[:-1]
+            alpha = adj[-1]
+            dA += np.outer(-nu, qi)
+        return dA if np.iscomplexobj(A) else np.real(dA)
