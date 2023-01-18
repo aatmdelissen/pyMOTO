@@ -185,25 +185,43 @@ class LinSolve(Module):
 
 class EigenSolve(Module):
     """ Eigensolver module
-    Solves the eigenvalue problem A q_i = λ_i q_i with normalization q_i^T q_i = 1
+    Solves the eigenvalue problem A q_i = λ_i q_i with normalization q_i^T q_i = 1 or
+    the generalized eigenvalue problem A q_i = λ_i B q_i with normalization q_i^T B q_i = 1 (B must be positive def.)
     The eigenvectors are returned as a matrix Q, where eigenvector Q[:, i] belongs to eigenvalue λ[i]
+
+    Both real and complex matrices are supported.
+    Correct sensitivities for cases with eigenvalue multiplicity are not implemented yet.
+
+    Mode tracking algorithms can be implemented by the user by providing the argument "sorting_func", which is a
+    function with arguments (λ, Q).
     """
-    def _response(self, A):
-        W, Q = np.linalg.eig(A)
-        isort = np.argsort(W)
+    def _prepare(self, sorting_func=lambda W,Q: np.argsort(W), is_hermitian=None):
+
+        self.sorting_fn = sorting_func
+        self.is_hermitian = is_hermitian
+
+    def _response(self, A, *args):
+        B = args[0] if len(args) > 0 else None
+        if self.is_hermitian is None:
+            self.is_hermitian = (matrix_is_hermitian(A) and (B is None or matrix_is_hermitian(B)))
+        W, Q = spla.eigh(A, b=B) if self.is_hermitian else spla.eig(A, b=B)
+        isort = self.sorting_fn(W, Q)
         W = W[isort]
         Q = Q[:, isort]
         for i in range(W.size):
             qi, wi = Q[:, i], W[i]
             qi *= np.sign(np.real(qi[0]))
-            qi /= np.sqrt(qi@qi)
-            assert(abs(qi@qi - 1.0) < 1e-5)
-            assert(np.linalg.norm(A@qi - wi*qi) < 1e-5)
+            Bqi = qi if B is None else B@qi
+            qi /= np.sqrt(qi@Bqi)
+            assert(abs(qi@(qi if B is None else B@qi) - 1.0) < 1e-5)
+            assert(np.linalg.norm(A@qi - wi*(qi if B is None else B@qi)) < 1e-5)
         return W, Q
 
     def _sensitivity(self, dW, dQ):
         A = self.sig_in[0].state
+        B = self.sig_in[1].state if len(self.sig_in) > 1 else np.eye(*A.shape)
         dA = np.zeros_like(A)
+        dB = np.zeros_like(B) if len(self.sig_in) > 1 else None
         W, Q = [s.state for s in self.sig_out]
         if dW is None:
             dW = np.zeros_like(W)
@@ -212,12 +230,21 @@ class EigenSolve(Module):
 
         for i in range(W.size):
             dqi, dwi = dQ[:, i], dW[i]
-            if np.linalg.norm(dqi)==0 and dwi==0:
+            if np.linalg.norm(dqi) == 0 and dwi == 0:
                 continue
             qi, wi = Q[:, i], W[i]
-            P = np.block([[A.T - wi*np.eye(*A.shape), -qi[..., np.newaxis]], [-qi.T, 0]])
-            adj = np.linalg.solve(P, np.block([dqi, dwi])) #  Adjoint solve Lee(1999)
+
+            P = np.block([[(A - wi*B).T, -((B + B.T)/2)@qi[..., np.newaxis]], [-B@qi.T, 0]])
+            adj = np.linalg.solve(P, np.block([dqi, dwi]))  # Adjoint solve Lee(1999)
             nu = adj[:-1]
             alpha = adj[-1]
-            dA += np.outer(-nu, qi)
-        return dA if np.iscomplexobj(A) else np.real(dA)
+            dAi = np.outer(-nu, qi)
+            dA += dAi if np.iscomplexobj(A) else np.real(dAi)
+            if dB is not None:
+                dBi = np.outer(wi*nu + alpha/2*qi, qi)
+                dB += dBi if np.iscomplexobj(B) else np.real(dBi)
+
+        if len(self.sig_in) == 1:
+            return dA
+        elif len(self.sig_in) == 2:
+            return dA, dB
