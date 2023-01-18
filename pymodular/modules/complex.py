@@ -1,5 +1,5 @@
 """
-Definition of adjoint variable: 
+Definition of adjoint variable for z = x+iy :
 ∂/∂z  = 1/2(∂/∂x - i ⋅ ∂/∂y) (<-- this is stored in the adjoint variable to keep the the rule adj_z := ∂f/∂z )
 ∂/∂z^* = 1/2(∂/∂x + i ⋅ ∂/∂y) 
 
