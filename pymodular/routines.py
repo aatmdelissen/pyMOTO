@@ -22,31 +22,26 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
     print("=========================================================================================================\n")
     print("Starting finite difference of \"{0}\" with dx = {1}, and tol = {2}".format(type(blk).__name__, dx, tol))
 
-    if fromsig is None:
-        inps = blk.sig_in
-    else:
-        inps = _parse_to_list(fromsig)
+    # Parse inputs and outputs to be finite-differenced
+    inps = blk.sig_in if fromsig is None else _parse_to_list(fromsig)
+    outps = blk.sig_out if tosig is None else _parse_to_list(tosig)
 
-    if tosig is None:
-        outps = blk.sig_out
-    else:
-        outps = _parse_to_list(tosig)
-
+    # In case a Network is passed, only the blocks connecting input and output need execution
     if isinstance(blk, Network):
         i_first, i_last = -1, -1
         for i, b in enumerate(blk.mods):
             # Find the first module which requires any of the input signals
-            if i_first<0 and any([s in inps for s in b.sig_in]):
+            if i_first < 0 and any([s in inps for s in b.sig_in]):
                 i_first = i
             # Find the last module that generates any of the output signals
             if any([s in outps for s in b.sig_out]):
                 i_last = i
         blks_pre = Network(blk.mods[:i_first])
-        if i_last<0:
+        if i_last < 0:
             blk = Network(blk.mods[i_first:])
         else:
             blk = Network(blk.mods[i_first:i_last+1])
-        # blks_post = Network(blk.mods[i_last+1:])
+        # Precompute only once for any blocks before first occurrence of <inps>
         blks_pre.response()
 
     print("Inputs:")
@@ -129,6 +124,8 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             it = np.nditer(np.array(x), flags=['c_index', 'multi_index'], op_flags=['readwrite'])
             is_iterable = False
 
+        i_failed, i_tested = 0, 0
+        # Loop over all values in x
         while not it.finished:
             # Get original value and do the perturbation
             if is_iterable:
@@ -149,22 +146,17 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             for Iout, Sout in enumerate(outps):
                 # Obtain perturbed response
                 fp = Sout.state
-                # print('fp = ')
-                # print(fp)
 
                 # Finite difference sensitivity
                 df = (fp - f0[Iout])/dx
-                # print('df = ')
-                # print(df)
-                dgdx_fd = np.sum(df*df_an[Iout])
-                if not np.iscomplexobj(x0):
-                    dgdx_fd = np.real(dgdx_fd)
+
+                dgdx_fd = np.real(np.sum(df*df_an[Iout]))
 
                 if dx_an[Iout][Iin] is not None:
                     try:
-                        dgdx_an = dx_an[Iout][Iin][it.multi_index]
+                        dgdx_an = np.real(dx_an[Iout][Iin][it.multi_index])
                     except IndexError:
-                        dgdx_an = dx_an[Iout][Iin]
+                        dgdx_an = np.real(dx_an[Iout][Iin])
                 else:
                     dgdx_an = 0.0
 
@@ -173,10 +165,13 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 else:
                     error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
 
+                i_tested += 1
+                if error > tol:
+                    i_failed += 1
+
                 if verbose or error > tol:
-                    print("δ%s/δ%s     i = %s \tAn :% .3e %s% .3ei\tFD : % .3e %s% .3ei\tError: % .3e %s"
-                          % (Sout.tag, Sin.tag, it.multi_index, np.real(dgdx_an), "+"if np.sign(np.imag(dgdx_an))>=0 else "-", np.absolute(np.imag(dgdx_an)),
-                             np.real(dgdx_fd), "+"if np.sign(np.imag(dgdx_fd))>=0 else "-", np.absolute(np.imag(dgdx_fd)), error, "<--*" if error > tol else ""))
+                    print("δ%s/δ%s     i = %s \tAn :% .3e \tFD : % .3e \tError: % .3e %s"
+                          % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
 
                 if test_fn is not None:
                     test_fn(x0, dx, dgdx_an, dgdx_fd)
@@ -188,7 +183,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             else:
                 Sin.state = x0
 
-            # If the input state is complex, also do a complex perturbation
+            # If the input state is complex, also do a perturbation in the imaginary direction
             if np.iscomplexobj(x0):
                 # Do the perturbation
                 if is_iterable:
@@ -206,13 +201,13 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
 
                     # Finite difference sensitivity
                     df = (fp - f0[Iout])/(dx*1j)
-                    dgdx_fd = np.sum(df*df_an[Iout])
+                    dgdx_fd = np.imag(np.sum(df*df_an[Iout]))
 
                     if dx_an[Iout][Iin] is not None:
                         try:
-                            dgdx_an = dx_an[Iout][Iin][it.multi_index]
+                            dgdx_an = np.imag(dx_an[Iout][Iin][it.multi_index])
                         except IndexError:
-                            dgdx_an = dx_an[Iout][Iin]
+                            dgdx_an = np.imag(dx_an[Iout][Iin])
                     else:
                         dgdx_an = 0.0
 
@@ -221,13 +216,13 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                     else:
                         error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
 
-                    if verbose or error > tol:
-                        print("δ%s/δ%s (I) i = %s \tAn :% .3e %s% .3ei\tFD : % .3e %s% .3ei\tError: % .3e %s"
-                              % (Sout.tag, Sin.tag, it.multi_index, np.real(dgdx_an),
-                                 "+" if np.sign(np.imag(dgdx_an)) >= 0 else "-", np.absolute(np.imag(dgdx_an)),
-                                 np.real(dgdx_fd), "+" if np.sign(np.imag(dgdx_fd)) >= 0 else "-",
-                                 np.absolute(np.imag(dgdx_fd)), error, "<--*" if error > tol else ""))
+                    i_tested += 1
+                    if error > tol:
+                        i_failed += 1
 
+                    if verbose or error > tol:
+                        print("δ%s/δ%s (I) i = %s \tAn :% .3e \tFD : % .3e \tError: % .3e %s"
+                              % (Sout.tag, Sin.tag, it.multi_index, dgdx_an, dgdx_fd, error, "<--*" if error > tol else ""))
 
                     if test_fn is not None:
                         test_fn(x0, dx, dgdx_an, dgdx_fd)
@@ -241,8 +236,10 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             # Go to the next entry in the array
             it.iternext()
 
+        print(f"-- Number of finite difference values beyond tolerance ({tol}) = {i_failed} / {i_tested}")
+
     print("___________________________________________________")
-    print("\nFINISHED FINITE DIFFERENCE OF \"{}\"\n".format(type(blk).__name__))
+    print(f"\nFinished finite-difference check of \"{type(blk).__name__}\"\n")
     print("=========================================================================================================\n")
 
 
