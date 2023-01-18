@@ -7,6 +7,8 @@ import scipy.sparse.linalg as spspla
 import scipy
 import pymodular as pym
 import sys
+np.random.seed(0)
+
 
 # TODO: Check hermitian and symmetry in complex matrices; check in which cases the adjoint system is solved
 class Symm(pym.Module):
