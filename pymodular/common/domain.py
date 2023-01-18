@@ -44,9 +44,11 @@ class DomainDefinition:
         :param unitz: Element size in z-direction
         """
         self.nelx, self.nely, self.nelz = nelx, nely, nelz
+        if self.nelz is None:
+                self.nelz = 0
         self.unitx, self.unity, self.unitz = unitx, unity, unitz
 
-        self.dim = 2 if self.nelz == 0 or self.nelz is None else 3
+        self.dim = 2 if self.nelz == 0 else 3
 
         self.element_size = np.array([unitx, unity, unitz])
         assert np.prod(self.element_size[:self.dim]) > 0.0, 'Element volume needs to be positive'
@@ -80,23 +82,39 @@ class DomainDefinition:
         self.conn[el, :] = self.get_elemconnectivity(elx, ely, elz)
 
     def get_elemnumber(self, eli: Union[int, np.ndarray], elj: Union[int, np.ndarray], elk: Union[int, np.ndarray] = 0):
+        """ Gets the element number(s) for element(s) with given Cartesian indices (i, j, k)
+        :param eli: Ith element in the x-direction; can be integer or array
+        :param elj: Jth element in the y-direction; can be integer or array
+        :param elk: Kth element in the z-direction; can be integer or array
+        :return: The element number(s) corresponding to selected indices
+        """
         return (elk * self.nely + elj) * self.nelx + eli
 
     def get_nodenumber(self, nodi: Union[int, np.ndarray], nodj: Union[int, np.ndarray], nodk: Union[int, np.ndarray] = 0):
+        """ Gets the node number(s) for nodes with given Cartesian indices (i, j, k)
+        :param nodi: Ith node in the x-direction; can be integer or array
+        :param nodj: Jth node in the y-direction; can be integer or array
+        :param nodk: Kth node in the z-direction; can be integer or array
+        :return: The node number(s) corresponding to selected indices
+        """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
     def get_elemconnectivity(self, i: Union[int, np.ndarray], j: Union[int, np.ndarray], k: Union[int, np.ndarray] = 0):
-        """ Get the connectivity for element identified with cartesian indices (i, j, k)
+        """ Get the connectivity for element identified with Cartesian indices (i, j, k)
         This is where the nodal numbers are defined
         :param i: Ith element in the x-direction; can be integer or array
         :param j: Jth element in the y-direction; can be integer or array
         :param k: Kth element in the z-direction; can be integer or array
-        :return: The node numbers corresponding to selected elements
+        :return: The node numbers corresponding to selected elements of size (# selected elements, # nodes per element)
         """
         nods = [self.get_nodenumber(i+max(n[0], 0), j+max(n[1], 0), k+max(n[2], 0)) for n in self.node_numbering]
         return np.stack(nods, axis=-1)
 
     def get_dofconnectivity(self, ndof: int):
+        """ Get the connectivity in terms of degrees of freedom
+        :param ndof: The number of degrees of freedom per node
+        :return: The dof numbers corresponding to each element of size (# total elements, # dofs per element)
+        """
         return np.repeat(self.conn*ndof, ndof, axis=-1) + np.tile(np.arange(ndof), self.elemnodes)
 
     def eval_shape_fun(self, pos: np.ndarray):
