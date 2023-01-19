@@ -141,6 +141,6 @@ class EinSum(Module):
 
             da_i = np.zeros_like(self.sig_in[ar].state)
             op = ",".join(ind_in)+"->"+ind_out
-            einsum(op, np.conj(df_in), *arg_in, out=da_i)
-            df_out.append(np.conj(da_i))
+            einsum(op, df_in, *arg_in, out=da_i)
+            df_out.append(da_i)
         return df_out
