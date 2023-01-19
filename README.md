@@ -11,8 +11,18 @@ $$\frac{\textup{d}f}{\textup{d}x} = \frac{\textup{d}f}{\textup{d}y}\frac{\textup
 In this way, the order of modules can easily be adapted without having to worry about sensitivities, as these are 
 automatically calculated.
 
-# Installation
-Install by calling `pip install -e .` in the `pyMOTO` folder (within your virtual environment).
+# Quick start installation
+1. Make sure you have Python running in some kind of virtual environment (e.g. 
+[conda](https://docs.conda.io/projects/conda/en/stable/), [miniconda](https://docs.conda.io/en/latest/miniconda.html),
+[venv](https://realpython.com/python-virtual-environments-a-primer/))
+2. Type `pip install pymoto` into your console to install
+3. Download one of the examples found in the repository's example folder 
+([here](https://github.com/aatmdelissen/pyMOTO/tree/master/examples))
+4. Run the example by typing `python ex_....py` in the console
+
+
+A local installation for development in `pyMOTO` can be done by first downloading the entire git repo, and then calling 
+`pip install -e .` in the `pyMOTO` folder (of course from within your virtual environment).
 
 ## Dependencies
 * **NumPy** - Dense linear algebra and solvers
@@ -22,7 +32,7 @@ Install by calling `pip install -e .` in the `pyMOTO` folder (within your virtua
 * (optional) **SAO** - Sequential approximated optimizers
 * (optional) **opt_einsum** - Optimized function for `EinSum` module
 
-For fast linear solvers:
+For fast linear solvers for sparse matrices:
 * (optional) **scikit-umfpack** - Fast LU linear solver based on UMFPACK
 * (optional) **sksparse** - Fast Cholesky solver based on CHOLMOD
 * (optional) **CVXopt** - Another fast Cholesky solver based on CHOLMOD
@@ -48,7 +58,7 @@ The nice thing about OneAPI is that it also includes an optimized version of Pyt
 
 ### Usage of multi-thread linear solvers
 Intel has a Pardiso type linear solver for fast solution of large systems.
-To use it.....pyMO
+To use it.....
 
 # License
 pyMOTO is available under te [MIT License](https://opensource.org/licenses/MIT).
