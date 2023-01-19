@@ -6,7 +6,7 @@ import pathlib  # For importing files
 import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
 import scipy
-import pymodular as pym
+import pymoto as pym
 import sys
 import inspect
 

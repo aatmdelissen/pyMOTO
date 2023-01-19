@@ -1,5 +1,5 @@
 """ Minimal example for a structural compliance topology optimization """
-import pymodular as pym
+import pymoto as pym
 import numpy as np
 nx, ny = 100, 40
 xmin, filter_radius, volfrac = 1e-3, 1.5, 0.5

@@ -5,7 +5,7 @@ from scipy.io import mmread
 import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
 import scipy
-import pymodular as pym
+import pymoto as pym
 import sys
 np.random.seed(0)
 

@@ -6,14 +6,14 @@ import warnings
 import hashlib
 from inspect import currentframe, getframeinfo
 
-from pymodular import Module, DyadCarrier, LDAWrapper
+from pymoto import Module, DyadCarrier, LDAWrapper
 import numpy as np
 import scipy.sparse as sps
 import scipy.linalg as spla  # Dense matrix solvers
 
-from pymodular import SolverDenseLU, SolverDenseLDL, SolverDenseCholesky, SolverDiagonal, SolverDenseQR
-from pymodular import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
-from pymodular import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardiso, SolverSparseCholeskyScikit
+from pymoto import SolverDenseLU, SolverDenseLDL, SolverDenseCholesky, SolverDiagonal, SolverDenseQR
+from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
+from pymoto import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardiso, SolverSparseCholeskyScikit
 
 
 class Inverse(Module):

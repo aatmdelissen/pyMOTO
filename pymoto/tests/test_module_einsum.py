@@ -1,6 +1,6 @@
 import unittest
 
-import pymodular as pym
+import pymoto as pym
 import numpy as np
 
 

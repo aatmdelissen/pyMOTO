@@ -2,7 +2,7 @@
 Identical to example 1, but by using MathGeneral module. This demonstrates the possiblity for a user to enter a formula
 as a string. Next to this, it is possible to use this module for other data-types than scalars, such as vectors.
 """
-from pymodular import MathGeneral, Signal, Network, finite_difference
+from pymoto import MathGeneral, Signal, Network, finite_difference
 
 if __name__ == '__main__':
     print(__doc__)

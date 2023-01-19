@@ -11,7 +11,7 @@ import sys
 import base64  # For binary writing
 import struct  # For binary writing
 import os.path
-from pymodular import Module, DyadCarrier, DomainDefinition
+from pymoto import Module, DyadCarrier, DomainDefinition
 import numpy as np
 from scipy.sparse import csc_matrix
 from typing import Union

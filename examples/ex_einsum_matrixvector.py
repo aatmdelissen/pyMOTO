@@ -1,6 +1,6 @@
 """ Example Einsum: Matrix-vector product
 """
-from pymodular import Signal, finite_difference, EinSum
+from pymoto import Signal, finite_difference, EinSum
 import numpy as np
 
 if __name__ == "__main__":

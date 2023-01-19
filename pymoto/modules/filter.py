@@ -1,4 +1,4 @@
-from pymodular import Module
+from pymoto import Module
 from .assembly import DomainDefinition
 import numpy as np
 from scipy.sparse import coo_matrix

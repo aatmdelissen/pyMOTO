@@ -1,5 +1,5 @@
 ![logo](M_logo_256.png)
-
+# pyMOTO
 Modular topology optimization framework with semi-automatic derivatives. The two main types `Module` and `Signal`
 are used to implement a problem formulation to be optimized. The `Module` implements functionality (and design 
 sensitivity calculations) and `Signal` carries data of both the variables and their derivatives. 
@@ -12,7 +12,7 @@ In this way, the order of modules can easily be adapted without having to worry 
 automatically calculated.
 
 # Installation
-Install by calling `pip install -e .` in the `pyModular` folder (within your virtual environment).
+Install by calling `pip install -e .` in the `pyMOTO` folder (within your virtual environment).
 
 ## Dependencies
 * **NumPy** - Dense linear algebra and solvers
@@ -21,6 +21,8 @@ Install by calling `pip install -e .` in the `pyModular` folder (within your vir
 * **Matplotlib** - Plotting and visualisation
 * (optional) **SAO** - Sequential approximated optimizers
 * (optional) **opt_einsum** - Optimized function for `EinSum` module
+
+For fast linear solvers:
 * (optional) **scikit-umfpack** - Fast LU linear solver based on UMFPACK
 * (optional) **sksparse** - Fast Cholesky solver based on CHOLMOD
 * (optional) **CVXopt** - Another fast Cholesky solver based on CHOLMOD
@@ -46,8 +48,8 @@ The nice thing about OneAPI is that it also includes an optimized version of Pyt
 
 ### Usage of multi-thread linear solvers
 Intel has a Pardiso type linear solver for fast solution of large systems.
-To use it.....
+To use it.....pyMO
 
 # License
-PyModular is available under te [MIT License](https://opensource.org/licenses/MIT).
+pyMOTO is available under te [MIT License](https://opensource.org/licenses/MIT).
 # aatmdelissen.github.io

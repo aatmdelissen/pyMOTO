@@ -8,7 +8,7 @@ if platform.system() == 'Darwin':  # Avoid "Python is not installed as a framewo
     matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
-from pymodular import Module
+from pymoto import Module
 from .assembly import DomainDefinition
 
 

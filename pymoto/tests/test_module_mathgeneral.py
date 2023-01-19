@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-import pymodular as pym
+import pymoto as pym
 
 
 class TestMath(unittest.TestCase):

@@ -24,7 +24,7 @@ https://arxiv.org/pdf/0906.4835.pdf
 """
 
 import numpy as np
-from pymodular import Module
+from pymoto import Module
 
 
 class MakeComplex(Module):

@@ -1,5 +1,5 @@
 """ Example for a compliance topology optimization, including robust formulation """
-import pymodular as pym
+import pymoto as pym
 import numpy as np
 
 nx, ny = 100, 40

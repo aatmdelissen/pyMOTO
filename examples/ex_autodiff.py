@@ -1,4 +1,4 @@
-from pymodular import Module, Signal, finite_difference
+from pymoto import Module, Signal, finite_difference
 import jax
 from jax.config import config
 config.update("jax_enable_x64", True)  # Use double64 instead of the standard float32

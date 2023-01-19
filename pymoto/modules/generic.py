@@ -1,6 +1,6 @@
 """ Generic modules, valid for general mathematical operations """
 import numpy as np
-from pymodular.core_objects import Module
+from pymoto.core_objects import Module
 try:
     from opt_einsum import contract as einsum
     print("Use optimized einsum")

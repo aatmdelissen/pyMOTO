@@ -1,5 +1,5 @@
 """ Minimal example for a compliance topology optimization """
-import pymodular as pym
+import pymoto as pym
 import numpy as np
 
 nx, ny, nz = 60, 30, 0  # Set nz to zero for the 2D problem
