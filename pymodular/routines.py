@@ -136,7 +136,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 it[0] += dx
                 Sin.state = x
             else:
-                x0 = np.asscalar(it[0])
+                x0 = it[0].item()
                 Sin.state = x0 + dx
 
             # Calculate perturbed solution
@@ -155,7 +155,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 if dx_an[Iout][Iin] is not None:
                     try:
                         dgdx_an = np.real(dx_an[Iout][Iin][it.multi_index])
-                    except IndexError:
+                    except (IndexError, TypeError):
                         dgdx_an = np.real(dx_an[Iout][Iin])
                 else:
                     dgdx_an = 0.0
@@ -263,7 +263,44 @@ def obtain_sensitivities(signals: Iterable[Signal]) -> List:
     return sens
 
 
-def minimize_mma(function, variables, responses, tolx=1e-4, tolf=1e-4, maxit=100, xmin=0.0, xmax=1.0):
+def minimize_oc(function, variables, objective: Signal, tolx=1e-4, tolf=1e-4, maxit=100, xmin=0.0, xmax=1.0, move=0.2, l1init=0, l2init=100000, l1l2tol=1e-4):
+    xval, cumlens = _concatenate_to_array([s.state for s in variables])
+
+    maxvol = np.sum(xval)
+    f = 0.0
+    for it in range(maxit):
+        # Calculate response
+        function.response()
+        fprev, f = f, objective.state
+        if abs(f-fprev)/abs(f) < tolf:
+            break
+
+        print("It. {0: 4d}, f0 = {1: .2e}, Δf = {2: .2e}".format(it, f, f-fprev))
+
+        # Calculate sensitivity of the objective
+        function.reset()
+        objective.sensitivity = 1.0
+        function.sensitivity()
+        dfdx, _ = _concatenate_to_array(obtain_sensitivities(variables))
+
+        # Do OC update
+        l1, l2 = l1init, l2init
+        while l2 - l1 > l1l2tol:
+            lmid = 0.5 * (l1 + l2)
+            xnew = np.maximum(xmin, np.maximum(xval - move, np.minimum(xmax, np.minimum(xval + move, xval * np.sqrt(-dfdx / lmid)))))
+            l1, l2 = (lmid, l2) if np.sum(xnew) - maxvol > 0 else (l1, lmid)
+
+        # Stopping criteria on step size
+        if (np.linalg.norm(xval - xnew)/np.linalg.norm(xval)) < tolx:
+            break
+
+        xval = xnew
+        # Set the new states
+        for i, s in enumerate(variables):
+            s.state = xnew[cumlens[i]:cumlens[i + 1]]
+
+
+def minimize_mma(function, variables, responses, tolx=1e-4, tolf=1e-4, maxit=1000, xmin=0.0, xmax=1.0):
     # Save initial state
     xval, cumlens = _concatenate_to_array([s.state for s in variables])
     n = len(xval)

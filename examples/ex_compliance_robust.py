@@ -1,18 +1,20 @@
-""" Example for a compliance topology optimization """
+""" Example for a compliance topology optimization, including robust formulation """
 import pymodular as pym
 import numpy as np
+
+nx, ny = 100, 40
+xmin = 1e-6
+filter_radius = 3.0
+volfrac = 0.5
 
 if __name__ == "__main__":
     print(__doc__)
 
     # --- SETUP ---
     # Generate a grid
-    nx, ny = 100, 40
     domain = pym.DomainDefinition(nx, ny)
 
-    xmin = 1e-3
-    filter_radius = 1.5
-
+    # Chose which physics to solve: structural or thermal
     physics = "structural"  # "thermal"
     if physics == "structural":
         # STRUCTURAL
@@ -22,8 +24,7 @@ if __name__ == "__main__":
 
         # Generate a force vector
         force_dofs = 2*domain.get_nodenumber(nx, ny//2)
-        f = np.zeros(domain.nnodes*2)
-        f[force_dofs] = 1.0
+        ndof = 2  # Number of displacements per node
 
         # Set padded area for the filter
         pad = domain.get_elemnumber(*np.meshgrid(np.arange(filter_radius), np.arange(ny)))
@@ -57,8 +58,7 @@ if __name__ == "__main__":
 
         # Make a force vector
         force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(nx // 4, nx + 1), np.arange(ny + 1)))
-        f = np.zeros(domain.nnodes)
-        f[force_dofs] = 1.0
+        ndof = 1  # Number of dofs per node
 
         # Set padded area for the filter
         pad = domain.get_elemnumber(*np.meshgrid(np.arange(filter_radius), np.arange(ny)))
@@ -74,17 +74,20 @@ if __name__ == "__main__":
         raise RuntimeError("Unknown physics: {}".format(physics))
 
     # Make force and design vector, and fill with initial values
+    f = np.zeros(domain.nnodes*ndof)
+    f[force_dofs] = 1.0
+
     sf = pym.Signal('f', state=f)
-    sx = pym.Signal('x', state=np.ones(domain.nel)*0.5)
+    sx = pym.Signal('x', state=np.ones(domain.nel)*volfrac)
 
     # Start building the modular network
-    mods = []
+    fn = pym.Network()
 
     # Filter
     sxfilt = pym.Signal('xfiltered')
-    mods.append(pym.Density(sx, sxfilt, domain=domain, radius=filter_radius, nonpadding=pad))
+    fn.append(pym.Density(sx, sxfilt, domain=domain, radius=filter_radius, nonpadding=pad))
 
-    # Robust
+    # Module that generates a continuated value
     class Continuation(pym.Module):
         def _prepare(self, start=0.0, stop=1.0, nsteps=80, stepstart=10):
             self.startval = start
@@ -95,42 +98,45 @@ if __name__ == "__main__":
             self.val = self.startval
 
         def _response(self):
-            self.iter += 1
-            if self.iter % self.nstart == 0:
-                self.val *= 2
-                self.val = np.clip(self.val, min(self.startval, self.endval), max(self.startval, self.endval))
+            if (self.val < self.endval and self.iter > self.nstart):
+                self.val += self.dval
+
+            self.val = np.clip(self.val, min(self.startval, self.endval), max(self.startval, self.endval))
             print(self.sig_out[0].tag, ' = ', self.val)
+            self.iter += 1
             return self.val
 
         def _sensitivity(self, *args):
             pass
 
     etaDi, etaNo, etaEr = 0.3, 0.5, 0.7
-    beta = 0.001
+    sBeta = pym.Signal("beta")
+    fn.append(Continuation([], sBeta, start=1.0, stop=20.0, stepstart=10))
+
     sxNom = pym.Signal("xnominal")
     sxEr = pym.Signal("xeroded")
     sxDi = pym.Signal("xdilated")
 
-    heaviside = "(tanh({1} * {0}) + tanh({1} * (inp0 - {0}))) / (tanh({1} * {0}) + tanh({1} * (1 - {0})))"
-    mods.append(pym.MathGeneral(sxfilt, sxNom, expression=heaviside.format(etaNo, beta)))
-    mods.append(pym.MathGeneral(sxfilt, sxEr, expression=heaviside.format(etaEr, beta)))
-    mods.append(pym.MathGeneral(sxfilt, sxDi, expression=heaviside.format(etaDi, beta)))
+    heaviside = "(tanh(inp1 * {0}) + tanh(inp1 * (inp0 - {0}))) / (tanh(inp1 * {0}) + tanh(inp1 * (1 - {0})))"
+    fn.append(pym.MathGeneral([sxfilt, sBeta], sxNom, expression=heaviside.format(etaNo)))
+    fn.append(pym.MathGeneral([sxfilt, sBeta], sxEr, expression=heaviside.format(etaEr)))
+    fn.append(pym.MathGeneral([sxfilt, sBeta], sxDi, expression=heaviside.format(etaDi)))
 
     # SIMP material interpolation
     sSIMP = pym.Signal('x3')
-    mods.append(pym.MathGeneral(sxEr, sSIMP, expression="{0} + (1.0-{0})*inp0^3".format(xmin)))
+    fn.append(pym.MathGeneral(sxEr, sSIMP, expression="{0} + (1.0-{0})*inp0^3".format(xmin)))
 
     # Add stiffness assembly module
     sK = pym.Signal('K')
-    mods.append(pym.AssembleGeneral(sSIMP, sK, domain=domain, element_matrix=el, bc=boundary_dofs))
+    fn.append(pym.AssembleGeneral(sSIMP, sK, domain=domain, element_matrix=el, bc=boundary_dofs))
 
     # Linear system solver
     su = pym.Signal('u')
-    mods.append(pym.LinSolve([sK, sf], su))
+    fn.append(pym.LinSolve([sK, sf], su))
 
     # Compliance calculation
     sc = pym.Signal('compliance')
-    mods.append(pym.EinSum([su, sf], sc, expression='i,i->'))
+    fn.append(pym.EinSum([su, sf], sc, expression='i,i->'))
 
     # Define a new module for scaling
     class ScaleTo(pym.Module):
@@ -148,26 +154,23 @@ if __name__ == "__main__":
 
     # Objective scaling
     sg0 = pym.Signal('objective')
-    mods.append(ScaleTo(sc, sg0, val=100.0))
+    fn.append(ScaleTo(sc, sg0, val=100.0))
 
     # Plot design
-    mods.append(pym.PlotDomain(sxNom, domain=domain, saveto="out/design"))
-    # mods.append(pym.PlotDomain2D(sxEr, domain=domain))
+    fn.append(pym.PlotDomain(sxNom, domain=domain, saveto="out/design"))
 
     # Volume
     svol = pym.Signal('vol')
-    mods.append(pym.EinSum(sxfilt, svol, expression='i->'))
+    fn.append(pym.EinSum(sxfilt, svol, expression='i->'))
 
     # Volume constraint
     sg1 = pym.Signal('volconstraint')
-    mods.append(pym.MathGeneral(svol, sg1, expression='10*(inp0/{} - {})'.format(domain.nel, 0.5)))
+    fn.append(pym.MathGeneral(svol, sg1, expression='10*(inp0/{} - {})'.format(domain.nel, volfrac)))
 
-    mods.append(pym.PlotIter([sg0]))
-
-    # Compress all into a network
-    func = pym.Network(mods)
+    fn.append(pym.PlotIter([sg0]))
 
     # --- OPTIMIZATION ---
-    # pym.finite_difference(func, sx, sg0)
-    pym.minimize_mma(func, [sx], [sg0, sg1])
+    # pym.finite_difference(func, sx, sg0)  # Note that the FD won't be correct due to the continuation changing values
+    pym.minimize_oc(fn, [sx], sg0, tolx=0.0, tolf=0.0)
+    # pym.minimize_mma(fn, [sx], [sg0, sg1], tolx=0.0, tolf=0.0)  # TODO NLopt MMA version also doesnt work here
 

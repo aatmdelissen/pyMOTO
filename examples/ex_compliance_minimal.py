@@ -17,14 +17,11 @@ el = E / (12 * (1 + nu) * (1 - 2 * nu)) * np.array([
     [3 / 2, -ka / 2 - kb / 2, kf, ka / 2 - kb, -kf, -ka + kb / 2, -3 / 2, ka + kb]]) # TODO somehow the x and y are mixed up
 # OC update scheme
 def oc_update(x, dfdx):
-    l1, l2, move = 0, 100000, 0.2
+    l1, l2, move, maxvol = 0, 100000, 0.2, np.sum(x)
     while l2 - l1 > 1e-4:
         lmid = 0.5 * (l1 + l2)
         xnew = np.maximum(xmin, np.maximum(x - move, np.minimum(1.0, np.minimum(x + move, x*np.sqrt(-dfdx/lmid)))))
-        if np.sum(xnew) - volfrac*nx*ny > 0:
-            l1 = lmid
-        else:
-            l2 = lmid
+        l1, l2 = (lmid, l2) if np.sum(xnew) - maxvol > 0 else (l1, lmid)
     return xnew, np.max(np.abs(xnew - x))
 # Setup FE domain
 domain = pym.DomainDefinition(nx, ny)  # Generate a grid
