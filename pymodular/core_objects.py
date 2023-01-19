@@ -1,6 +1,7 @@
 from typing import Union, List, Any
 import warnings
 import inspect
+import time
 from .utils import _parse_to_list
 from abc import ABC, abstractmethod
 
@@ -550,7 +551,7 @@ class Network(Module):
                  {type="module2", sig_in=[sig3], sig_out=[sig4]} ])
 
     """
-    def __init__(self, *args):
+    def __init__(self, *args, print_timing=False):
         self._init_loc = get_init_str()
         try:
             # Obtain the internal blocks
@@ -575,11 +576,21 @@ class Network(Module):
 
             # Initialize the parent module, with correct inputs and outputs
             super().__init__(list(in_unique), list(all_out))
+
+            self.print_timing = print_timing
         except Exception as e:
             raise type(e)(str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
 
+    def timefn(self, fn):
+        start_t = time.time()
+        fn()
+        print(f"Evaluating {fn} took {time.time() - start_t} s")
+
     def response(self):
-        [b.response() for b in self.mods]
+        if self.print_timing:
+            [self.timefn(b.response) for b in self.mods]
+        else:
+            [b.response() for b in self.mods]
 
     def sensitivity(self):
         [b.sensitivity() for b in reversed(self.mods)]
