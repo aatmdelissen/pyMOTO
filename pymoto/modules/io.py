@@ -21,6 +21,9 @@ class PlotDomain(Module):
         self.fig = plt.figure()
         if saveto is not None:
             self.saveloc, self.saveext = os.path.splitext(saveto)
+            dir = os.path.dirname(saveto)
+            if not os.path.exists(dir):
+                os.makedirs(dir)
         else:
             self.saveloc, self.saveext = None, None
         self.iter = 0
