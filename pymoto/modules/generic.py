@@ -51,31 +51,35 @@ class MathGeneral(Module):
 
     def _sensitivity(self, df_dy):
         dg_df = self.df(*self.x)
-        dg_dx = [df_dy*np.conj(dg) for dg in dg_df]
+
+        # Initialize sensitivities with zeroed out memory. This should ensure identical type of state and sensitivity
+        dg_dx = []
+        for s in self.sig_in:
+            try:
+                dg_dxi = s.state.copy()
+                dg_dxi[:] = 0
+            except IndexError:  # Zero-dimension array
+                dg_dxi = s.state.copy()
+                dg_dxi *= 0
+            except AttributeError:  # Not numpy
+                dg_dxi = s.state * 0
+            # assert (isinstance(dg_dxi, type(s.state)))
+            dg_dx.append(dg_dxi)
 
         # Sum if input is scalar
         for i, sig in enumerate(self.sig_in):
-            if dg_dx[i] is None:
-                continue
+            dg_dx_add = df_dy*dg_df[i]
+            if np.isrealobj(dg_dx[i]) and np.iscomplexobj(dg_dx_add):
+                dg_dx_add = np.real(dg_dx_add)
 
-            state_len = 1
-            if hasattr(sig.state, "__len__"):
-                try:
-                    state_len = len(sig.state)
-                except TypeError:
-                    state_len = 1
+            # Add the contribution
+            if (not hasattr(dg_dx[i], '__len__')) or \
+                (hasattr(dg_dx[i], 'ndim') and dg_dx[i].ndim == 0): # Scalar type or 0-dimensional array
+                dg_dx[i] += np.sum(dg_dx_add)
+            else:
+                dg_dx[i] += dg_dx_add
 
-            try:
-                sens_len = len(dg_dx[i])
-            except TypeError:
-                sens_len = 1
-
-            if state_len == 1 and sens_len > 1:
-                dg_dx[i] = np.sum(dg_dx[i])
-
-            if not isinstance(dg_dx[i], type(sig.state)):
-                dg_dx[i] = np.array(dg_dx[i])
-
+            # assert (isinstance(dg_dx[i], type(sig.state)))
         return dg_dx
 
 
