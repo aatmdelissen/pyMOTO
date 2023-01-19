@@ -59,8 +59,10 @@ class Density(Filter):
     References:
     [1] Bruns, T. E., & Tortorelli, D. A. (2001). Topology optimization of non-linear elastic structures and compliant mechanisms.
         Computer Methods in Applied Mechanics and Engineering, 190(26–27), 3443–3459. https://doi.org/10.1016/S0045-7825(00)00278-4
-    [2] TODO - What is the other reference that is commonly used?
+    [2] Bourdain, B. (2001). Filters in topology optimization.
+        International Journal for Numerical Methods in Engineering, 50, 2143-2158. https://doi.org/10.1002/nme.116
     """
+
     @staticmethod
     def calculate_h(domain: DomainDefinition, radius=2.0):
         """
