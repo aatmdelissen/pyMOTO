@@ -19,7 +19,7 @@ release = pymoto.__version__
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["myst_parser", 'sphinx.ext.autodoc', 'sphinx.ext.napoleon']
+extensions = ["myst_parser", 'sphinx.ext.autodoc', 'sphinx.ext.napoleon', "sphinxcontrib.mermaid"]
 source_suffix = {
     '.rst': 'restructuredtext',
     '.txt': 'markdown',

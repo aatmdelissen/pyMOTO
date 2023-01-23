@@ -1,5 +1,56 @@
 # Theory on derivatives
 ## Backpropagation
+The flow diagram of a standard compliance topology optimization is visualized as follows.
+```{mermaid}
+ graph LR;
+      START[x]-->B[Density filter];
+      B-->|xF| C[SIMP];
+      C-->|sK| D[Assembly];
+      D-->|K| E[Linear Solve];
+      STARTF[Force f]-->E;
+      E-->|u| F[Compliance u.f];
+      STARTF-->F;
+      F-->|c| STOP[Objective];
+      B-->V[Volume];
+      V-->|V| STOP1[Constraint];
+      
+      style START fill:#FFFFFF00, stroke:#FFFFFF00;
+      style STARTF fill:#FFFFFF00, stroke:#FFFFFF00;
+      style STOP  fill:#FFFFFF00, stroke:#FFFFFF00;
+      style STOP1  fill:#FFFFFF00, stroke:#FFFFFF00;
+```
+
+Let us examine the module that implements the SIMP interpolation, which has input $\mathbf{x}_\text{f}$ and output $\mathbf{s}_\text{K}$, mapped as
+
+$$
+\mathbf{x}_\text{f} \rightarrow \boxed{ \begin{aligned} &\text{SIMP} \\ x_\text{min} +& (1-x_\text{min})\mathbf{x}_\text{f}^3 \end{aligned} } \rightarrow \mathbf{s}_\text{K} \rightarrow \dotsc \rightarrow h \text{.}
+$$
+
+Here, $h$ is any arbitrary response, such as compliance. To calculate the design sensitivities of the SIMP 
+interpolation, the chain rule is used, as depicted below
+
+$$
+\frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}_\text{f}} \leftarrow \boxed{ \begin{aligned} &\quad\text{SIMP} \\ &\frac{\mathrm{d}h}{\mathrm{d} \mathbf{s}_\text{K}}\frac{\mathrm{d}\mathbf{s}_\text{K}}{\mathrm{d}\mathbf{x}_\text{f}} \end{aligned} } \leftarrow \frac{\mathrm{d}h}{\mathrm{d} \mathbf{s}_\text{K}} \leftarrow \dotsc \leftarrow \frac{\mathrm{d}h}{\mathrm{d}h}=1 \text{.}
+$$
+
+By having the SIMP `Module` implement both the forward and the backward path, it becomes independent of anything outside itself.
+It is only dependent on its $\mathbf{x}_\text{f}$ input for the forward path and on the sensitivity of its output $\frac{\mathrm{d}h}{\mathrm{d} \mathbf{s}_\text{K}}$ for the backward path.
+
+
+In case of the compliance optimization problem, there are multiple type of `Module` used. Each of them has its own 
+forward and backward path implemented (`response()` and `sensitivity()`, respectively). This allows creating larger 
+chains of different `Module` and other configurations, thus other optimization problems.
+
+
+
+
+
+
+For any module with an input $\mathbf{x}$ and output $\mathbf{y}$, which eventually results in response $h$ ...........
+
+
+
+
 In the light of modular programming, we can write the problem as
 
 $$
