@@ -1,4 +1,3 @@
-![logo](M_logo_256.png)
 # pyMOTO
 Modular topology optimization framework with semi-automatic derivatives. The two main types `Module` and `Signal`
 are used to implement a problem formulation to be optimized. The `Module` implements functionality (and design 
@@ -7,7 +6,11 @@ sensitivity calculations) and `Signal` carries data of both the variables and th
 Sensitivity calculations are done based on backpropagation. The final value of interest is seeded with sensitivity
 value $\frac{\textup{d}f}{\textup{d}f}=1$. Then the modules are executed in reverse order, each applying the chain rule.
 As example for a `Module` which maps $x\rightarrow y$, only the following operation needs to be implemented:
-$$\frac{\textup{d}f}{\textup{d}x} = \frac{\textup{d}f}{\textup{d}y}\frac{\textup{d}y}{\textup{d}x}\text{.} $$
+
+$$
+\frac{\textup{d}f}{\textup{d}x} = \frac{\textup{d}f}{\textup{d}y}\frac{\textup{d}y}{\textup{d}x}\text{.} 
+$$
+
 In this way, the order of modules can easily be adapted without having to worry about sensitivities, as these are 
 automatically calculated.
 
@@ -62,4 +65,3 @@ To use it.....
 
 # License
 pyMOTO is available under te [MIT License](https://opensource.org/licenses/MIT).
-# aatmdelissen.github.io

@@ -11,10 +11,12 @@ Version:
    :maxdepth: 2
    :caption: Contents:
 
-   modules
+   theory.md
    pymoto
 
-.. mdinclude :: ../README.md
+.. include:: ../README.md
+   :parser: myst_parser.sphinx_
+
 
 Indices and tables
 ==================
