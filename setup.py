@@ -1,11 +1,12 @@
 from setuptools import setup
+from pymoto import __version__
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
       name='pymoto',
-      version='1.0.0',
+      version=__version__,
       author='Arnoud Delissen',
       author_email='arnouddelissen+pymoto@gmail.com',
       description='A modular framework to perform Topology Optimization in a flexible manner',
