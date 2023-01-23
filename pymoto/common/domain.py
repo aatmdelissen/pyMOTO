@@ -7,48 +7,66 @@ import numpy as np
 
 
 class DomainDefinition:
-    """ Generic definitions for structured 2D or 3D domain
-    Nodal numbering:
+    """ Definition for a structured domain
+    Nodal numbering used in the domain is given below.
+
     Quadrangle in 2D
-           ^
-           | y
-     3 -------- 4
-     |     |    |   x
-     |      --- | ---->
-     1 -------- 2
 
-    and in 3D Hexahedron:
-           y
-    2----------3
-    |\     ^   |\
-    | \    |   | \
-    |  \   |   |  \
-    |   6------+---7
-    |   |  +-- |-- | -> x
-    0---+---\--1   |
-     \  |    \  \  |
-      \ |     \  \ |
-       \|      z  \|
-        4----------5
+    ::
 
+              ^
+              | y
+        3 -------- 4
+        |     |    |   x
+        |      --- | ---->
+        |          |
+        1 -------- 2
+
+
+    Hexahedron in 3D
+
+    ::
+
+               y
+        2----------3
+        |\     ^   |\\
+        | \    |   | \\
+        |  \   |   |  \\
+        |   6------+---7
+        |   |  +-- |-- | -> x
+        0---+---\--1   |
+         \  |    \  \  |
+          \ |     \  \ |
+           \|      z  \|
+            4----------5
+
+
+    Args:
+        nelx : Number of elements in x-direction
+        nely : Number of elements in y-direction
+        nelz : Number of elements in z-direction; if zero it is a 2D domain
+        unitx : Element size in x-direction
+        unity : Element size in y-direction
+        unitz : Element size in z-direction
+
+    Attributes:
+        dim : Dimensionality of the object
+        nel : Total number of elements
+        nnodes : Total number of nodes
+        elemnodes : Number of nodes per element
+        node_numbering : The numbering scheme used to number the nodes in each element
+        conn : Connectivity matrix of size (# elements, # nodes per element)
     """
 
     def __init__(self, nelx: int, nely: int, nelz: int = 0, unitx: float = 1.0, unity: float = 1.0, unitz: float = 1.0):
-        """ Creates a domain definition object of a structured mesh
-
-        :param nelx: Number of elements in x-direction
-        :param nely: Number of elements in y-direction
-        :param nelz: (Optional) Number of elements in z-direction; if zero it is a 2D model
-        :param unitx: Element size in x-direction
-        :param unity: Element size in y-direction
-        :param unitz: Element size in z-direction
-        """
         self.nelx, self.nely, self.nelz = nelx, nely, nelz
+        if self.nely is None:
+            self.nely = 0
         if self.nelz is None:
-                self.nelz = 0
+            self.nelz = 0
         self.unitx, self.unity, self.unitz = unitx, unity, unitz
 
-        self.dim = 2 if self.nelz == 0 else 3
+        self.dim = 1 if (self.nelz == 0 and self.nely == 0) else (2 if self.nelz == 0 else 3)
 
         self.element_size = np.array([unitx, unity, unitz])
         assert np.prod(self.element_size[:self.dim]) > 0.0, 'Element volume needs to be positive'
@@ -83,59 +101,85 @@ class DomainDefinition:
 
     def get_elemnumber(self, eli: Union[int, np.ndarray], elj: Union[int, np.ndarray], elk: Union[int, np.ndarray] = 0):
         """ Gets the element number(s) for element(s) with given Cartesian indices (i, j, k)
-        :param eli: Ith element in the x-direction; can be integer or array
-        :param elj: Jth element in the y-direction; can be integer or array
-        :param elk: Kth element in the z-direction; can be integer or array
-        :return: The element number(s) corresponding to selected indices
+
+        Args:
+            eli : Ith element in the x-direction; can be integer or array
+            elj : Jth element in the y-direction; can be integer or array
+            elk : Kth element in the z-direction; can be integer or array
+
+        Returns:
+            The element number(s) corresponding to selected indices
         """
         return (elk * self.nely + elj) * self.nelx + eli
 
     def get_nodenumber(self, nodi: Union[int, np.ndarray], nodj: Union[int, np.ndarray], nodk: Union[int, np.ndarray] = 0):
         """ Gets the node number(s) for nodes with given Cartesian indices (i, j, k)
-        :param nodi: Ith node in the x-direction; can be integer or array
-        :param nodj: Jth node in the y-direction; can be integer or array
-        :param nodk: Kth node in the z-direction; can be integer or array
-        :return: The node number(s) corresponding to selected indices
+
+        Args:
+            nodi : Ith node in the x-direction; can be integer or array
+            nodj : Jth node in the y-direction; can be integer or array
+            nodk : Kth node in the z-direction; can be integer or array
+
+        Returns:
+            The node number(s) corresponding to selected indices
         """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
     def get_elemconnectivity(self, i: Union[int, np.ndarray], j: Union[int, np.ndarray], k: Union[int, np.ndarray] = 0):
         """ Get the connectivity for element identified with Cartesian indices (i, j, k)
         This is where the nodal numbers are defined
-        :param i: Ith element in the x-direction; can be integer or array
-        :param j: Jth element in the y-direction; can be integer or array
-        :param k: Kth element in the z-direction; can be integer or array
-        :return: The node numbers corresponding to selected elements of size (# selected elements, # nodes per element)
+
+        Args:
+            i: Ith element in the x-direction; can be integer or array
+            j: Jth element in the y-direction; can be integer or array
+            k: Kth element in the z-direction; can be integer or array
+
+        Returns:
+            The node numbers corresponding to selected elements of size (# selected elements, # nodes per element)
         """
         nods = [self.get_nodenumber(i+max(n[0], 0), j+max(n[1], 0), k+max(n[2], 0)) for n in self.node_numbering]
         return np.stack(nods, axis=-1)
 
     def get_dofconnectivity(self, ndof: int):
         """ Get the connectivity in terms of degrees of freedom
-        :param ndof: The number of degrees of freedom per node
-        :return: The dof numbers corresponding to each element of size (# total elements, # dofs per element)
+
+        Args:
+            ndof: The number of degrees of freedom per node
+
+        Returns:
+            The dof numbers corresponding to each element of size (# total elements, # dofs per element)
         """
         return np.repeat(self.conn*ndof, ndof, axis=-1) + np.tile(np.arange(ndof), self.elemnodes)
 
     def eval_shape_fun(self, pos: np.ndarray):
-        """
-        In 1D (bar):
-           N1 = 1/w (w/2 - x)
-           N2 = 1/w (w/2 + x)
+        """ Evaluate the linear shape functions of the finite element
 
-        Shape functions: Cook eq. (6.2-3)
-           N1 = 1/(wh) (w/2 - x) (h/2 - y)
-           N2 = 1/(wh) (w/2 + x) (h/2 - y)
-           N3 = 1/(wh) (w/2 - x) (h/2 + y)
-           N4 = 1/(wh) (w/2 + x) (h/2 + y)
+        In 1D
+          * :math:`N_1(x) = \\frac{1}{w} \\left(\\frac{w}{2} - x\\right)`
+          * :math:`N_2(x) = \\frac{1}{w} \\left(\\frac{w}{2} + x\\right)`
 
-        In 3D:
-           N1 = 1/(whd) (w/2 - x) (h/2 - y) (d/2 - z)
-           ...
+        In 2D [1]
+          * :math:`N_1(x,y) = \\frac{1}{A} \\left(\\frac{w}{2} - x\\right) \\left(\\frac{h}{2} - y\\right)`
+          * :math:`N_2(x,y) = \\frac{1}{A} \\left(\\frac{w}{2} + x\\right) \\left(\\frac{h}{2} - y\\right)`
+          * :math:`N_3(x,y) = \\frac{1}{A} \\left(\\frac{w}{2} - x\\right) \\left(\\frac{h}{2} + y\\right)`
+          * :math:`N_4(x,y) = \\frac{1}{A} \\left(\\frac{w}{2} + x\\right) \\left(\\frac{h}{2} + y\\right)`
 
-        :param pos: Evaluation point, [x, y, z (optional)] - coordinates
-        :param element_size: Element dimensions in x, y, and z directions [w, h, d (optional)]
-        :return: Array of evaluated shape functions [N1(x,y,z), N2(x,y,z), ...]
+        with :math:`A = wh`
+
+        In 3D
+          * :math:`N_1(x,y,z) = \\frac{1}{V} \\left(\\frac{w}{2} - x\\right) \\left(\\frac{h}{2} - y\\right) \\left(\\frac{d}{2} - z\\right)`
+          * etc.
+
+        with :math:`V = whd`
+
+        Args:
+            pos : Evaluation coordinates [x, y, z (optional)] within bounds of [-element_size/2, element_size/2]
+
+        Returns:
+            Array of evaluated shape functions [N1(x), N2(x), ...]
+
+        References:
+            [1] Cook, Malkus, Plesha, Witt (2002). Concepts and applications of finite element analysis (4th ed.), eq. (6.2-3)
         """
         v = np.prod(self.element_size[:self.dim])
         assert v > 0.0, 'Element volume needs to be positive'
@@ -148,9 +192,12 @@ class DomainDefinition:
         """ Evaluates the shape function derivatives in x, y, and optionally z-direction.
         For 1D domains, the y and z directions are optional.
         For 2D domains, the z direction is optional.
-        :param pos: Evaluation point, [x, y, z] - element coordinates in intervals [-w/2, w/2], [-h/2, h/2], [-d/2, d/2]
-        :param element_size: Element dimensions in x, y, and z directions [w, h, d]
-        :return: Shape function derivatives of size (#dimensions, #shape functions)
+
+        Args:
+            pos : Evaluation coordinates [x, y, z(optional)] within bounds of [-element_size/2, element_size/2]
+
+        Returns:
+            Shape function derivatives of size (#dimensions, #shape functions)
         """
         v = np.prod(self.element_size[:self.dim])
         assert v > 0.0, 'Element volume needs to be positive'
@@ -164,10 +211,12 @@ class DomainDefinition:
 
     def write_to_vti(self, vectors: dict, filename="out.vti", scale=1.0, origin=(0.0, 0.0, 0.0)):
         """ Write all given vectors to a Paraview (VTI) file
-        :param vectors: A dictionary of vectors to write. Keys are used as vector names
-        :param filename: The file loction
-        :param scale: Uniform scaling of the gridpoints
-        :param origin: Origin of the domain
+
+        Args:
+            vectors: A dictionary of vectors to write. Keys are used as vector names
+            filename (str): The file loction
+            scale: Uniform scaling of the gridpoints
+            origin: Origin of the domain
         """
         ext = '.vti'
         if ext not in os.path.splitext(filename)[-1].lower():
