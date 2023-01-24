@@ -1,12 +1,4 @@
-""" Assembly modules for finite element analysis
-Assuming node numbering:
-
- 3 -------- 4
- |          |
- |          |
- 1 -------- 2
-
-"""
+""" Assembly modules for finite element analysis """
 import sys
 import base64  # For binary writing
 import struct  # For binary writing
@@ -24,6 +16,22 @@ except ModuleNotFoundError:
 
 class AssembleGeneral(Module):
     """ Assembles a sparse matrix according to element scaling
+
+    Each element matrix is scaled and with the scaling parameter of that element
+    :math:`\mathbf{A} = \sum_e x_e \mathbf{K}_e`
+
+    Input Signal:
+        - ``x``: Scaling vector of size ``(Nel)``
+
+    Output Signal:
+        - ``A``: system matrix of size ``(n, n)``
+
+    Args:
+        domain: The domain-definition for which should be assembled
+        element_matrix: The element matrix for one element :math:`\mathbf{K}_e`
+        bc (optional): Indices of any dofs that are constrained to zero (Dirichlet boundary condition). These boundary conditions are enforced by setting the row and column of that dof to zero.
+        bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are active.
+        matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments ``matrix_type((vals, (row_idx, col_idx)), shape=(n, n))``
     """
     def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None, matrix_type=csc_matrix):
         self.elmat = element_matrix
@@ -85,11 +93,16 @@ class AssembleGeneral(Module):
 
 def get_B(dN_dx):
     """ Gets the strain-displacement relation (Cook, eq 3.1-9, P.80)
-    1D : [ε_x]_i = B [u]_i
-    2D : [ε_x; ε_y; γ_xy]_i = B [u, v]_i
-    3D : [ε_x; ε_y; ε_z; γ_xy; γ_yz; γ_zx]_i = B [u, v, w]_i
-    :param dN_dx: Shape function derivatives [dNi_dxj] of size (#shapefn. x #dimensions)
-    :return: B strain-displacement relation of size (#strains x #shapefn.*#dimensions)
+
+      - 1D : [ε_x]_i = B [u]_i
+      - 2D : [ε_x; ε_y; γ_xy]_i = B [u, v]_i
+      - 3D : [ε_x; ε_y; ε_z; γ_xy; γ_yz; γ_zx]_i = B [u, v, w]_i
+
+    Args:
+        dN_dx: Shape function derivatives [dNi_dxj] of size (#shapefn. x #dimensions)
+
+    Returns:
+        B strain-displacement relation of size (#strains x #shapefn.*#dimensions)
     """
     n_dim, n_shapefn = dN_dx.shape
     n_strains = int((n_dim * (n_dim+1))/2)  # Triangular number: ndim=3 -> nstrains = 3+2+1
@@ -115,13 +128,16 @@ def get_B(dN_dx):
     return B
 
 
-def get_D(E, nu, mode='strain'):
+def get_D(E: float, nu: float, mode: str = 'strain'):
     """ Get material constitutive relation for linear elasticity
 
-    :param E: Young's modulus
-    :param nu: Poisson's ratio
-    :param mode: Plane-"strain", plane-"stress", or "3D"
-    :return: Material matrix
+    Args:
+        E: Young's modulus
+        nu: Poisson's ratio
+        mode: Plane-``strain``, plane-``stress``, or ``3D``
+
+    Returns:
+        Material matrix
     """
     mu = E/(2*(1+nu))
     lam = (E*nu) / ((1+nu)*(1-2*nu))
@@ -148,17 +164,26 @@ def get_D(E, nu, mode='strain'):
 
 class AssembleStiffness(AssembleGeneral):
     """ Stiffness matrix assembly by scaling elements in 2D or 3D
-    K = sum xScale_e K_e
+    :math:`\mathbf{K} = \sum_e x_e \mathbf{K}_e`
+
+    Input Signal:
+        - ``x``: Scaling vector of size ``(Nel)``
+
+    Output Signal:
+        - ``K``: Stiffness matrix of size ``(n, n)``
+
+    Args:
+        domain: The domain to assemble for -- this determines the element size and dimensionality
+        args (optional): Other arguments are passed to AssembleGeneral
+
+    Keyword Args:
+        e_modulus: Young's modulus
+        poisson_ratio: Poisson's ratio
+        plane: Plane ``strain`` or plane ``stress``
+        bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
+        kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
     def _prepare(self, domain: DomainDefinition, *args, e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane='strain', **kwargs):
-        """
-        :param domain: The domain to assemble for -- this determines the element size and dimensionality
-        :param args: Other arguments of AssembleGeneral
-        :param e_modulus: Young's modulus
-        :param poisson_ratio: Poisson's ratio
-        :param plane: The 2D in-plane condition: "strain" or "stress" for rsp. plane-strain or plane-stress
-        :param kwargs: Other keyword-arguments of AssembleGeneral
-        """
         self.E, self.nu = e_modulus, poisson_ratio
 
         # Get material relation
@@ -186,17 +211,24 @@ class AssembleStiffness(AssembleGeneral):
 
 class AssembleMass(AssembleGeneral):
     """ Consistent mass matrix assembly by scaling elements
-    M = sum xScale_e M_e
+    :math:`\mathbf{M} = \sum_e x_e \mathbf{M}_e`
+
+    Input Signal:
+        - ``x``: Scaling vector of size ``(Nel)``
+
+    Output Signal:
+        - ``M``: Mass matrix of size ``(n, n)``
+
+    Args:
+        domain: The domain to assemble for -- this determines the element size and dimensionality
+        *args: Other arguments are passed to AssembleGeneral
+
+    Keyword Args:
+        rho: Base density
+        bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
+        **kwargs : Other keyword-arguments are passed to AssembleGeneral
     """
     def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, **kwargs):
-        """
-        :param domain: The domain to assemble for -- this determines the element size and dimensionality
-        :param args: Other arguments of AssembleGeneral
-        :param rho: Base density
-        :param bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
-        :param kwargs: Other keyword-arguments of AssembleGeneral
-        """
-
         # Element mass matrix
         # 1/36 Mass of one element
         mel = rho * np.prod(domain.element_size)
