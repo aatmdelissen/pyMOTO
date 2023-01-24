@@ -2,48 +2,51 @@ from typing import Union, Iterable
 import warnings
 import numpy as np
 from ..utils import _parse_to_list
-try:
+try:  # Import fast optimized einsum
     from opt_einsum import contract as einsum
 except ModuleNotFoundError:
     from numpy import einsum
 
 
 def isdyad(x):
+    """ Checks if argument is a ``DyadCarrier`` """
     return isinstance(x, DyadCarrier)
 
 
 def isdense(x):
+    """ Checks if argument is a dense ``numpy`` array """
     return isinstance(x, np.ndarray)
 
 
 def isscalarlike(x):
-    """Is x either a scalar, an array scalar, or a 0-dim array?"""
+    """ Checks if argument is either a scalar, an array scalar, or a 0-dim array """
     return np.isscalar(x) or (isdense(x) and x.ndim == 0)
 
 
 def isnullslice(x):
-    """ Checks if argument is ':' slice """
+    """ Checks if argument is ``:`` slice """
     return isinstance(x, slice) and x == slice(None, None, None)
 
 
 class DyadCarrier(object):
-    """ Sparse rank-N matrix
-    Stores only the vectors instead of creating a rank-N matrix
-    A_ij = sum_k u_{ki} v_{kj}
+    """ Efficient storage for dyadic or rank-N matrix
+
+    Stores only the vectors instead of creating a full rank-N matrix
+    :math:`\mathbf{A} = \sum_k^N \mathbf{u}_k\otimes\mathbf{v}_k`
+    or in index notation :math:`A_{ij} = \sum_k^N u_{ki} v_{kj}`. This saves a lot of memory for low :math:`N`.
+
+    Args:
+        u : (optional) List of vectors
+        v : (optional) List of vectors (if ``u`` is given and ``v`` not, a symmetric dyad is assumed with ``v = u``)
+
+    Attributes:
+        ndim : Number of dimensions
     """
 
     __array_priority__ = 11.0  # For overriding numpy's ufuncs
-    ndim = 2
+    ndim = 2  # Number of dimensions
 
     def __init__(self, u: Iterable = None, v: Iterable = None):
-        """ This is a class for efficient storage of dyadic / outer products.
-        Two vectors u and v can construct a matrix A = uv^T, but this takes a lot of memory to store. Therefore, this
-        class only stores the two vectors. Contractions B:uv^T = u^T.B.v can be calculated (
-
-        :param u: List of vectors
-        :param v: List of vectors (if u is given and v not, a symmetric dyad is used)
-        """
-
         self.u = []
         self.v = []
         self.ulen = -1
@@ -53,10 +56,12 @@ class DyadCarrier(object):
 
     @property
     def shape(self):
+        """ The shape of the matrix (nrows, ncols) """
         return (self.ulen, self.vlen)
 
     @property
     def size(self):
+        """ Size of the matrix (nrows x ncols) """
         if self.ulen < 0 or self.vlen < 0:
             return 0
         else:
@@ -64,12 +69,23 @@ class DyadCarrier(object):
 
     def add_dyad(self, u: Iterable, v: Iterable = None, fac: Union[float, None] = None):
         """ Adds a list of vectors to the dyad carrier
-        Checks for conforming sizes. It is possible to add higher-dimensional vectors, which are summed along all but
-        the last dimension. The effect of this is that also cross-terms e.g. (a1+a2+a3)*(b1+b2+b3) also are added.
 
-        :param u: List of vectors
-        :param v: List of vectors [Optional: If not given, use v=u]
-        :param fac: Optional multiplication factor
+        Checks for conforming sizes of `u` and `v`. The data inside the vectors are copied.
+
+        It is possible to add higher-dimensional matrices, which are summed along all but the last dimension.
+        The effect of this is that also cross-terms are added, e.g.
+        adding the matrices :math:`\mathbf{U}=[\mathbf{u}_1, \mathbf{u}_2, \mathbf{u}_3]`
+        and :math:`\mathbf{V}=[\mathbf{v}_1, \mathbf{v}_2, \mathbf{v}_3]`
+        results in :math:`(\mathbf{u}_1+\mathbf{u}_2+\mathbf{u}_3)\otimes(\mathbf{v}_1+\mathbf{v}_2+\mathbf{v}_3)`
+        being added to the DyadCarrier.
+
+        Args:
+            u: List of vectors
+            v: List of vectors [Optional: If not given, use `v=u`]
+            fac: Optional multiplication factor
+
+        Returns:
+            self
         """
         ulist = _parse_to_list(u)
         vlist = ulist if v is None else _parse_to_list(v)
@@ -122,6 +138,7 @@ class DyadCarrier(object):
             # Update the type
             self.dtype = np.result_type(self.dtype, ui.dtype)
             self.dtype = np.result_type(self.dtype, vi.dtype)
+        return self
 
     def __getitem__(self, subscript):
         assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
@@ -209,77 +226,92 @@ class DyadCarrier(object):
         return DyadCarrier(self.u, [vi*other for vi in self.v])
 
     def copy(self):
-        """
-        :return: Copied instance
-        """
+        """ Returns a deep copy of the DyadCarrier """
         return DyadCarrier(self.u, self.v)
 
     def conj(self):
-        """ Complex conjugate of the DyadCarrier
-        :return: Complex conjugated DyadCarrier
-        """
+        """ Returns (a deep copied) complex conjugate of the DyadCarrier """
         return DyadCarrier([u.conj() for u in self.u], [v.conj() for v in self.v])
 
     @property
     def real(self):
-        """ Gets the real part of the DyadCarrier
-        :return: DyadCarrier with real part
-        """
+        """ Returns a deep copy of the real part of the DyadCarrier """
         return DyadCarrier([*[u.real for u in self.u], *[-u.imag for u in self.u]], [*[v.real for v in self.v], *[v.imag for v in self.v]])
 
     @property
     def imag(self):
-        """ Gets the imaginary part of the DyadCarrier
-        :return: DyadCarrier with imaginary part
-        """
+        """ Returns a deep copy of the imaginary part of the DyadCarrier """
         return DyadCarrier([*[u.real for u in self.u], *[u.imag for u in self.u]], [*[v.imag for v in self.v], *[v.real for v in self.v]])
 
     def contract(self, mat: np.ndarray = None, rows: np.ndarray = None, cols: np.ndarray = None):
-        """ Performs contraction of the DyadCarrier
+        """ Performs a number of contraction operations using the DyadCarrier
+
         Calculates the result(s) of the quadratic form:
-        y = sum_k u_k^T A v_k
+        :math:`y = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B} \mathbf{v}_k`
 
-        Standard use:
-        Contraction using identity matrix, is the sum of dot products, which is equal to the trace of the rank-N matrix
-        a.contract() <--> np.einsum('i,i->', ui, vi) <--> np.dot(ui, vi)
+        Examples:
+            * Contraction using identity matrix, is the sum of dot products, which is equal to the trace of the rank-N
+              matrix:
 
-        Contraction using matrix
-        a.contract(Mat[n, m]) <--> np.einsum('i,ij,j->', ui, mat, vi)
-                              <--> np.dot(ui, A.dot(vi))
+              ``y = A.contract()`` equals
+              :math:`y = \\text{trace}(\mathbf{A}) = \sum_k \mathbf{u}_k^{\\text{T}}\mathbf{v}_k`
 
-        Include slices:
-        Row slice for submatrices
-        a.contract(Mat[k, m], rows[k]) <--> np.einsum('i,ij,j->', ui[rows], mat, vi)
-                                       <--> np.dot(ui[rows], A[rows,:].dot(vi))
+            * Contraction using matrix ``B`` of size ``(N, M)`` calculates the quadratic form:
 
-        Column slice for submatrices
-        a.contract(Mat[n, l], cols=cols[l]) <--> np.einsum('i,ij,j->', ui, mat, vi[cols])
-                                            <--> np.dot(ui, A[:,cols].dot(vi[cols]))
+              ``y = A.contract(B)`` equals
+              :math:`y = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B} \mathbf{v}_k`
 
-        Row and column slice
-        a.contract(Mat[k, l], rows[k], cols[l]) <--> np.einsum('i,ij,j->', ui[rows], mat, vi[cols])
-                                                <--> np.dot(ui[rows], A[rows,cols].dot(vi[cols]))
+            * Sliced contraction with sliced row, matrix ``B`` of size ``(n, M)`` and ``rows`` of size ``n``:
 
-        Batch mode:
-        Multiple matrix contractions
-        a.contract(Mat[B, n, m]) <--> np.einsum('i,Bij,j->B', ui, mat, vi)
+              ``y = A.contract(B, rows)``
+              :math:`y =\sum_k \mathbf{u}[\\texttt{rows}]_k^{\\text{T}} \mathbf{B} \mathbf{v}_k`
 
-        Multiple slices
-        a.contract(Mat[k, m], rows[B, k]) <--> np.einsum('Bi,ij,j->B', ui[rows], mat, vi)
+            * Sliced contraction with sliced column, matrix ``B`` of size ``(N, m)`` and ``cols`` of size ``m``:
 
-        Multiple matrices and corresponding slices
-        a.contract(Mat[B, k, m], rows[B, k]) <--> np.einsum('Bi,Bij,j->B', ui[rows], mat, vi)
+              ``y = A.contract(B, cols=cols)`` equals
+              :math:`y = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B} \mathbf{v}[\\texttt{cols}]_k`
 
-        Multiple matrices with row and column slices (e.g. used for finite element sensitivities)
-        a.contract(Mat[B, k, l], rows[B, k], cols[B, l]) <--> np.einsum('Bi,Bij,Bj->B', ui[rows], mat, vi[cols])
+            * Sliced contraction with both sliced rows and columns, matrix ``B`` of size ``(n, m)``,
+              ``rows`` of size ``n``, and ``cols`` of size ``m``:
 
-        Multi-dimensional batch
-        a.contract(Mat[B, C, D, k, l], rows[k], cols[l]) <--> np.einsum('i,BCDij,j->BCD', ui[rows], mat, vi[cols])
+              ``y = A.contract(B, rows, cols)`` equals
+              :math:`y = \sum_k \mathbf{u}[\\texttt{rows}]_k^{\\text{T}} \mathbf{B} \mathbf{v}[\\texttt{cols}]_k`
 
-        :param mat: The matrix to contract with
-        :param rows: Indices for the rows
-        :param cols: Indices for the columns to use
-        :return: Value(s) of the contraction
+            * Batch contraction with multiple matrices in batch mode, matrix ``B`` of size ``(P, N, M)``:
+
+              ``y = A.contract(B)`` equals
+              :math:`y_p = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B}_p \mathbf{v}_k`
+
+            * Batch contraction with multiple slices, matrix ``B`` of size ``(n, M)``, ``rows`` of size ``(P, n)``:
+
+              ``y = A.contract(B, rows)`` equals
+              :math:`y_p = \sum_k \mathbf{u}[\\texttt{rows}_p]_k^{\\text{T}} \mathbf{B} \mathbf{v}_k`
+
+            * Batch contraction with multiple matrices and slices, matrix ``B`` of size ``(P, n, M)``, ``rows`` of size ``(P, n)``:
+
+              ``y = A.contract(B, rows)`` equals
+              :math:`y_p = \sum_k \mathbf{u}[\\texttt{rows}_p]_k^{\\text{T}} \mathbf{B}_p \mathbf{v}_k`
+
+            * Batch contraction with multiple matrices, row slice, and column slice, which is used ,`e.g.`, for finite
+              element sensitivities. Matrix ``B`` is of size ``(P, n, m)``, ``rows`` of  size ``(P, n)``, and ``cols``
+              of size ``(P, m)``:
+
+              ``y = A.contract(B, rows, cols)`` equals
+              :math:`y_p = \sum_k \mathbf{u}[\\texttt{rows}_p]_k^{\\text{T}} \mathbf{B}_p \mathbf{v}[\\texttt{cols}_p]_k`
+
+            * Batch contractions can be extended with multiple extra batch-dimensions. For instance, matrix
+              ``B`` of size ``(P, Q, R, N, M)`` results in ``y`` of size ``(P, Q, R)``:
+
+              ``y = A.contract(B)`` equals
+              :math:`y_{pqr} = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B}_{pqr} \mathbf{v}_k`
+
+        Args:
+            mat: The matrix to contract with (optional)
+            rows: Indices for the rows (optional)
+            cols: Indices for the columns to use (optional)
+
+        Returns:
+            Contraction result
         """
 
         rowvar = 'i'
@@ -329,11 +361,8 @@ class DyadCarrier(object):
         return val
 
     def todense(self):
-        """ Convert to a full (dense) matrix
-
-        :return: Rank-N dyadic matrix
-        """
-        warning_size = 100e+6 # Bytes
+        """ Returns a full (dense) matrix from the DyadCarrier matrix """
+        warning_size = 100e+6  # Bytes
         if (self.shape[0]*self.shape[1]*self.dtype.itemsize) > warning_size:
             warnings.warn(f"Expanding a dyad results into a dense matrix. This is not advised for large matrices {self.shape}", ResourceWarning, stacklevel=2)
 
@@ -349,7 +378,7 @@ class DyadCarrier(object):
         return np.iscomplexobj(np.array([], dtype=self.dtype))
 
     def diagonal(self, k=0):
-        """ Gets the diagonal of the DyadCarrier """
+        """ Returns the diagonal of the DyadCarrier matrix """
         if (self.shape[0] == 0) or (self.shape[1] == 0):
             return np.zeros(0, dtype=self.dtype)
 
@@ -369,12 +398,15 @@ class DyadCarrier(object):
 
     @property
     def T(self):
+        """ Shorthand transpose (returns deep copy) """
         return self.transpose()
 
     def transpose(self):
+        """ Returns a deep copy of the transposed DyadCarrier matrix"""
         return DyadCarrier(self.v, self.u)
 
     def dot(self, other):
+        """ Inner product """
         return self.__dot__(other)
 
     def __dot__(self, other):  # self.dot(other)
