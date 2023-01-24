@@ -420,9 +420,7 @@ class Module(ABC, RegisteredClass):
             raise type(e)(str(e.args[0]) + self._err_str(fn=self._sensitivity), *e.args[1:]) from None
 
     def response(self):
-        """
-        Calculate the response from sig_in and output this to sig_out
-        """
+        """ Calculate the response from sig_in and output this to sig_out """
         try:
             inp = [s.state for s in self.sig_in]
             state_out = _parse_to_list(self._response(*inp))  # Calculate the actual response
@@ -443,7 +441,8 @@ class Module(ABC, RegisteredClass):
         return self.response()
 
     def sensitivity(self):
-        """
+        """  Calculate sensitivities using backpropagation
+
         Based on the sensitivity we get from sig_out, reverse the process and output the new sensitivities to sig_in
         """
         try:
@@ -470,6 +469,7 @@ class Module(ABC, RegisteredClass):
             raise type(e)("sensitivity() - " + str(e.args[0]) + self._err_str(fn=self._sensitivity), *e.args[1:]) from e
 
     def reset(self):
+        """ Reset the state of the sensitivities (they are set to zero or to None) """
         try:
             [s.reset() for s in self.sig_out]
             [s.reset() for s in self.sig_in]
