@@ -38,9 +38,6 @@ class DyadCarrier(object):
     Args:
         u : (optional) List of vectors
         v : (optional) List of vectors (if ``u`` is given and ``v`` not, a symmetric dyad is assumed with ``v = u``)
-
-    Attributes:
-        ndim : Number of dimensions
     """
 
     __array_priority__ = 11.0  # For overriding numpy's ufuncs
