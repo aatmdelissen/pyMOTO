@@ -18,7 +18,10 @@ class AssembleGeneral(Module):
     """ Assembles a sparse matrix according to element scaling
 
     Each element matrix is scaled and with the scaling parameter of that element
-    :math:`\mathbf{A} = \sum_e x_e \mathbf{K}_e`
+    :math:`\mathbf{A} = \sum_e x_e \mathbf{K}_e`.
+    The number of degrees of freedom per node is deduced from the size of the element matrix passed into the module.
+    For instance, in case an element matrix of shape ``(3*4, 3*4)`` gets passed with a 2D :class:`DomainDefinition`, the
+    number of dofs per node equals ``3``.
 
     Input Signal:
         - ``x``: Scaling vector of size ``(Nel)``

@@ -130,15 +130,24 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
 
 
 class LinSolve(Module):
-    """ Linear solver module
-    Solves linear system of equations Ax=b
+    """ Solves linear system of equations :math:`\mathbf{A}\mathbf{x}=\mathbf{b}`
+
+    Self-adjointness is automatically detected using :class:`LDAWrapper`.
+
+    Input Signals:
+      - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
+      - ``b`` (`vector`): Right-hand-side vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
+
+    Output Signal:
+      - ``x`` (`vector`): Solution vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
+
+    Keyword Args:
+        dep_tol: Tolerance for detecting linear dependence of solution vectors (default = ``1e-5``)
+        hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
+        symmetric: Flag to omit the automatic detection for symmetric matrix, saves some work for large matrices
+        solver: Manually override the LinearSolver used, instead of the the solver from :func:`auto_determine_solver`
     """
     def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None):
-        """
-        :param tol: Tolerance for detecting linear dependence of adjoint vector
-        :param hermitian: Flag to omit the detection for hermitian matrix, saves some work for large matrices
-        :param solver: Provide a custom LinearSolver to use that instead of the 'automatic' solver
-        """
         self.dep_tol = dep_tol
         self.ishermitian = hermitian
         self.issymmetric = symmetric
@@ -191,21 +200,40 @@ class LinSolve(Module):
 
 
 class EigenSolve(Module):
-    """ Eigensolver module
-    Solves the eigenvalue problem A q_i = λ_i q_i with normalization q_i^T q_i = 1 or
-    the generalized eigenvalue problem A q_i = λ_i B q_i with normalization q_i^T B q_i = 1 (B must be positive def.)
-    The eigenvectors are returned as a matrix Q, where eigenvector Q[:, i] belongs to eigenvalue λ[i]
+    """ Solves the (generalized) eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{B} \mathbf{q}_i`
+
+    Solves the eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{q}_i` with normalization
+    :math:`\mathbf{q}_i^\\text{T} \mathbf{q}_i = 1` or
+    the generalized eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{B} \mathbf{q}_i`
+    with normalization :math:`\mathbf{q}_i^\\text{T} \mathbf{B} \mathbf{q}_i = 1` (:math:`\mathbf{B}` must be positive
+    definite). The eigenvectors are returned as a dense matrix ``Q``, where eigenvector ``Q[:, i]`` belongs to
+    eigenvalue ``λ[i]``.
 
     Both real and complex matrices are supported.
     Correct sensitivities for cases with eigenvalue multiplicity are not implemented yet.
 
-    Mode tracking algorithms can be implemented by the user by providing the argument "sorting_func", which is a
-    function with arguments (λ, Q).
-    """
-    def _prepare(self, sorting_func=lambda W,Q: np.argsort(W), is_hermitian=None):
+    Mode tracking algorithms can be implemented by the user by providing the argument ``sorting_func``, which is a
+    function with arguments (``λ``, ``Q``).
 
+    Todo:
+        Support for sparse matrix
+
+    Input Signal(s):
+      - ``A`` (`dense matrix`): The system matrix of size ``(n, n)``
+      - ``B`` (`dense matrix, optional`): Second system matrix (must be positive-definite) of size ``(n, n)``
+
+    Output Signals:
+      - ``λ`` (`vector`): Vector with eigenvalues of size ``(n)``
+      - ``Q`` (`matrix`): Matrix with eigenvectors ``Q[:, i]`` corresponding to ``λ[i]``, of size ``(n, n)``
+
+    Keyword Args:
+        sorting_func: Sorting function to sort the eigenvalues, which must have signature ``func(λ,Q)``
+          (default = ``numpy.argsort``)
+        hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
+    """
+    def _prepare(self, sorting_func=lambda W,Q: np.argsort(W), hermitian=None):
         self.sorting_fn = sorting_func
-        self.is_hermitian = is_hermitian
+        self.is_hermitian = hermitian
 
     def _response(self, A, *args):
         B = args[0] if len(args) > 0 else None
