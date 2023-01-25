@@ -127,9 +127,9 @@ class EinSum(Module):
     **Operation**          **EinSum arguments**        **Python equivalent**
     ---------------------- --------------------------- -------------------------
     Vector sum             ``"i->", u``                ``y = sum(u)``
-    Elementwise multiply   ``"i,i->i, u, v"``          ``w = u * v``
+    Elementwise multiply   ``"i,i->i", u, v``          ``w = u * v``
     Dot product            ``"i,i->", u, v``           ``y = np.dot(u,v)``
-    Outer product          ``"i,j->ij, u, v"``         ``A = np.outer(u,v)``
+    Outer product          ``"i,j->ij", u, v``         ``A = np.outer(u,v)``
     Matrix trace           ``"ii->", A``               ``y = np.trace(A)``
     Matrix-vector product  ``"ij,j->i", A, b``         ``x = A.dot(b)``
     Quadratic form         ``"i,ij,j->", b, A, b``     ``y = b.dot(A.dot(b))``
@@ -139,7 +139,7 @@ class EinSum(Module):
     ====================== =========================== =========================
 
     Many more advanced operations are supported (see References), with exception of expressions with repeated indices
-    (e.g. iij->ij).
+    (*e.g.* ``iij->ij``).
 
     An optimized version of ``einsum`` is available by installing the package
     `opt_einsum <https://optimized-einsum.readthedocs.io/en/stable/>`_.
