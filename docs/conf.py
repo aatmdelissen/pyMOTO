@@ -15,11 +15,12 @@ project = 'pyMOTO'
 copyright = '2023, Arnoud Delissen'
 author = 'Arnoud Delissen'
 release = pymoto.__version__
+version = release[:release.find('.', 2)]
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["myst_parser", 'sphinx.ext.autodoc', 'sphinx.ext.napoleon', "sphinxcontrib.mermaid"]
+extensions = ["myst_parser", 'sphinx.ext.autodoc', 'sphinx.ext.napoleon', "sphinxcontrib.mermaid", "sphinx.ext.autosummary"]
 source_suffix = {
     '.rst': 'restructuredtext',
     '.txt': 'markdown',
@@ -28,6 +29,14 @@ source_suffix = {
 }
 templates_path = ['_templates']
 exclude_patterns = []
+
+autodoc_default_options = {
+    'members': True,
+    'inherited-members': True,
+    'member-order': 'bysource',
+    'undoc-members': True,
+    'exclude-members': '__weakref__',
+}
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

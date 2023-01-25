@@ -8,16 +8,21 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                       tosig: Union[Signal, Iterable[Signal]] = None,
                       dx: float = 1e-8, tol: float = 1e-5, random: bool = True, use_df: list = None,
                       test_fn: Callable = None, keep_zero_structure=True, verbose=True):
-    """ Performs a finite difference check on the given module or network
+    """ Performs a finite difference check on the given Module or Network
 
-    :param blk: The module or network
-    :param fromsig: Specify input signals of interest
-    :param tosig: Specify output signals of interest
-    :param dx: Perturbation size
-    :param tol: Tolerance
-    :param random: Randomize sensitivity data
-    :param use_df: Give pre-defined sensitivity data
-    :param test_fn: A generic test function (x, dx, df_an, df_fd)
+    Args:
+        blk: The module or network
+        fromsig (optional): Specify input signals of interest
+        tosig (optional): Specify output signals of interest
+
+    Keyword Args:
+        dx: Perturbation size
+        tol: Tolerance
+        random: Randomize sensitivity data
+        use_df: Give pre-defined sensitivity data
+        test_fn: A generic test function (x, dx, df_an, df_fd)
+        keep_zero_structure: If ``True`` variables that are ``0`` are not perturbed
+        verbose: Print extra information to console
     """
     print("=========================================================================================================\n")
     print("Starting finite difference of \"{0}\" with dx = {1}, and tol = {2}".format(type(blk).__name__, dx, tol))
@@ -264,6 +269,24 @@ def obtain_sensitivities(signals: Iterable[Signal]) -> List:
 
 
 def minimize_oc(function, variables, objective: Signal, tolx=1e-4, tolf=1e-4, maxit=100, xmin=0.0, xmax=1.0, move=0.2, l1init=0, l2init=100000, l1l2tol=1e-4):
+    """ Execute minimization using the OC-method
+
+    Args:
+        function: The Network defining the optimization problem
+        variables: The Signals defining the design variables
+        objective: The objective function Signal to be minimized
+
+    Keyword Args:
+        tolx: Stopping criterium for relative design change
+        tolf: Stopping criterium for relative objective change
+        maxit: Maximum number of iteration
+        xmin: Minimum design variable (can be a vector)
+        xmax: Maximum design variable (can be a vector)
+        move: Move limit
+        l1init: OC internal parameter
+        l2init: OC internal parameter
+        l1l2tol: OC internal parameter
+    """
     xval, cumlens = _concatenate_to_array([s.state for s in variables])
 
     maxvol = np.sum(xval)
@@ -301,6 +324,25 @@ def minimize_oc(function, variables, objective: Signal, tolx=1e-4, tolf=1e-4, ma
 
 
 def minimize_mma(function, variables, responses, tolx=1e-4, tolf=1e-4, maxit=1000, xmin=0.0, xmax=1.0):
+    """ Execute minimization using the MMA-method
+
+    Uses the ``nlopt`` version of MMA.
+
+    Todo:
+        Improve the MMA implementation as the ``nlopt`` version is not very good
+
+    Args:
+        function: The Network defining the optimization problem
+        variables: The Signals defining the design variables
+        responses: A list of Signals, where the first is to be minimized and the others are constraints.
+
+    Keyword Args:
+        tolx: Stopping criterium for relative design change
+        tolf: Stopping criterium for relative objective change
+        maxit: Maximum number of iteration
+        xmin: Minimum design variable (can be a vector)
+        xmax: Maximum design variable (can be a vector)
+    """
     # Save initial state
     xval, cumlens = _concatenate_to_array([s.state for s in variables])
     n = len(xval)

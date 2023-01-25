@@ -5,22 +5,15 @@
 
 pyMOTO Documentation
 ======================
-Version:
+:Version: |version|
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :hidden:
 
+   self
    theory.md
-   pymoto
+   howto.md
+   modules
 
 .. include:: ../README.md
    :parser: myst_parser.sphinx_
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
