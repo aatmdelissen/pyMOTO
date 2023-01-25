@@ -187,7 +187,7 @@ class DensityFilter(Filter):
 
 
 class OverhangFilter(Module):
-    """ Implementation of overhang filter according to the work of Langelaar (2016, 2017)
+    """ Implementation of overhang filter by Langelaar (2016, 2017)
 
     It proceeds layer by layer through the entire domain. For each element in the current layer, the maximum printable
     density is determined by a smooth maximum of the supporting elements

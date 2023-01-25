@@ -17,7 +17,7 @@ from pymoto import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardi
 
 
 class Inverse(Module):
-    """ Calculate the exact inverse of a matrix :math:`\mathbf{B} = \mathbf{A}^{-1}`
+    """ Calculate the inverse of a matrix :math:`\mathbf{B} = \mathbf{A}^{-1}`
 
     Input Signal:
       - ``A`` (`np.ndarray`): Dense matrix:math:`\mathbf{A}`
