@@ -212,8 +212,13 @@ class DomainDefinition:
     def write_to_vti(self, vectors: dict, filename="out.vti", scale=1.0, origin=(0.0, 0.0, 0.0)):
         """ Write all given vectors to a Paraview (VTI) file
 
+        The size of the vectors should be a multiple of ``nel`` or ``nnodes``. Based on their size they are marked as
+        cell-data or point-data in the VTI file. For 2D data (size is equal to ``2*nnodes``), the z-dimension is padded
+        with zeros to have 3-dimensional data. Also block-vectors of multiple dimensions (*e.g.* ``(2, 3*nnodes)``) are
+        accepted, which get the suffixed as ``_00``.
+
         Args:
-            vectors: A dictionary of vectors to write. Keys are used as vector names
+            vectors: A dictionary of vectors to write. Keys are used as vector names.
             filename (str): The file loction
             scale: Uniform scaling of the gridpoints
             origin: Origin of the domain

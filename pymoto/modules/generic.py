@@ -2,8 +2,7 @@
 import numpy as np
 from pymoto.core_objects import Module
 try:
-    from opt_einsum import contract as einsum
-    print("Use optimized einsum")
+    from opt_einsum import contract as einsum  # Faster einsum
 except ModuleNotFoundError:
     from numpy import einsum
 
@@ -11,16 +10,52 @@ except ModuleNotFoundError:
 class MathGeneral(Module):
     """ General mathematical expression module
 
-    This block can be initialized using a symbolic expression. The derivatives are automatically
-    calculated using SymPy. Variables in this expression can be given by using the signal's global name (tag), or the
-    local name such as "inp0", "inp1" and "inp2" for the first three signals.
+    This block can evaluate symbolic mathematical expressions. The derivatives are automatically calculated using
+    ``sympy``. Variables in this expression can be given by using the signal's global name (:attr:`Signal.tag`), or by
+    the signal's position in the input signal list: ``"inp0"`` for the first input signal given, ``"inp1"`` for the
+    second input signal, ``"inp2"`` for the third, *etc*...
+
+    Example:
+        Two scalars::
+
+            from pymoto import Signal, MathGeneral
+            s1 = Signal("x", 1.3)
+            s2 = Signal("y", 4.8)
+            m = MathGeneral([s1, s2], Signal("output"), "inp0*inp1")  # or "x * y" as expression
+            m.response()
+            assert (m.sig_out[0].state == 1.3*4.8)
+
+        Scalar and Vector::
+
+            s1 = Signal("x", np.array([1.3, 2.5, 9.4]))
+            s2 = Signal("y", 4.8)
+            m = MathGeneral([s1, s2], Signal("output"), "sin(x)*y").response()
+            assert (m.sig_out[0].state.shape == (3,))
+            from math import sin
+            assert (abs(m.sig_out[0].state[0] - sin(1.3)*4.8) < 1e-10)
+            assert (abs(m.sig_out[0].state[1] - sin(2.5)*4.8) < 1e-10)
+            assert (abs(m.sig_out[0].state[2] - sin(9.4)*4.8) < 1e-10)
+
+    Input signals:
+        ``*args`` (`float` or `np.ndarray`): Any number of numerical inputs which match the provided expression
+
+    Output Signal:
+        ``y`` (`float` or `np.ndarray`): Result of the mathematical operation
+
+    Args:
+        expression (str): The mathematical expression to be evaluated
+
+    References:
+      - `Sympy documentation <https://docs.sympy.org/latest/index.html>`_
     """
     def _prepare(self, expression):
         from sympy import lambdify
         from sympy.parsing.sympy_parser import parse_expr
 
+        expression = expression.replace("^", "**").lower()  # Case insensitive
+
         # Replace powers
-        expr = parse_expr(expression.replace("^", "**").lower())
+        expr = parse_expr(expression)
 
         # Variables
         var_names = []
@@ -31,7 +66,7 @@ class MathGeneral(Module):
         trn = {}
         for i, s in enumerate(self.sig_in):
             if len(s.tag):
-                if s.tag.lower() in var_names:
+                if s.tag.lower() in var_names and s.tag.lower() in expression:
                     raise RuntimeError("Name '{}' multiple defined".format(s.tag.lower()))
                 trn[s.tag.lower()] = var_names[i]
 
@@ -50,7 +85,7 @@ class MathGeneral(Module):
         return self.f(*args)
 
     def _sensitivity(self, df_dy):
-        dg_df = self.df(*self.x)
+        dg_df = self.df(*self.x)  # This could be moved to _response(): less computations but more memory usage
 
         # Initialize sensitivities with zeroed out memory. This should ensure identical type of state and sensitivity
         dg_dx = []
@@ -84,34 +119,54 @@ class MathGeneral(Module):
 
 
 class EinSum(Module):
-    """ General linear algebra module which uses the numpy function einsum
+    """ General linear algebra module which uses the Numpy function ``einsum``
 
     Many linear algebra multiplications can be implemented using this module:
-    Vector sum             "i->"          y = sum(u)
-    Elementwise multiply   "i,i->i"       w = u * v
-    Dot product            "i,i->"        y = np.dot(u,v)
-    Outer product          "i,j->ij"      A = np.outer(u,v)
-    Matrix trace           "ii->"         y = np.trace(A)
-    Matrix-vector product  "ij,j->i"      x = A.dot(b)
-    Quadratic form         "i,ij,j->"     y = b.dot(A.dot(b))
-    Matrix-matrix product  "ij,ij->ij"    C = A * B
-    Transpose matrix prod. "ji,ij->ij"    C = A.T * B
-    Matrix projection      "ji,jk,kl->il" B = V.T.dot(A.dot(V))
 
-    Many more advanced operations are also supported, with exception of expressions with repeated indices (e.g. iij->ij)
+    ====================== =========================== =========================
+    **Operation**          **EinSum arguments**        **Python equivalent**
+    ---------------------- --------------------------- -------------------------
+    Vector sum             ``"i->", u``                ``y = sum(u)``
+    Elementwise multiply   ``"i,i->i, u, v"``          ``w = u * v``
+    Dot product            ``"i,i->", u, v``           ``y = np.dot(u,v)``
+    Outer product          ``"i,j->ij, u, v"``         ``A = np.outer(u,v)``
+    Matrix trace           ``"ii->", A``               ``y = np.trace(A)``
+    Matrix-vector product  ``"ij,j->i", A, b``         ``x = A.dot(b)``
+    Quadratic form         ``"i,ij,j->", b, A, b``     ``y = b.dot(A.dot(b))``
+    Matrix-matrix product  ``"ij,ij->ij", A, B``       ``C = A * B``
+    Transpose matrix prod. ``"ji,ij->ij", A, B``       ``C = A.T * B``
+    Matrix projection      ``"ji,jk,kl->il", V, A, V`` ``B = V.T.dot(A.dot(V))``
+    ====================== =========================== =========================
 
-    More info:
-    https://stackoverflow.com/questions/26089893/understanding-numpys-einsum
-    https://obilaniu6266h16.wordpress.com/2016/02/04/einstein-summation-in-numpy/
+    Many more advanced operations are supported (see References), with exception of expressions with repeated indices
+    (e.g. iij->ij).
+
+    An optimized version of ``einsum`` is available by installing the package
+    `opt_einsum <https://optimized-einsum.readthedocs.io/en/stable/>`_.
+
+    Input signals:
+        ``*args`` (`np.ndarray`): Any number of inputs that are passed to ``einsum`` and match the expression
+
+    Output Signal:
+        ``y`` (`np.ndarray`): Result of the ``einsum`` operation
+
+    Args:
+        expression (str): The ``einsum`` expression
+
+    References:
+      - `Numpy documentation on EinSum <https://numpy.org/doc/stable/reference/generated/numpy.einsum.html>`_
+      - `Understanding Numpy's EinSum <https://stackoverflow.com/questions/26089893/understanding-numpys-einsum>`_
+      - `EinStein summation in Numpy <https://obilaniu6266h16.wordpress.com/2016/02/04/einstein-summation-in-numpy/>`_
+      - `Optimized Einsum opt_einsum <https://optimized-einsum.readthedocs.io/en/stable/>`_
     """
-    def _prepare(self, expression):
+    def _prepare(self, expression: str):
         self.expr = expression
         cmd = self.expr.split("->")
         self.indices_in = [s.strip() for s in cmd[0].split(",")]
         self.indices_out = cmd[1] if "->" in self.expr else ''
 
     def _response(self, *args):
-        return [einsum(self.expr, *args)]
+        return [einsum(self.expr, *args, optimize=True)]
 
     def _sensitivity(self, df_in):
         n_in = len(self.sig_in)
