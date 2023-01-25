@@ -80,7 +80,7 @@ class Filter(Module):
         return np.asarray(self.H * (dfdy[np.newaxis].T / self.Hs))[:, 0]
 
 
-class Density(Filter):
+class DensityFilter(Filter):
     """ Standard density filter for a structured mesh in topology optimization
 
     The filtered densities are calculated as

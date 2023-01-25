@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     # Filter
     sxfilt = pym.Signal('xfiltered')
-    fn.append(pym.Density(sx, sxfilt, domain=domain, radius=filter_radius, nonpadding=pad))
+    fn.append(pym.DensityFilter(sx, sxfilt, domain=domain, radius=filter_radius, nonpadding=pad))
 
     # Module that generates a continuated value
     class Continuation(pym.Module):

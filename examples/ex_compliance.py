@@ -86,7 +86,7 @@ if __name__ == "__main__":
     func = pym.Network(print_timing=False)
 
     # Filter
-    sxfilt = func.append(pym.Density(sx, domain=domain, radius=filter_radius))
+    sxfilt = func.append(pym.DensityFilter(sx, domain=domain, radius=filter_radius))
     sx_analysis = sxfilt
 
     # Show the design on the screen as it optimizes

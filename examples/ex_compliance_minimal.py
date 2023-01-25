@@ -33,7 +33,7 @@ sf = pym.Signal('f', state=f)  # Force signal
 sx = pym.Signal('x', state=np.ones(domain.nel)*volfrac)  # Design signal, with initial values
 # Start building the modular network
 func = pym.Network()
-sxfilt = func.append(pym.Density(sx, domain=domain, radius=filter_radius))  # Filter
+sxfilt = func.append(pym.DensityFilter(sx, domain=domain, radius=filter_radius))  # Filter
 sSIMP  = func.append(pym.MathGeneral(sxfilt, expression=f"{xmin} + {1-xmin}*inp0^3"))  # SIMP material interpolation
 sK     = func.append(pym.AssembleGeneral(sSIMP, domain=domain, element_matrix=el, bc=boundary_dofs))  # Add stiffness assembly module
 su     = func.append(pym.LinSolve([sK, sf]))  # Linear system solver
