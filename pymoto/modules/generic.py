@@ -93,10 +93,7 @@ class MathGeneral(Module):
             try:
                 dg_dxi = s.state.copy()
                 dg_dxi[:] = 0
-            except IndexError:  # Zero-dimension array
-                dg_dxi = s.state.copy()
-                dg_dxi *= 0
-            except AttributeError:  # Not numpy
+            except (IndexError, AttributeError, TypeError):  # Not numpy or zero-dimension array
                 dg_dxi = s.state * 0
             # assert (isinstance(dg_dxi, type(s.state)))
             dg_dx.append(dg_dxi)
