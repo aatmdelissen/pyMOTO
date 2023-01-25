@@ -109,7 +109,7 @@ if __name__ == "__main__":
     su = func.append(pym.LinSolve([sK, sf], hermitian=True, solver=solver))
 
     # Output the design, deformation, and force field to a Paraview file
-    func.append(pym.WriteToParaview([sx_analysis, su, sf], domain=domain, saveto='out/dat.vti'))
+    func.append(pym.WriteToVTI([sx_analysis, su, sf], domain=domain, saveto='out/dat.vti'))
 
     # Compliance calculation c = f^T u
     scompl = func.append(pym.EinSum([su, sf], expression='i,i->'))

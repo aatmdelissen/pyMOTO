@@ -231,7 +231,7 @@ class PlotIter(_FigModule):
         self._update_fig()
 
 
-class WriteToParaview(Module):
+class WriteToVTI(Module):
     """ Writes vectors to a Paraview VTI file
 
     See also: :attr:`DomainDefinition.write_to_vti()`
