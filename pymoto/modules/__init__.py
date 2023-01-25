@@ -9,5 +9,5 @@ __all__ = ["MathGeneral", "EinSum",
            "Inverse", "LinSolve", "EigenSolve",
            "AssembleGeneral", "AssembleStiffness", "AssembleMass",
            "DensityFilter", "OverhangFilter",
-           "PlotDomain", "PlotGraph", "WriteToParaview",
+           "PlotDomain", "PlotGraph", "PlotIter", "WriteToParaview",
            "MakeComplex", "RealPart", "ImagPart", "ComplexNorm"]
