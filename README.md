@@ -1,4 +1,8 @@
 # pyMOTO
+
+[Link to Documentation](https://pymoto.readthedocs.io)
+[Link to GitHub](https://github.com/aatmdelissen/pyMOTO)
+
 Modular topology optimization framework with semi-automatic derivatives. The two main types `Module` and `Signal`
 are used to implement a problem formulation to be optimized. The `Module` implements functionality (and design 
 sensitivity calculations) and `Signal` carries data of both the variables and their derivatives. 
