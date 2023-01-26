@@ -11,25 +11,35 @@ class FilterConv(Module):
         self.weights = weights
         self.mode = mode
 
-    def set_filter_radius(self, radius: float, element_units=False):
-        if element_units:
+    def set_filter_radius(self, radius: float, relative_units: bool = False):
+        if relative_units:
             dx, dy, dz = 1.0, 1.0, 1.0
         else:
             dx, dy, dz = self.domain.element_size
-        delemx, delemy = int((radius-1e-10*dx)/dx), int((radius-1e-10*dy)/dy)
-
+        delemx, delemy, delemz = int((radius-1e-10*dx)/dx), int((radius-1e-10*dy)/dy), int((radius-1e-10*dz)/dz)
+        if self.domain.dim < 3:
+            delemz = 0
         xrange = np.arange(-delemx, delemx+1)*dx
         yrange = np.arange(-delemy, delemy+1)*dy
-        coords_x, coords_y = np.meshgrid(xrange, yrange)
-        self.weights = np.maximum(0.0, radius - np.sqrt(coords_x*coords_x + coords_y*coords_y))
+        zrange = np.arange(-delemz, delemz+1)*dz
+        coords_x, coords_y, coords_z = np.meshgrid(xrange, yrange, zrange)
+        self.weights = np.maximum(0.0, radius - np.sqrt(coords_x*coords_x + coords_y*coords_y + coords_z*coords_z))
         self.weights /= np.sum(self.weights)  # Volume preserving
+        if self.domain.dim < 3:
+            self.weights = self.weights[:, :, 0]
 
     def _response(self, x):
-        xbox = x.reshape(self.domain.nelx, self.domain.nely, order='F').T  # TODO 3d?
+        domain_sizes = [self.domain.nelx, self.domain.nely]
+        if self.domain.dim >= 3:
+            domain_sizes.append(self.domain.nely)
+        xbox = x.reshape(*domain_sizes, order='F').T  # TODO 3d?
         return convolve(xbox, self.weights, mode=self.mode).flatten()
 
     def _sensitivity(self, dfdv):
-        ybox = dfdv.reshape(self.domain.nelx, self.domain.nely, order='F').T  # TODO 3d
+        domain_sizes = [self.domain.nelx, self.domain.nely]
+        if self.domain.dim == 3:
+            domain_sizes.append(self.domain.nely)
+        ybox = dfdv.reshape(*domain_sizes, order='F').T  # TODO 3d
         return convolve(ybox, self.weights, mode=self.mode).flatten()
 
 
@@ -52,7 +62,7 @@ class Filter(Module):
 
     Keyword Args:
         nonpadding (numpy.array[int]): An array with indices at places where
-          :math:`s_i = \max(\mathbf{s}) \: \\forall\: i \in \mathcal{N}`. For a density filter this mimics having values
+          :math:`s_i = \max(\mathbf{s}) \: \\forall\: i \notin \mathcal{N}`. For a density filter this mimics having values
           of `0` outside of the domain, thus emulating padding of the boundaries.
     """
     def _prepare(self, *args, nonpadding=None, **kwargs):
@@ -103,7 +113,7 @@ class DensityFilter(Filter):
     Keyword Args:
         radius (float or int): The filtering radius (in absolute units of elements)
         nonpadding (numpy.array[int]): An array with indices at places where
-          :math:`s_i = \max(\mathbf{s}) \: \\forall\: i \in \mathcal{N}`. For a density filter this mimics having values
+          :math:`s_i = \max(\mathbf{s}) \: \\forall\: i \notin \mathcal{N}`. For a density filter this mimics having values
           of ``0`` outside of the domain, thus emulating padding of the boundaries.
 
     References:
