@@ -23,14 +23,14 @@ The flow diagram of a standard compliance topology optimization is visualized as
 Let us examine the module that implements the SIMP interpolation, which has input $\mathbf{x}_\text{f}$ and output $\mathbf{s}_\text{K}$, mapped as
 
 $$
-\mathbf{x}_\text{f} \rightarrow \boxed{ \begin{aligned} &\text{SIMP} \\ x_\text{min} +& (1-x_\text{min})\mathbf{x}_\text{f}^3 \end{aligned} } \rightarrow \mathbf{s}_\text{K} \rightarrow \dotsc \rightarrow h \text{.}
+\mathbf{x}_\text{f} \rightarrow \boxed{ \begin{aligned} &\text{SIMP} \\ x_\text{min} +& (1-x_\text{min})\mathbf{x}_\text{f}^3 \end{aligned} } \rightarrow \mathbf{s}_\text{K} \rightarrow \cdots \rightarrow h \text{.}
 $$
 
 Here, $h$ is any arbitrary response, such as compliance. To calculate the design sensitivities of the SIMP 
 interpolation, the chain rule is used, as depicted below
 
 $$
-\frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}_\text{f}} \leftarrow \boxed{ \begin{aligned} &\quad\text{SIMP} \\ &\frac{\mathrm{d}h}{\mathrm{d} \mathbf{s}_\text{K}}\frac{\mathrm{d}\mathbf{s}_\text{K}}{\mathrm{d}\mathbf{x}_\text{f}} \end{aligned} } \leftarrow \frac{\mathrm{d}h}{\mathrm{d} \mathbf{s}_\text{K}} \leftarrow \dotsc \leftarrow \frac{\mathrm{d}h}{\mathrm{d}h}=1 \text{.}
+\frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}_\text{f}} \leftarrow \boxed{ \begin{aligned} &\quad\text{SIMP} \\ &\frac{\mathrm{d}h}{\mathrm{d} \mathbf{s}_\text{K}}\frac{\mathrm{d}\mathbf{s}_\text{K}}{\mathrm{d}\mathbf{x}_\text{f}} \end{aligned} } \leftarrow \frac{\mathrm{d}h}{\mathrm{d} \mathbf{s}_\text{K}} \leftarrow \cdots \leftarrow \frac{\mathrm{d}h}{\mathrm{d}h}=1 \text{.}
 $$
 
 By having the SIMP `Module` implement both the forward and the backward path, it becomes independent of anything outside itself.
@@ -43,22 +43,26 @@ chains of different `Module` and other configurations, thus other optimization p
 
 
 
-
-
-
-For any module with an input $\mathbf{x}$ and output $\mathbf{y}$, which eventually results in response $h$ ...........
-
-
-
-
-In the light of modular programming, we can write the problem as
+## Direct versus adjoint senstivities
+In the light of the modular approach to the derivative computation, we can also implement a problem with the 
+internal constraint equations $\mathbf{g}(\mathbf{x}, \mathbf{u}(\mathbf{x}))=\mathbf{0}$, as
 
 $$
 \mathbf{x} \rightarrow \boxed{ \mathbf{g}(\mathbf{x}, \mathbf{u}(\mathbf{x}))=\mathbf{0} } \rightarrow \mathbf{u} \rightarrow
-\boxed{ \mathbf{f}(\mathbf{u}) } \rightarrow y \rightarrow \dotsc \rightarrow h \text{.}
+\boxed{ y(\mathbf{u}) } \rightarrow y \rightarrow \cdots \rightarrow h \text{.}
 $$
 
-The backward operation is written as
+A system of equations is solved under the condition that $\mathbf{g}(\mathbf{x}, \mathbf{u})=\mathbf{0}$. Examples of 
+such a constraint function is static equilibrium $\mathbf{K}(\mathbf{x})\mathbf{u}-\mathbf{b} = \mathbf{0}$, where 
+$\mathbf{K}$ is a stiffness matrix, $\mathbf{u}$ are displacements and $\mathbf{b}$ are applied loads. Many other 
+physics also involve the solution of a linear system of equations, for which the same theory applies. The state vector 
+$ \mathbf{u} $ is used to calculate a response function (*e.g.*, an objective or constraint) $h(\mathbf{u})$. 
+For instance, the compliance is calculated as $ h(\mathbf{u}) = \mathbf{b} \cdot \mathbf{u} $.
+Summarizing, we have a response function $ h(\mathbf{u}) $ subject to $ \mathbf{g}(\mathbf{x},\mathbf{u})=\mathbf{0} $.
+Of this response, we would like to know the derivatives with respect to the design variables
+$\frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}}$.
+
+For this we can again use backward propagation, which is written as
 
 $$
 \frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}} \leftarrow \boxed{
@@ -68,34 +72,24 @@ $$
  \leftarrow \frac{\mathrm{d} h}{\mathrm{d} y} \leftarrow \dotsc \leftarrow \frac{\mathrm{d} h}{\mathrm{d} h} = 1
 $$
 
-In the module involving the constraint equation, the choice remains free to do an adjoint solve or a direct method.
-If an adjoint is done, the pseudo-forces are the incoming sensitivities. By looking for linear dependency with
-respect to earlier solves with other force vectors on the same system, some solves might be prevented.
-
-
-
-
-## Direct versus adjoint senstivities
-
-A system is solved under the condition that $\mathbf{g}(\mathbf{x}, \mathbf{u})=\mathbf{0}$. Examples of such a function is static compliance
-$ \mathbf{K}(\mathbf{x})\mathbf{u}-\mathbf{b} = \mathbf{0} $ or any other function that involves solving an inverse, in order
-to satisfy the constraint condition. The state vector $ \mathbf{u} $ is then used to calculate a response
-$ f(\mathbf{x}, \mathbf{u})$. For instance $ f=\mathbf{c} \cdot \mathbf{u} $.
-Summarizing, we have a response function $ f(\mathbf{x},\mathbf{u}) $ subject to $ \mathbf{g}(\mathbf{x},\mathbf{u})=\mathbf{0} $.
-Of this response, we would like to know the sensitivities with respect to the design variables
-$\frac{\mathrm{d}f}{\mathrm{d}\mathbf{x}}$.
+In the `Module` involving the constraint equation, the choice remains open to do use the *adjoint method* or the *direct 
+method*. If the adjoint method is used, a second system of equations needs to be solved, for which the right-hand-side 
+is the incoming sensitivity $\frac{\mathrm{d}h}{\mathrm{d}\mathbf{u}}$. By detecting linear dependency with respect to 
+earlier solutions with other right-hand-sides on the same system (self-adjointness), additional solutions might be 
+prevented. This is done automatically in the `pymoto.LinSolve` module, using the LDAS framework by [Koppen *et al.* 
+(2022)](https://doi.org/10.1007/s00158-022-03378-8).
 
 ### Direct sensitivities
-By the direct approach the sensitivities would be calculated as
+In the direct approach the sensitivities would be calculated as
 
 $$
-\frac{\mathrm{d}f}{\mathrm{d}\mathbf{x}} = \frac{\partial f}{\partial\mathbf{x}}
-+ \frac{\partial f}{\partial \mathbf{u}}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}\mathrm{.}
+\frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}} = \frac{\mathrm{d} h}{\mathrm{d} \mathbf{u}}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}\text{.}
 $$
 
 However, this approach needs the state sensitivities $\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}$, which are
-usually very expensive to calculate, since it involves a matrix inverse for every design variable in $\mathbf{x}$.
-We can calculate it using the constraint equation, which should be zero regardless the design:
+usually very costly to calculate, since it involves the solution to a system of equations for every design variable 
+in $\mathbf{x}$. We can calculate it by differentiation of the constraint equation, which should be zero regardless the 
+design:
 
 $$
 \frac{\mathrm{d}\mathbf{g}}{\mathrm{d}\mathbf{x}} = \frac{\partial\mathbf{g}}{\partial\mathbf{x}}
@@ -109,54 +103,87 @@ $$
 \frac{\partial\mathbf{g}}{\partial\mathbf{x}}\mathrm{.}
 $$
 
-### Adjoint sensitivities
-The adjoint method becomes more economical if only one or a few responses require sensitivities. Here the state
-sensitivities $\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}$ are not explicitly calculated, but substituted
-by the direct sensitivity relation:
+Tho calculate the state sensitivities, a system of equations with $n$ right-hand-sides needs to be solved, where $n$ is 
+the number of design variables in $\mathbf{x}$.
+
+**Example:**
+In case the constraint equations are 
+$\mathbf{g}(\mathbf{x}, \mathbf{u}) = \mathbf{K}(\mathbf{x})\mathbf{u}-\mathbf{b} = \mathbf{0}$, the state sensitivities 
+are calculated as
 
 $$
- \frac{\mathrm{d}f}{\mathrm{d}\mathbf{x}} = \frac{\partial f}{\partial\mathbf{x}}
- + \frac{\partial f}{\partial\mathbf{u}}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}
- = \frac{\partial f}{\partial\mathbf{x}}
- - \frac{\partial f}{\partial\mathbf{u}}\left(\frac{\partial\mathbf{g}}{\partial\mathbf{u}}\right)^{-1}
+\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}x_i} = -\mathbf{K}^{-1}
+\left(\frac{\partial\mathbf{K}}{\partial x_i} \mathbf{u}\right) \: \forall \: i\in \{1, \dotsc, n\} \mathrm{.}
+$$
+
+This approach requires one solution to the system of equations for each design variable, which is feasible when $n$ is 
+small and there are many different response functions $h_j(\mathbf{u}(\mathbf{x}))$.
+
+### Adjoint sensitivities
+The adjoint method becomes more economical if only few responses $h$ depend on a large number of design variables 
+$\mathbf{x}$. In the adjoint method the state sensitivities $\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}$ are not 
+explicitly calculated, but substituted into the chain rule of $h$:
+
+$$
+ \frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}} = \frac{\mathrm{d} h}{\mathrm{d}\mathbf{u}}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}
+ =  - \frac{\mathrm{d} h}{\mathrm{d}\mathbf{u}}\left(\frac{\partial\mathbf{g}}{\partial\mathbf{u}}\right)^{-1}
  \frac{\partial\mathbf{g}}{\partial\mathbf{x}}\mathrm{.}
 $$
 
 At this point you could choose to either calculate
-$\left(\frac{\partial\mathbf{g}}{\partial\mathbf{u}}\right)^{-1}\frac{\partial\mathbf{g}}{\partial\mathbf{x}}$ first
-(direct method) or
-$\frac{\partial f}{\partial\mathbf{u}}\left(\frac{\partial\mathbf{g}}{\partial\mathbf{u}}\right)^{-1}$ first
-(adjoint method).
-Here we rename the adjoint solve:
+$\left(\frac{\partial\mathbf{g}}{\partial\mathbf{u}}\right)^{-1}\frac{\partial\mathbf{g}}{\partial\mathbf{x}}$ first, as
+is done in the direct method. Or, the equations
+$\frac{\mathrm{d} h}{\mathrm{d} \mathbf{u}}\left(\frac{\partial\mathbf{g}}{\partial\mathbf{u}}\right)^{-1}$ can be 
+solved first, which is the adjoint system of equations.
+The solution to the adjoint system of equations is denoted
 
 $$
-\boldsymbol{\lambda}^T = -\frac{\partial f}{\partial\mathbf{u}}\left(\frac{\partial\mathbf{g}}{\partial\mathbf{u}}\right)^{-1}
+\boldsymbol{\lambda}^T = \frac{\mathrm{d} h}{\mathrm{d} \mathbf{u}}\left(\frac{\partial\mathbf{g}}{\partial\mathbf{u}}\right)^{-1}
 $$
 
 Which leads to the equation for the sensitivities:
 
 $$
- \frac{\mathrm{d}f}{\mathrm{d}\mathbf{x}} = \frac{\partial f}{\partial\mathbf{x}}
- + \boldsymbol{\lambda}^T\frac{\partial\mathbf{g}}{\partial\mathbf{x}}
+ \frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}} = - \boldsymbol{\lambda}^T\frac{\partial\mathbf{g}}{\partial\mathbf{x}}
 $$
 
+**Example:**
+In case the constraint equations are 
+$\mathbf{g}(\mathbf{x}, \mathbf{u}) = \mathbf{K}(\mathbf{x})\mathbf{u}-\mathbf{b} = \mathbf{0}$, the adjoint vector
+is now calculated for each response function $h_j$ as
+
+$$
+\boldsymbol{\lambda}_j = \mathbf{K}^{-\text{T}} \frac{\mathrm{d} h_j}{\mathrm{d} \mathbf{u}}
+ \: \forall \: j\in \{1, \dotsc, m\} \mathrm{.}
+$$
+
+and the design sensitivity is calculated as
+
+$$
+ \frac{\mathrm{d}h_j}{\mathrm{d} x_i } = - \boldsymbol{\lambda}_j^\text{T}\frac{\partial\mathbf{K}}{\partial x_i} \mathbf{u}
+$$
+
+This approach requires one solution to the system of equations for each response, which is feasible when $m$ is 
+small and there are many different design variables $\mathbf{x}$.
+
+#### Adjoint sensitivities using a Lagrangian
 Formally, an adjoint calculation is derived by a Lagrangian. Lagrange multipliers are added for the constraint equation.
 
 $$
- \mathcal{L}(\mathbf{x}, \mathbf{u}) = f(\mathbf{x}, \mathbf{u}) + \boldsymbol{\lambda}^T\mathbf{g}(\mathbf{x}, \mathbf{u})
+ \mathcal{L}(\mathbf{x}, \mathbf{u}) = h(\mathbf{x}, \mathbf{u}) + \boldsymbol{\lambda}^T\mathbf{g}(\mathbf{x}, \mathbf{u})
 $$
 
 Now the sensitivity of the Lagrangian becomes
 
 $$
 \begin{aligned}
- \frac{\mathrm{d}f}{\mathrm{d}\mathbf{x}} &=& \frac{\mathrm{d}\mathcal{L}}{\mathrm{d}\mathbf{x}} \\
- &=& \frac{\partial f}{\partial\mathbf{x}} + \frac{\partial f}{\partial\mathbf{u}}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}
+ \frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}} &= \frac{\mathrm{d}\mathcal{L}}{\mathrm{d}\mathbf{x}} \\
+ &= \frac{\partial h}{\partial\mathbf{x}} + \frac{\partial h}{\partial\mathbf{u}}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}
      + \frac{\mathrm{d}\boldsymbol{\lambda}^T}{\mathrm{d}\mathbf{x}}\mathbf{g}(\mathbf{x}, \mathbf{u})
      + \boldsymbol{\lambda}^T\left(\frac{\partial\mathbf{g}}{\partial\mathbf{x}}
      + \frac{\partial\mathbf{g}}{\mathbf{u}}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}} \right) \\
- &=& \frac{\partial f}{\partial\mathbf{x}} + \boldsymbol{\lambda}^T\frac{\partial\mathbf{g}}{\partial\mathbf{x}}
-     + \left(\frac{\partial f}{\partial\mathbf{u}}
+ &= \frac{\partial h}{\partial\mathbf{x}} + \boldsymbol{\lambda}^T\frac{\partial\mathbf{g}}{\partial\mathbf{x}}
+     + \left(\frac{\partial h}{\partial\mathbf{u}}
      + \boldsymbol{\lambda}^T\frac{\partial\mathbf{g}}{\partial\mathbf{u}} \right)\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}} \\
 \end{aligned}
 $$
@@ -165,212 +192,66 @@ By choosing the adjoint vector $\boldsymbol{\lambda}$ correctly, we can cause th
 $\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}$ to drop out and end up with the same equation:
 
 $$
- \frac{\mathrm{d}f}{\mathrm{d}\mathbf{x}} = \frac{\partial f}{\partial\mathbf{x}}
- + \boldsymbol{\lambda}^T\frac{\partial\mathbf{g}}{\partial\mathbf{x}} \quad\text{subject to } \frac{\partial f}{\partial \mathbf{u}}
+ \frac{\mathrm{d}h}{\mathrm{d}\mathbf{x}} = \frac{\partial h}{\partial\mathbf{x}}
+ + \boldsymbol{\lambda}^T\frac{\partial\mathbf{g}}{\partial\mathbf{x}} \quad\text{subject to } \frac{\partial h}{\partial \mathbf{u}}
  + \boldsymbol{\lambda}^T\frac{\partial\mathbf{g}}{\partial\mathbf{u}}=\mathbf{0}
 $$
 
 
 
-## Complex valued-functions
-For a function which maps complex to complex
+## Complex-valued functions
+Derivatives with respect to complex values are also supported by the pyMOTO framework. However, they behave a bit differently
+than "normal" derivatives. A complex value ($z = x+iy$) can be seen as having two independent variables
+(*e.g.*  $x$ and $y$, or, $z$ and its conjugate $z^*$).
 
-$$
-\mathbf{u}\in\mathbb{C} \rightarrow \boxed{ \mathbf{f}(\mathbf{u}) } \rightarrow \mathbf{y}\in\mathbb{C}
-\rightarrow \dotsc \rightarrow h \in\mathbb{R}
-$$
+Definition of partial derivatives (Wirtinger derivatives) for the complex value $z = x+iy$ are defined as
 
-$$
-h_\mathbf{u}\leftarrow\boxed{h_\mathbf{u}=...
-} \leftarrow h_\mathbf{y} \leftarrow \cdots \leftarrow h_h=1
-$$
+$$ \begin{aligned}
+    \frac{\partial}{\partial z} &= \frac{1}{2}\left( \frac{\partial}{\partial x} - i \frac{\partial}{\partial y}\right) \leftarrow \text{Stored in }\texttt{Signal.sensitivity}\\
+    \frac{\partial}{\partial z^*} &= \frac{1}{2}\left( \frac{\partial}{\partial x} + i \frac{\partial}{\partial y}\right) \text{.}
+\end{aligned} $$
 
-We can write $\mathbf{u} = \mathbf{u}_{\Re} + i\mathbf{u}_{\Im}  $, and its derivative using the defition of complex derivatives:
+Throughout the pyMOTO package, if `Signal.state` represents $z$, the derivative with respect to any response
+function $f\in\mathbb{R}$ that is stored in `Signal.sensitivity` *always* equals
+$\frac{\partial f}{\partial z}$. Note that this may be different in other packages that implement complex
+derivatives (*e.g.*, [PyTorch](https://pytorch.org/docs/stable/notes/autograd.html#autograd-for-complex-numbers),
+JAX, or TensorFlow).
 
-$$
-\begin{aligned}
-h_\mathbf{u} &=
-\frac{\partial h}{\partial\mathbf{u}_{\Re}} + i\frac{\partial h}{\partial\mathbf{u}_{\Im}} \\
-&= \frac{\mathrm{d}h}{\mathrm{d}\mathbf{y}_{\Re}}\frac{\mathrm{d}\mathbf{y}_{\Re}}{\mathrm{d}\mathbf{u}_{\Re}}
- + \frac{\mathrm{d}h}{\mathrm{d}\mathbf{f}_{\Im}}\frac{\mathrm{d}\mathbf{y}_{\Im}}{\mathrm{d}\mathbf{u}_{\Re}}
- + i\left(\frac{\mathrm{d}h}{\mathbf{y}_{\Re}}\frac{\mathrm{d}\mathbf{y}_{\Re}}{\mathbf{u}_{\Im}}
-        + \frac{\mathrm{d}h}{\mathbf{y}_{\Im}}\frac{\mathrm{d}\mathbf{y}_{\Im}}{\mathbf{u}_{\Im}}\right) \\
-&= \frac{\mathrm{d}h}{\mathrm{d}\mathbf{y}_{\Re}}\frac{\mathrm{d}\mathbf{y}_{\Re}}{\mathrm{d}\mathbf{u}} +
-   \frac{\mathrm{d}h}{\mathrm{d}\mathbf{y}_{\Im}}\frac{\mathrm{d}\mathbf{y}_{\Im}}{\mathrm{d}\mathbf{u}}
-\end{aligned}
-$$
+Useful identities in case $z\in\mathbb{C}$ and $s\in\mathbb{C}$ are
 
-For a holomorphic/analytical function, the <A HREF="https://mathworld.wolfram.com/Cauchy-RiemannEquations.html" target="_blank" rel="noopener noreferrer">Cauchy-Riemann equations</A> are valid.
+$$ \begin{aligned}
+\frac{\partial s^*}{\partial z^*} &= \left( \frac{\partial s}{\partial z} \right)^* \\
+\frac{\partial s^*}{\partial z} &= \left( \frac{\partial s}{\partial z^*} \right)^*
+\end{aligned} $$
 
-$$
-\left.
-\begin{matrix}
-\frac{\mathrm{d}\mathbf{y}_{\Re}}{\mathrm{d}\mathbf{u}_{\Re}} =  \frac{\mathrm{d}\mathbf{y}_{\Im}}{\mathrm{d}\mathbf{u}_{\Im}} \\
-\frac{\mathrm{d}\mathbf{y}_{\Im}}{\mathrm{d}\mathbf{u}_{\Re}} = -\frac{\mathrm{d}\mathbf{y}_{\Re}}{\mathrm{d}\mathbf{u}_{\Im}}
-\end{matrix}\right\} \frac{\mathrm{d}\mathbf{y}_{\Im}}{\mathrm{d}\mathbf{u}} = i \frac{\mathrm{d}\mathbf{y}_{\Re}}{\mathrm{d}\mathbf{u}}
-$$
+from which in case $f\in\mathbb{R}$, it can be seen that
 
-Which can be used to rewrite the sensitivities as
+$$\frac{\partial f}{\partial z^*} = \left( \frac{\partial f}{\partial z} \right)^*\text{.}$$
 
-$$
-\begin{aligned}
-h_\mathbf{u} &= \left(\frac{\mathrm{d}h}{\mathrm{d}\mathbf{y}_{\Re}}
-+ i\frac{\mathrm{d}h}{\mathrm{d}\mathbf{y}_{\Im}}  \right)\frac{\mathrm{d}\mathbf{y}_{\Re}}{\mathrm{d}\mathbf{u}} \\
-&= h_\mathbf{y}\frac{\mathrm{d}\mathbf{y}_{\Re}}{\mathrm{d}\mathbf{u}}
-\end{aligned}
-$$
+The chain rule for a mapping from $z\in\mathbb{C}\rightarrow s\in\mathbb{C}\rightarrow f$ can be interpreted as the
+contributions of two independent variables (here, $s$ and $s^*$):
 
-### Real to complex functions
-Assume we now have a complex value in the loop. Although, the initial and final variables are real.
+$$\frac{\partial f}{\partial z} = \frac{\partial f}{\partial s}\frac{\partial s}{\partial z} + \frac{\partial f}{\partial s^*}\frac{\partial s^*}{\partial z}\text{.}$$
 
-$$
-\mathbf{x}\in\mathbb{R}^n \rightarrow \boxed{ \mathbf{u}(\mathbf{x}) } \rightarrow \mathbf{u}\in\mathbb{C}^m
-\rightarrow \boxed{ f(\mathbf{u}) } \rightarrow y \in\mathbb{R}^1\rightarrow \dotsc \rightarrow h \text{.}
-$$
+In case the intermediate variable is real, thus $z\in\mathbb{C}\rightarrow r\in\mathbb{R}\rightarrow f$, the
+chain rule reduces to
 
-$$
-h_\mathbf{x} \leftarrow
-\boxed{
-      h_\mathbf{x} = \Re\left(h_\mathbf{u}^* \frac{\mathrm{d}\mathbf{u}}{\mathrm{d} \mathbf{x}}\right)
-} \leftarrow h_\mathbf{u} \leftarrow
-\boxed{
-      h_\mathbf{u} = h_y \frac{\mathrm{d} y}{\mathrm{d} \mathbf{u}}
-} \leftarrow h_y \leftarrow \dotsc \leftarrow h_h = 1
-$$
+$$\frac{\partial f}{\partial z} = 2 \frac{\partial f}{\partial r}\frac{\partial r}{\partial z}\text{,}$$
 
-For notation, the following derivative operator can be used:
+which may seem counter-intuitive, but compensates for the initial factor of $1/2$.
 
-$$
-\begin{aligned}
-\frac{\mathrm{d} y}{\mathrm{d} \mathbf{u}}&=\frac{\partial y}{\partial \mathbf{u}_{\Re}} + i\frac{\partial y}{\partial\mathbf{u}_{\Im}}\\
-\frac{\mathrm{d}\mathbf{u}}{\mathrm{d} \mathbf{x}}&=\frac{\mathrm{d}\mathbf{u}_{\Re}}{\mathrm{d}\mathbf{x}} + i\frac{\mathrm{d}\mathbf{u}_{\Im}}{\mathrm{d} \mathbf{x}}
-\end{aligned}
-$$
+For a mapping from real to complex, thus $r\in\mathbb{R}\rightarrow z\in\mathbb{C}\rightarrow f$, the chain rule
+becomes
 
-Following the explanation in [van der Veen, 2015], the complex variable can be decomposed into real and imaginary
-parts $\mathbf{u}(\mathbf{x}) = \mathbf{u}_{\Re}(\mathbf{x})+i\mathbf{u}_{\Im}(\mathbf{x})$. Now, according to the chain rule:
+$$\frac{\partial f}{\partial z} = 2 \text{Re}\left( \frac{\partial f}{\partial s}\frac{\partial s}{\partial r} \right)\text{.}$$
 
-$$
-\frac{\mathrm{d} y}{\mathrm{d} \mathbf{x}}=\frac{\partial y}{\partial\mathbf{u}_{\Re}}\frac{\mathrm{d}\mathbf{u}_{\Re}}{\mathrm{d}\mathbf{x}}
-+ \frac{\partial y}{\partial\mathbf{u}_{\Im}}\frac{\mathrm{d}\mathbf{u}_{\Im}}{\mathrm{d} \mathbf{x}} \text{.}
-$$
+### Adjoint method with complex values
+TODO
 
-With the complex derivative definitions, we end up with
+**References and further reading**
+  - [Wirtinger derivatives, Wikipedia](https://en.wikipedia.org/wiki/Wirtinger_derivatives)
+  - Sarason (2007). *Complex function theory*. American Mathematical Society.
+  - [Delgado (2009). *The complex gradient operator and the CR-calculus*](https://arxiv.org/pdf/0906.4835.pdf)
+  - [Cauchy-Riemann equations](https://mathworld.wolfram.com/Cauchy-RiemannEquations.html)
+  - [Pytorch AutoGrad](https://pytorch.org/docs/stable/notes/autograd.html#autograd-for-complex-numbers)
 
-$$
-\begin{aligned}
-\frac{\mathrm{d}y}{\mathrm{d}\mathbf{x}}
-&=\Re\left(\frac{\mathrm{d} y}{\mathrm{d} \mathbf{u}^*}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}} \right)\\
-&=\Re\left(\frac{\partial y}{\partial \mathbf{u}_{\Re}}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}
-- i \frac{\partial y}{\partial \mathbf{u}_{\Im}}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}}  \right)\\
-&=\Re\left(\frac{\partial y}{\partial \mathbf{u}_{\Re}}\frac{\mathrm{d}\mathbf{u}_{\Re}}{\mathrm{d}\mathbf{x}}
-+ \frac{\partial y}{\partial\mathbf{u}_{\Im}}\frac{\mathrm{d}\mathbf{u}_{\Im}}{\mathrm{d} \mathbf{x}}
-+ i \left(\frac{\partial y}{\partial \mathbf{u}_{\Re}}\frac{\mathrm{d}\mathbf{u}_{\Im}}{\mathrm{d}\mathbf{x}}
-- \frac{\partial y}{\partial \mathbf{u}_{\Im}}\frac{\mathrm{d}\mathbf{u}_{\Re}}{\mathrm{d}\mathbf{x}}\right)\right)
-\end{aligned}
-\text{,}
-$$
-
-with $\bullet^*$ the conjugate transpose.
-
-
-
-### Adjoint sensitivities with complex values
-The adjoint case is also described in [van der Veen, 2015]. The constraint condition
-$\mathbf{g}(\mathbf{x}, \mathbf{u})=0$ is now a complex valued function.
-
-$$
-\mathbf{x}\in\mathbb{R}^n \rightarrow \boxed{ \mathbf{g}(\mathbf{x}, \mathbf{u})=\mathbf{0} } \rightarrow
-\mathbf{u}\in\mathbb{C}^m \rightarrow \boxed{ \mathbf{f}(\mathbf{u}) } \rightarrow f\in\mathbb{R}^1 \rightarrow \dotsc \rightarrow h
-$$
-
-The complex function $\mathbf{g}(\mathbf{x}, \mathbf{u})=\mathbf{0}$ can be written as two separate real
-functions of $\Re(\mathbf{g}) = \mathbf{0}$ and $\Im(\mathbf{g}) = \mathbf{0}$. Of these we can calculate
-the derivatives as
-
-$$
-\begin{aligned}
-\frac{\mathrm{d}\mathbf{g}}{\mathrm{d}\mathbf{x}} =& \frac{\mathrm{d}\Re(\mathbf{g})}{\mathrm{d}\mathbf{x}}
-+ i\frac{\mathrm{d}\Im(\mathbf{g})}{\mathrm{d}\mathbf{x}} =\\
-&\frac{\partial\Re(\mathbf{g})}{\mathrm{d}\mathbf{x}} + \frac{\partial\Re(\mathbf{g})}{\partial\Re(\mathbf{u})}
-\frac{\mathrm{d}\Re(\mathbf{u})}{\mathrm{d}\mathbf{x}} + \frac{\partial\Re(\mathbf{g})}{\partial\Im(\mathbf{u})}\frac{\mathrm{d}\Im(\mathbf{u})}{\mathrm{d}\mathbf{x}} \\
-&+ i\left(\frac{\partial\Re(\mathbf{g})}{\partial\mathbf{x}}
-+ \frac{\partial\Re(\mathbf{g})}{\partial\Re(\mathbf{u})}\frac{\mathrm{d}\Re(\mathbf{u})}{\mathrm{d}\mathbf{x}} +
-\frac{\partial\Re(\mathbf{g})}{\partial\Im(\mathbf{u})}\frac{\mathrm{d}\Im(\mathbf{u})}{\mathrm{d}\mathbf{x}}\right) \\
-=&\frac{\partial\mathbf{g}}{\partial\mathbf{x}}
-+ \frac{\partial\mathbf{g}}{\partial\Re(\mathbf{u})}\frac{\mathrm{d}\Re(\mathbf{u})}{\mathrm{d}\mathbf{x}}
-+ \frac{\partial\mathbf{g}}{\partial\Im(\mathbf{u})}\frac{\mathrm{d}\Im(\mathbf{u})}{\mathrm{d}\mathbf{x}}
-= \mathbf{0}
-\end{aligned}
-$$
-
-If the function is holomorphic (i.e. analytical), the Cauchy-Riemann differential equations hold:
-$$
-\begin{aligned}
-\frac{\partial\Re(\mathbf{g})}{\partial\Re(\mathbf{x})} &= \frac{\partial\Im(\mathbf{g})}{\partial\Im(\mathbf{x})} \\
-\frac{\partial\Im(\mathbf{g})}{\partial\Re(\mathbf{x})} &= -\frac{\partial\Re(\mathbf{g})}{\partial\Im(\mathbf{x})}
-\end{aligned}
-$$
-
-Using these, we can rewrite:
-
-$$
-\frac{\partial\mathbf{g}}{\partial\Im(\mathbf{u})}
-=\frac{\partial\Re(\mathbf{g})}{\partial\Im(\mathbf{u})}
-+i\frac{\partial\Im(\mathbf{g})}{\partial\Im(\mathbf{u})}
-=-\frac{\partial\Im(\mathbf{g})}{\partial\Re(\mathbf{u})}
-+i\frac{\partial\Re(\mathbf{g})}{\partial\Re(\mathbf{u})}=i\frac{\partial\mathbf{g}}{\partial\Re(\mathbf{u})}
-$$
-
-Using this condition into the derivatives equation:
-
-$$
-\begin{aligned}
- & \frac{\partial\mathbf{g}}{\partial\mathbf{x}} + \frac{\partial\mathbf{g}}{\partial\Re(\mathbf{u})}\frac{\mathrm{d}\Re(\mathbf{u})}{\mathrm{d}\mathbf{x}}+ \frac{\partial\mathbf{g}}{\partial\Im(\mathbf{u})}\frac{\mathrm{d}\Im(\mathbf{u})}{\mathrm{d}\mathbf{x}} \\
-=& \frac{\partial\mathbf{g}}{\partial\mathbf{x}} + \frac{\partial\mathbf{g}}{\partial\Re(\mathbf{u})}\frac{\mathrm{d}\Re(\mathbf{u})}{\mathrm{d}\mathbf{x}}+i \frac{\partial\mathbf{g}}{\partial\Re(\mathbf{u})}\frac{\mathrm{d}\Im(\mathbf{u})}{\mathrm{d}\mathbf{x}} \\
-=& \frac{\partial\mathbf{g}}{\partial\mathbf{x}} + \frac{\partial\mathbf{g}}{\partial\Re(\mathbf{u})}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}} =\mathbf{0}
-\end{aligned}
-$$
-
-Or in a block scheme:
-
-$$
-\frac{\partial h}{\partial\mathbf{x}} \leftarrow \boxed{
-	-\frac{\partial h}{\partial\mathbf{u}^*}\left(\frac{\partial\mathbf{g}}{\partial\Re(\mathbf{u})}\right)^{-1}\frac{\partial\mathbf{g}}{\partial\mathbf{x}}
-} \leftarrow \frac{\partial h}{\partial\mathbf{u}} \leftarrow
-\boxed{ \frac{\partial h}{\partial f}\frac{\partial f}{\partial\mathbf{u}} }
-\leftarrow \frac{\partial h}{\partial f} \leftarrow \dotsc
-$$
-
-For a (dynamic) compliance equation, which is holomorphic: $\mathbf{g}=\mathbf{Z}\mathbf{u}-\mathbf{b}=\mathbf{0}$, using
-the complex derivative, this leads to:
-
-$$
-\frac{\partial\mathbf{g}}{\partial\mathbf{x}} + \mathbf{Z}\frac{\mathrm{d}\Re(\mathbf{u})}{\mathrm{d}\mathbf{x}}
-+ i\mathbf{Z}\frac{\mathrm{d}\Im(\mathbf{u})}{\mathrm{d}\mathbf{x}}
-= \mathbf{Z}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}} + \frac{\partial\mathbf{g}}{\partial\mathbf{x}} = \mathbf{0}
-$$
-
-When using the holomorphic formulation, it leads to the same answer:
-
-$$
-\mathbf{Z}\frac{\mathrm{d}\mathbf{u}}{\mathrm{d}\mathbf{x}} + \frac{\partial\mathbf{g}}{\partial\mathbf{x}} =\mathbf{0}
-$$
-
-We can solve the adjoint vector as:
-
-$$
-\boldsymbol{\lambda}^T = -\frac{\partial h}{\partial\mathbf{u}^*}\left(\frac{\partial\mathbf{g}}{\partial\Re(\mathbf{u})}\right)^{-1}
-$$
-
-
-When the input values of the adjoint equation are also complex, an extra term gets added:
-
-$$
-\begin{aligned}
-\frac{\partial h}{\partial\mathbf{x}} &= -(1+i)\frac{\mathrm{d}h}{\mathrm{d}\mathbf{u}}
-\left(\frac{\partial\Re(\mathbf{g})}{\partial\mathbf{u}}\right)^{-1}\frac{\partial\Re(\mathbf{g})}{\partial\mathbf{x}} \\
-&=  -(1+i)\frac{\mathrm{d}h}{\mathrm{d}\mathbf{u}} \left(\bar{\frac{\partial\mathbf{g}}{\partial\Re(\mathbf{u})}}\right)^{-1}
-\frac{\partial\Re(\mathbf{g})}{\partial\mathbf{x}}
-\end{aligned}
-$$
