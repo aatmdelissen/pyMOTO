@@ -6,7 +6,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
-# import pymoto
+import pymoto
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath('..'))
 project = 'pyMOTO'
 copyright = '2023, Arnoud Delissen'
 author = 'Arnoud Delissen'
-release = '1.0.0'  # TODO make this automatic, but readthedocs fails pymoto.__version__
+release = pymoto.__version__
 version = release[:release.find('.', 2)]
 
 # -- General configuration ---------------------------------------------------
