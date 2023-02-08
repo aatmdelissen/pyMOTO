@@ -180,6 +180,9 @@ class TestMath(unittest.TestCase):
         self.assertAlmostEqual(sScalar.sensitivity, np.real(v@dr))
         self.assertTrue(np.allclose(sVec.sensitivity, s*dr))
 
+        test_fn = lambda x0, dx, df_an, df_fd: self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
+        pym.finite_difference(mod, test_fn=test_fn)
+
 
 if __name__ == '__main__':
     unittest.main()
