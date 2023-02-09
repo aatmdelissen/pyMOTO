@@ -57,9 +57,16 @@ def matrix_is_hermitian(A):
 
 
 class LinearSolver:
-    """ Base class of all linear solvers """
+    """ Base class of all linear solvers
 
-    defined = True  # Flag if the solver is able to run, e.g. false if some dependent library is not available
+    Keyword Args:
+        A (matrix): Optionally provide a matrix, which is used in :method:`update` right away.
+
+    Attributes:
+        defined (bool): Flag if the solver is able to run, e.g. false if some dependent library is not available
+    """
+
+    defined = True
     _err_msg = ""
 
     def __init__(self, A=None):
@@ -70,7 +77,7 @@ class LinearSolver:
         """ Updates with a new matrix of the same structure
 
         Args:
-            A: The updated matrix
+            A (matrix): The new matrix of size ``(N, N)``
 
         Returns:
             self
@@ -81,10 +88,10 @@ class LinearSolver:
         """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}`
 
         Args:
-            rhs: Right hand side :math:`\mathbf{b}`
+            rhs: Right hand side :math:`\mathbf{b}` of shape ``(N)`` or ``(N, K)`` for multiple right-hand-sides
 
         Returns:
-            Solution vector :math:`\mathbf{x}`
+            Solution vector :math:`\mathbf{x}` of same shape as :math:`\mathbf{b}`
         """
         raise NotImplementedError(f"Solver not implemented {self._err_msg}")
 
@@ -95,12 +102,12 @@ class LinearSolver:
         complex matrix or :math:`\mathbf{A}^\\text{T} \mathbf{x} = \mathbf{b}` for a real-valued matrix.
 
         Args:
-            rhs: Right hand side :math:`\mathbf{b}`
+            rhs: Right hand side :math:`\mathbf{b}` of shape ``(N)`` or ``(N, K)`` for multiple right-hand-sides
 
         Returns:
-            Solution vector :math:`\mathbf{x}`
+            Solution vector :math:`\mathbf{x}` of same shape as :math:`\mathbf{b}`
         """
-        return self.solve(rhs.conj()).conj()
+        raise NotImplementedError(f"Solver not implemented {self._err_msg}")
 
     @staticmethod
     def residual(A, x, b):
@@ -117,7 +124,7 @@ class LinearSolver:
         Returns:
             Residual value
         """
-        return np.linalg.norm(A.dot(x) - b) / np.linalg.norm(b)
+        return np.linalg.norm(A@x - b) / np.linalg.norm(b)
 
 
 class LDAWrapper(LinearSolver):
@@ -136,14 +143,18 @@ class LDAWrapper(LinearSolver):
         Koppen, van der Kolk, van den Boom, Langelaar (2022).
         `doi: 10.1007/s00158-022-03378-8 <https://doi.org/10.1007/s00158-022-03378-8>`_
     """
-    def __init__(self, solver: LinearSolver, tol=1e-8, A=None):
+    def __init__(self, solver: LinearSolver, tol=1e-8, A=None, hermitian=False, symmetric=False):
         self.solver = solver
         self.tol = tol
         self.x_stored = []
         self.b_stored = []
+        self.xadj_stored = []
+        self.badj_stored = []
         self.A = None
         self._did_solve = False  # For debugging purposes
         self._last_rtol = 0.
+        self.hermitian = hermitian
+        self.symmetric = symmetric
         super().__init__(A)
 
     def update(self, A):
@@ -151,7 +162,40 @@ class LDAWrapper(LinearSolver):
         self.A = A
         self.x_stored.clear()
         self.b_stored.clear()
+        self.xadj_stored.clear()
+        self.badj_stored.clear()
         self.solver.update(A)
+
+    def _do_solve_1rhs(self, A, rhs, x_data, b_data, solve_fn):
+        rhs_loc = rhs.copy()
+        sol = 0
+
+        # Check linear dependencies in the rhs using modified Gram-Schmidt
+        for (x, b) in zip(x_data, b_data):
+            alpha = rhs_loc.conj() @ b / (b.conj() @ b)
+            rhs_loc -= alpha * b
+            sol += alpha * x
+
+        # Check tolerance
+        self._last_rtol = 1.0 if len(x_data) == 0 else self.residual(A, sol, rhs)
+
+        if self._last_rtol > self.tol:
+            # Calculate a new solution
+            xnew = solve_fn(rhs_loc)
+            x_data.append(xnew)
+            b_data.append(rhs_loc)
+            sol += xnew
+            self._did_solve = True
+        else:
+            self._did_solve = False
+
+        return sol
+
+    def _solve_1x(self, b):
+        return self._do_solve_1rhs(self.A, b, self.x_stored, self.b_stored, self.solver.solve)
+
+    def _adjoint_1x(self, b):
+        return self._do_solve_1rhs(self.A.conj().T, b, self.xadj_stored, self.badj_stored, self.solver.adjoint)
 
     def solve(self, rhs):
         """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by performing a modified
@@ -162,26 +206,28 @@ class LDAWrapper(LinearSolver):
         :math:`\mathbf{u}_{k+1}` will be added to the database such that
         :math:`\mathbf{x} = \\tilde{\mathbf{x}}+\mathbf{u}_{k+1}` is the solution to the system
         :math:`\mathbf{A} \mathbf{x} = \mathbf{b}`.
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
-        rhs_loc = rhs.copy()
-        sol = np.zeros_like(rhs_loc)
+        if rhs.ndim == 1:
+            return self._solve_1x(rhs)
+        else:  # Multiple rhs
+            sol = []
+            for i in range(rhs.shape[-1]):
+                sol.append(self._solve_1x(rhs[..., i]))
+            return np.stack(sol, axis=-1)
 
-        # Check linear dependencies in the rhs using modified Gram-Schmidt
-        for (x, b) in zip(self.x_stored, self.b_stored):
-            alpha = rhs_loc @ b / (b @ b)
-            rhs_loc -= alpha * b
-            sol += alpha * x
-
-        # Check tolerance
-        self._last_rtol = self.residual(self.A, sol, rhs)
-        if self._last_rtol > self.tol:
-            # Calculate a new solution
-            xnew = self.solver.solve(rhs_loc)
-            self.x_stored.append(xnew)
-            self.b_stored.append(rhs_loc)
-            sol += xnew
-            self._did_solve = True
+    def adjoint(self, rhs):
+        if self.hermitian:
+            return self.solve(rhs)
+        elif self.symmetric:
+            return self.solve(rhs.conj()).conj()
         else:
-            self._did_solve = False
-
-        return sol
+            if rhs.ndim == 1:
+                return self._adjoint_1x(rhs)
+            else:  # Multiple rhs
+                sol = []
+                for i in range(rhs.shape[-1]):
+                    sol.append(self._adjoint_1x(rhs[..., i]))
+                return np.stack(sol, axis=-1)
