@@ -12,12 +12,23 @@ class SolverDiagonal(LinearSolver):
         return self
 
     def solve(self, rhs):
-        """ Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}` """
-        return rhs/self.diag
+        """ Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}`
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
+        """
+        if rhs.ndim == 1:
+            return rhs / self.diag
+        else:
+            return rhs / self.diag[..., None]
 
     def adjoint(self, rhs):
-        """ Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}^*` """
-        return rhs/(self.diag.conj())
+        """ Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}^*`
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
+        """
+        return self.solve(rhs.conj()).conj()
 
 
 # Dense QR solver
@@ -34,12 +45,18 @@ class SolverDenseQR(LinearSolver):
     def solve(self, rhs):
         """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by backward substitution of
         :math:`\mathbf{x} = \mathbf{R}^{-1}\mathbf{Q}^\\text{H}\mathbf{b}`.
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
         return spla.solve_triangular(self.r, self.q.T.conj()@rhs)
 
     def adjoint(self, rhs):
         """ Solves the linear system of equations :math:`\mathbf{A}^\\text{H}\mathbf{x} = \mathbf{b}` by
         forward substitution of :math:`\mathbf{x} = \mathbf{Q}\mathbf{R}^{-H}\mathbf{b}`.
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
         return self.q@spla.solve_triangular(self.r, rhs, trans='C')
 
@@ -57,12 +74,18 @@ class SolverDenseLU(LinearSolver):
     def solve(self, rhs):
         """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{L}^{-1}\mathbf{b}`.
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
         return spla.solve_triangular(self.u, spla.solve_triangular(self.l, self.p.T@rhs, lower=True))
 
     def adjoint(self, rhs):
         """ Solves the linear system of equations :math:`\mathbf{A}^\\text{H}\mathbf{x} = \mathbf{b}` by forward and
         backward substitution of :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{U}^{-\\text{H}}\mathbf{b}`.
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
         return self.p@spla.solve_triangular(self.l, spla.solve_triangular(self.u, rhs, trans='C'), lower=True, trans='C')  # TODO permutation
 
@@ -93,15 +116,23 @@ class SolverDenseCholesky(LinearSolver):
     def solve(self, rhs):
         """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{U}^{-\\text{H}}\mathbf{b}`.
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
+        # TODO When Cholesky factorization A = U^T U is used, symmetric complex matrices can also be solved, but this is
+        #  not implemented in scipy
         if self.success:
             return spla.solve_triangular(self.u, spla.solve_triangular(self.u, rhs, trans='C'))
         else:
             return self.backup_solver.solve(rhs)
 
     def adjoint(self, rhs):
-        """ As the matrix is self-adjoint (:math:`\mathbf{A}=\mathbf{A}^\\text{H}`), this is equal to the regular
-        solution.
+        """ A Hermitian matrix is self-adjoint (:math:`\mathbf{A}=\mathbf{A}^\\text{H}`), so this is equal to the
+        regular solution.
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
         if self.success:
             return self.solve(rhs)
@@ -114,6 +145,8 @@ class SolverDenseLDL(LinearSolver):
     """ Solver for Hermitian or symmetric matrices using an LDL factorization. Unlike :class:`.SolverDenseCholesky`,
     it is able to factorize (some, not all) indefinite matrices, as well as symmetric complex (thus non-Hermitian)
     matrices.
+
+    Requires scipy>=1.7
     """
     def __init__(self, *args, hermitian=None, **kwargs):
         self.hermitian = hermitian
@@ -127,11 +160,11 @@ class SolverDenseLDL(LinearSolver):
         """
         if self.hermitian is None:
             self.hermitian = matrix_is_hermitian(A)
-        self.l, self.d, self.p = spla.ldl(A, hermitian=self.hermitian)  # TODO not all Scipy versions have LDL?
+        self.l, self.d, self.p = spla.ldl(A, hermitian=self.hermitian)  # LDL is introduced in Scipy v1.7
         if matrix_is_diagonal(self.d):  # Exact diagonal
             d1 = np.diag(1/np.diag(self.d))
         else:
-            d1 = np.linalg.inv(self.d)  # TODO, this could be improved
+            d1 = np.linalg.inv(self.d)  # This could be improved by looking at blocks on the diagonal
         self.dinv = lambda b: d1@b
         self.dinvH = lambda b: (d1.conj().T)@b
         self.lp = self.l[self.p, :]
@@ -142,10 +175,13 @@ class SolverDenseLDL(LinearSolver):
         substitution of :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{D}^{-1}\mathbf{L}^{-1}\mathbf{b}` in the
         Hermitian case or as :math:`\mathbf{x} = \mathbf{L}^{-\\text{T}}\mathbf{D}^{-1}\mathbf{L}^{-1}\mathbf{b}` in the
         symmetric case.
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
         u1 = spla.solve_triangular(self.lp, rhs[self.p], lower=True, unit_diagonal=True)
         u2 = self.dinv(u1)
-        u = np.zeros_like(rhs)
+        u = np.zeros_like(rhs, dtype=u2.dtype)
         u[self.p] = spla.solve_triangular(self.lp, u2, trans='C' if self.hermitian else 'T', lower=True, unit_diagonal=True)
         return u
 
@@ -155,12 +191,15 @@ class SolverDenseLDL(LinearSolver):
         :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{D}^{-\\text{H}}\mathbf{L}^{-1}\mathbf{b}` in the  Hermitian
         case or as :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{D}^{-\\text{H}}\mathbf{L}^{-*}\mathbf{b}`
         in the symmetric case.
+
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
         if not self.hermitian:
             u1 = spla.solve_triangular(self.lp, rhs[self.p].conj(), lower=True, unit_diagonal=True).conj()
         else:
             u1 = spla.solve_triangular(self.lp, rhs[self.p], lower=True, unit_diagonal=True)
         u2 = self.dinvH(u1)
-        u = np.zeros_like(rhs)
+        u = np.zeros_like(rhs, dtype=u2.dtype)
         u[self.p] = spla.solve_triangular(self.lp, u2, trans='C', lower=True, unit_diagonal=True)
         return u
