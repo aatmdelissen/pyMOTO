@@ -240,7 +240,7 @@ class DyadCarrier(object):
         """ Returns a deep copy of the imaginary part of the DyadCarrier """
         return DyadCarrier([*[u.real for u in self.u], *[u.imag for u in self.u]], [*[v.imag for v in self.v], *[v.real for v in self.v]])
 
-    def contract(self, mat: np.ndarray = None, rows: np.ndarray = None, cols: np.ndarray = None):
+    def contract(self, mat = None, rows: np.ndarray = None, cols: np.ndarray = None):
         """ Performs a number of contraction operations using the DyadCarrier
 
         Calculates the result(s) of the quadratic form:
@@ -334,7 +334,19 @@ class DyadCarrier(object):
             elif cols.shape[:-1] != batchsize:
                 raise ValueError("Batch size of cols {} not conforming to {}".format(cols.shape[:-1], batchsize))
 
-        batchvar = '' if batchsize is None else ''.join([chr(i+65) for i in range(len(batchsize))])
+        if batchsize is None:
+            val = 0.0
+            for ui, vi in zip(self.u, self.v):
+                uarg = ui if rows is None else ui[rows]
+                varg = vi if cols is None else vi[cols]
+                if mat is None:
+                    val += uarg @ varg
+                else:
+                    val += uarg @ mat @ varg
+            return val
+
+        # Continue in batch mode
+        batchvar = ''.join([chr(i+65) for i in range(len(batchsize))])
 
         if isbatchmat:
             matvar = batchvar + matvar
