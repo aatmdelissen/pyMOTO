@@ -564,6 +564,11 @@ class SolverSparseLU(LinearSolver):
 
 # Sparse cholesky solver
 try:  # SCIKIT CHOLMOD
+    """ Installation on Ubuntu22 using pip... Maybe it is also available in the conda repository
+    sudo apt update
+    sudo apt install libsuitesparse-dev
+    pip install scikit-sparse
+    """
     from sksparse import cholmod  # Sparse cholesky solver (CHOLMOD)
     _has_sksparse_cholmod = True
 except ImportError:
@@ -571,11 +576,12 @@ except ImportError:
 
 
 class SolverSparseCholeskyScikit(LinearSolver):
-    """ Solver for positive-definite matrices using a Cholesky factorization.
+    """ Solver for positive-definite Hermitian matrices using a Cholesky factorization.
 
     This solver requires the Python package ``scikit-sparse``. This package depends on the library ``suitesparse``,
     which can be more difficult to install on some systems. In case ``suitesparse`` cannot be installed,
-    :class:`.SolverSparseCholeskyCVXOPT` is recommended, as it is packaged with ``suitesparse``.
+    :class:`.SolverSparseCholeskyCVXOPT` is recommended, as installation of CVXOpt is easier and is packaged with
+    ``suitesparse``.
 
     References:
       - `Scikit Installation <https://scikit-sparse.readthedocs.io/en/latest/overview.html>`_
@@ -584,11 +590,10 @@ class SolverSparseCholeskyScikit(LinearSolver):
 
     defined = _has_sksparse_cholmod
 
-    def __init__(self, A=None, hermitian=None):
+    def __init__(self, A=None):
         super().__init__(A)
         if not self.defined:
             raise ImportError(f"scikit-sparse is not installed on this system")
-        self.hermitian = hermitian
 
     def update(self, A):
         """ Factorize the matrix using Cholmod. In case the matrix :math:`\mathbf{A}` is non-Hermitian, the
@@ -598,18 +603,11 @@ class SolverSparseCholeskyScikit(LinearSolver):
         :math:`\mathbf{x}=(\mathbf{A}^\\text{H}\mathbf{A})^{-1}\mathbf{A}^\\text{H}\mathbf{b}`.
         """
         self.A = A
-        if self.hermitian is None:
-            self.hermitian = matrix_is_hermitian(A)
-
-        self.iscomplex = np.iscomplexobj(A)
-        # In case A is non-hermitian
         if not hasattr(self, 'inv'):
-            self.inv = cholmod.analyze(A) if self.hermitian else cholmod.analyze_AAt(A)
+            self.inv = cholmod.analyze(A)
 
-        if self.hermitian:
-            self.inv.cholesky_inplace(A)
-        else:
-            self.inv.cholesky_AAt_inplace(A)
+        # Do the Cholesky factorization
+        self.inv.cholesky_inplace(A)
 
         return self
 
@@ -618,13 +616,14 @@ class SolverSparseCholeskyScikit(LinearSolver):
         substitution of :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{L}^{-1}\mathbf{b}` in case of an
         Hermitian matrix.
 
-        For a non-Hermitian matrix the solution is obtained in a least-squares sense as
-        :math:`\mathbf{x}=(\mathbf{A}^\\text{H}\mathbf{A})^{-1}\mathbf{A}^\\text{H}\mathbf{b}`.
+        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
+        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
+
         """
-        if self.hermitian:
-            return self.inv(rhs)
-        else:
-            return (self.inv(rhs).conj() @ self.A).conj()
+        return self.inv(rhs)
+
+    def adjoint(self, rhs):
+        return self.solve(rhs)
 
 
 try:  # CVXOPT cholmod
@@ -651,29 +650,38 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
         super().__init__(*args, **kwargs)
         if not self.defined:
             raise ImportError(f"cvxopt is not installed on this system")
+        self._dtype = None
+        self.inv = None
 
     def update(self, A):
         """ Factorize the matrix using CVXOPT's Cholmod as :math:`\mathbf{A}=\mathbf{L}\mathbf{L}^\\text{H}`. """
         if not isinstance(A, cvxopt.spmatrix):
             if not isinstance(A, sps.coo_matrix):
                 Kcoo = A.tocoo()
-                warnings.warn("Efficiency warning: CVXOPT spmatrix must be used")
+                warnings.warn(f"{type(self).__name__}: Efficiency warning: CVXOPT spmatrix must be used")
             else:
                 Kcoo = A
             K = cvxopt.spmatrix(Kcoo.data, Kcoo.row.astype(int), Kcoo.col.astype(int))
         else:
             K = A
 
-        if not hasattr(self, 'inv'):
+        if self.inv is None:
             self.inv = cvxopt.cholmod.symbolic(K)
         cvxopt.cholmod.numeric(K, self.inv)
+        if self._dtype is None:
+            self._dtype = A.dtype
 
         return self
 
     def solve(self, rhs):
         """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{L}^{-1}\mathbf{b}`. """
-        B = cvxopt.matrix(rhs)
+        if rhs.dtype != self._dtype:
+            warnings.warn(f"{type(self).__name__}: Type warning: rhs value type ({rhs.dtype}) is converted to {self._dtype}")
+        B = cvxopt.matrix(rhs.astype(self._dtype))
         nrhs = 1 if rhs.ndim == 1 else rhs.shape[1]
         cvxopt.cholmod.solve(self.inv, B, nrhs=nrhs)
         return np.array(B).flatten() if nrhs == 1 else np.array(B)
+
+    def adjoint(self, rhs):
+        return self.solve(rhs)
