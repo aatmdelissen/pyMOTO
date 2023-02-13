@@ -4,6 +4,7 @@ from .core_objects import Signal, Module, Network
 from typing import List, Iterable, Union, Callable
 
 
+# flake8: noqa: C901
 def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = None,
                       tosig: Union[Signal, Iterable[Signal]] = None,
                       dx: float = 1e-8, tol: float = 1e-5, random: bool = True, use_df: list = None,
@@ -268,7 +269,9 @@ def obtain_sensitivities(signals: Iterable[Signal]) -> List:
     return sens
 
 
-def minimize_oc(function, variables, objective: Signal, tolx=1e-4, tolf=1e-4, maxit=100, xmin=0.0, xmax=1.0, move=0.2, l1init=0, l2init=100000, l1l2tol=1e-4):
+def minimize_oc(function, variables, objective: Signal,
+                tolx=1e-4, tolf=1e-4, maxit=100, xmin=0.0, xmax=1.0, move=0.2,
+                l1init=0, l2init=100000, l1l2tol=1e-4):
     """ Execute minimization using the OC-method
 
     Args:
@@ -310,7 +313,7 @@ def minimize_oc(function, variables, objective: Signal, tolx=1e-4, tolf=1e-4, ma
         l1, l2 = l1init, l2init
         while l2 - l1 > l1l2tol:
             lmid = 0.5 * (l1 + l2)
-            xnew = np.maximum(xmin, np.maximum(xval - move, np.minimum(xmax, np.minimum(xval + move, xval * np.sqrt(-dfdx / lmid)))))
+            xnew = np.clip(xval * np.sqrt(-dfdx / lmid), np.maximum(xmin, xval-move), np.minimum(xmax, xval+move))
             l1, l2 = (lmid, l2) if np.sum(xnew) - maxvol > 0 else (l1, lmid)
 
         # Stopping criteria on step size

@@ -6,6 +6,7 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
+# flake8: noqa: E402
 import pymoto
 
 # -- Project information -----------------------------------------------------

@@ -54,4 +54,3 @@ if __name__ == '__main__':
 
     # --- Finite difference check ---
     finite_difference(m_dot)
-

@@ -44,12 +44,12 @@ class FilterConv(Module):
 
 
 class Filter(Module):
-    """ Abstract base class for any linear filter with normalization
+    r""" Abstract base class for any linear filter with normalization
 
     This module carries out the mathematical operation
-    :math:`\mathbf{y} = \mathbf{S}^{-1} \mathbf{H}\mathbf{x}` in which :math:`\mathbf{S}=\\text{diag}(\mathbf{s})` is a
+    :math:`\mathbf{y} = \mathbf{S}^{-1} \mathbf{H}\mathbf{x}` in which :math:`\mathbf{S}=\text{diag}(\mathbf{s})` is a
     diagonal matrix. In index notation the same relation is written as
-    :math:`y_i = \\frac{\sum_j H_{ij} x_j}{ s_i }`.
+    :math:`y_i = \frac{\sum_j H_{ij} x_j}{ s_i }`.
 
     The normalization vector is the row-wise sums of :math:`\mathbf{H}`, of which the entries are calculated as
     :math:`s_i = \sum_j H_{ij}`.
@@ -62,7 +62,7 @@ class Filter(Module):
 
     Keyword Args:
         nonpadding (numpy.array[int]): An array with indices at places where
-          :math:`s_i = \max(\mathbf{s}) \: \\forall\: i \notin \mathcal{N}`. For a density filter this mimics having values
+          :math:`s_i = \max(\mathbf{s}) \: \forall\: i \notin \mathcal{N}`. For a density filter this mimics having values
           of `0` outside of the domain, thus emulating padding of the boundaries.
     """
     def _prepare(self, *args, nonpadding=None, **kwargs):
@@ -76,7 +76,7 @@ class Filter(Module):
 
     @staticmethod
     def _calculate_h(*args, **kwargs):
-        """ This method should be overridden by any child-classes to implement their own filtering behavior
+        r""" This method should be overridden by any child-classes to implement their own filtering behavior
 
         Returns:
             Filtering matrix :math:`\mathbf{H}`, *e.g.* in COO-format
@@ -91,13 +91,13 @@ class Filter(Module):
 
 
 class DensityFilter(Filter):
-    """ Standard density filter for a structured mesh in topology optimization
+    r""" Standard density filter for a structured mesh in topology optimization
 
     The filtered densities are calculated as
 
-    :math:`y_i = \sum_j \\frac{H_{ij}}{s_i}x_j`,
+    :math:`y_i = \sum_j \frac{H_{ij}}{s_i}x_j`,
 
-    where :math:`H_{ij}=\max \left( r - \sqrt{ (x_j - x_i)^2 + (y_j - y_i)^2 + (z_j - z_i)^2 } , 0 \\right)`,
+    where :math:`H_{ij}=\max \left( r - \sqrt{ (x_j - x_i)^2 + (y_j - y_i)^2 + (z_j - z_i)^2 } , 0 \right)`,
 
     and :math:`s_i=\sum_j H_{ij}`.
 
@@ -113,8 +113,8 @@ class DensityFilter(Filter):
     Keyword Args:
         radius (float or int): The filtering radius (in absolute units of elements)
         nonpadding (numpy.array[int]): An array with indices at places where
-          :math:`s_i = \max(\mathbf{s}) \: \\forall\: i \notin \mathcal{N}`. For a density filter this mimics having values
-          of ``0`` outside of the domain, thus emulating padding of the boundaries.
+          :math:`s_i = \max(\mathbf{s}) \: \forall\: i \notin \mathcal{N}`. For a density filter this mimics having
+          values of ``0`` outside of the domain, thus emulating padding of the boundaries.
 
     References:
       - Bruns & Tortorelli (2001). *Topology optimization of non-linear elastic structures and compliant mechanisms*.
@@ -197,13 +197,13 @@ class DensityFilter(Filter):
 
 
 class OverhangFilter(Module):
-    """ Implementation of overhang filter by Langelaar (2016, 2017)
+    r""" Implementation of overhang filter by Langelaar (2016, 2017)
 
     It proceeds layer by layer through the entire domain. For each element in the current layer, the maximum printable
     density is determined by a smooth maximum of the supporting elements
-    :math:`s_i = \\text{smax}(\mathbf{y}_\\text{supp})`. Then, the final printed density value is obtained by a smooth
+    :math:`s_i = \text{smax}(\mathbf{y}_\text{supp})`. Then, the final printed density value is obtained by a smooth
     minimum operation of the desired density
-    :math:`x_i` and the maximum printable density :math:`x_i` as :math:`y_i = \\text{smin}(x_i, s_i)`.
+    :math:`x_i` and the maximum printable density :math:`x_i` as :math:`y_i = \text{smin}(x_i, s_i)`.
 
     Input Signal:
         - ``x``: The unfiltered field :math:`\mathbf{x}`
@@ -218,8 +218,10 @@ class OverhangFilter(Module):
         direction: Print direction as array or string, e.g. ``[0, -1]`` (in 2D) or ``"y-"`` for negative y direction.
           Currently, only directions aligned with one of the Cartesian axes are supported. Default is ``[0, 1, 0]``
         xi_0: Density value for which zero overshoot is required ( ``0 <= xi_0 <= 1`` ). Default is ``0.5``
-        p: Exponent of the smooth maximum function ( ``p > 0`` ). Higher p increases accuracy, but reduces smoothness. Default is ``40.0``
-        eps: Smooth minimum regularization parameter ( ``eps >= 0`` ). Lower eps increases accuracy, but reduces smoothness. Default is ``1e-4``
+        p: Exponent of the smooth maximum function ( ``p > 0`` ). Higher p increases accuracy, but reduces smoothness.
+          Default is ``40.0``
+        eps: Smooth minimum regularization parameter ( ``eps >= 0`` ). Lower eps increases accuracy, but reduces
+          smoothness. Default is ``1e-4``
         nsampling: ``3`` for 2D overhang, ``5`` or ``9`` for 3D overhang. Default is ``3`` in 2D and ``5`` in 3D
 
     References:

@@ -65,7 +65,9 @@ class MyNewModule(Module):
         # In case the data of x1 and x2 were not stored, it could still be obtained here by directly accessing the state
         # of the input signals.
         also_x1 = self.sig_in[0].state
-        also_x2 = self.sig_in[0].state
+        assert also_x1 == self.x1
+        also_x2 = self.sig_in[1].state
+        assert also_x2 == self.x2
 
         # If the sensitivity of the output signal is empty, it is None. So we only need to do calculations whenever it
         # is not None. In case both sensitivities of the output signals are None, this function won't be called.

@@ -2,6 +2,45 @@
 import pymoto as pym
 import numpy as np
 
+
+class Continuation(pym.Module):
+    """ Module that generates a continuated value """
+    def _prepare(self, start=0.0, stop=1.0, nsteps=80, stepstart=10):
+        self.startval = start
+        self.endval = stop
+        self.dval = (stop - start) / nsteps
+        self.nstart = stepstart
+        self.iter = -1
+        self.val = self.startval
+
+    def _response(self):
+        if (self.val < self.endval and self.iter > self.nstart):
+            self.val += self.dval
+
+        self.val = np.clip(self.val, min(self.startval, self.endval), max(self.startval, self.endval))
+        print(self.sig_out[0].tag, ' = ', self.val)
+        self.iter += 1
+        return self.val
+
+    def _sensitivity(self, *args):
+        pass
+
+
+class ScaleTo(pym.Module):
+    """ Scales variable to a predetermined value at the first iteration """
+    def _prepare(self, val=100.0):
+        self.targetval = val
+        self.initval = None
+
+    def _response(self, x):
+        if self.initval is None:
+            self.initval = x
+        return x/self.initval * self.targetval
+
+    def _sensitivity(self, dfdy):
+        return dfdy/self.initval * self.targetval
+
+
 nx, ny = 100, 40
 xmin = 1e-6
 filter_radius = 3.0
@@ -87,28 +126,7 @@ if __name__ == "__main__":
     sxfilt = pym.Signal('xfiltered')
     fn.append(pym.DensityFilter(sx, sxfilt, domain=domain, radius=filter_radius, nonpadding=pad))
 
-    # Module that generates a continuated value
-    class Continuation(pym.Module):
-        def _prepare(self, start=0.0, stop=1.0, nsteps=80, stepstart=10):
-            self.startval = start
-            self.endval = stop
-            self.dval = (stop - start)/nsteps
-            self.nstart = stepstart
-            self.iter = -1
-            self.val = self.startval
-
-        def _response(self):
-            if (self.val < self.endval and self.iter > self.nstart):
-                self.val += self.dval
-
-            self.val = np.clip(self.val, min(self.startval, self.endval), max(self.startval, self.endval))
-            print(self.sig_out[0].tag, ' = ', self.val)
-            self.iter += 1
-            return self.val
-
-        def _sensitivity(self, *args):
-            pass
-
+    # Heaviside projections
     etaDi, etaNo, etaEr = 0.3, 0.5, 0.7
     sBeta = pym.Signal("beta")
     fn.append(Continuation([], sBeta, start=1.0, stop=20.0, stepstart=10))
@@ -138,20 +156,6 @@ if __name__ == "__main__":
     sc = pym.Signal('compliance')
     fn.append(pym.EinSum([su, sf], sc, expression='i,i->'))
 
-    # Define a new module for scaling
-    class ScaleTo(pym.Module):
-        def _prepare(self, val=100.0):
-            self.targetval = val
-            self.initval = None
-
-        def _response(self, x):
-            if self.initval is None:
-                self.initval = x
-            return x/self.initval * self.targetval
-
-        def _sensitivity(self, dfdy):
-            return dfdy/self.initval * self.targetval
-
     # Objective scaling
     sg0 = pym.Signal('objective')
     fn.append(ScaleTo(sc, sg0, val=100.0))
@@ -173,4 +177,3 @@ if __name__ == "__main__":
     # pym.finite_difference(func, sx, sg0)  # Note that the FD won't be correct due to the continuation changing values
     pym.minimize_oc(fn, [sx], sg0, tolx=0.0, tolf=0.0)
     # pym.minimize_mma(fn, [sx], [sg0, sg1], tolx=0.0, tolf=0.0)  # TODO NLopt MMA version also doesnt work here
-

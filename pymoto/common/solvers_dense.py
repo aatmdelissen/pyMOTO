@@ -12,7 +12,7 @@ class SolverDiagonal(LinearSolver):
         return self
 
     def solve(self, rhs):
-        """ Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}`
+        r""" Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}`
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
@@ -23,7 +23,7 @@ class SolverDiagonal(LinearSolver):
             return rhs / self.diag[..., None]
 
     def adjoint(self, rhs):
-        """ Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}^*`
+        r""" Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}^*`
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
@@ -35,16 +35,16 @@ class SolverDiagonal(LinearSolver):
 class SolverDenseQR(LinearSolver):
     """ Solver for dense (square) matrices using a QR decomposition """
     def update(self, A):
-        """ Factorize the matrix as :math:`\mathbf{A}=\mathbf{Q}\mathbf{R}`, where :math:`\mathbf{Q}` is orthogonal
-        (:math:`\mathbf{Q}^\\text{H}=\mathbf{Q}^{-1}`) and :math:`\mathbf{R}` is upper triangular.
+        r""" Factorize the matrix as :math:`\mathbf{A}=\mathbf{Q}\mathbf{R}`, where :math:`\mathbf{Q}` is orthogonal
+        (:math:`\mathbf{Q}^\text{H}=\mathbf{Q}^{-1}`) and :math:`\mathbf{R}` is upper triangular.
         """
         self.A = A
         self.q, self.r = spla.qr(A)
         return self
 
     def solve(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by backward substitution of
-        :math:`\mathbf{x} = \mathbf{R}^{-1}\mathbf{Q}^\\text{H}\mathbf{b}`.
+        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by backward substitution of
+        :math:`\mathbf{x} = \mathbf{R}^{-1}\mathbf{Q}^\text{H}\mathbf{b}`.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
@@ -52,7 +52,7 @@ class SolverDenseQR(LinearSolver):
         return spla.solve_triangular(self.r, self.q.T.conj()@rhs)
 
     def adjoint(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A}^\\text{H}\mathbf{x} = \mathbf{b}` by
+        r""" Solves the linear system of equations :math:`\mathbf{A}^\text{H}\mathbf{x} = \mathbf{b}` by
         forward substitution of :math:`\mathbf{x} = \mathbf{Q}\mathbf{R}^{-H}\mathbf{b}`.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
@@ -65,14 +65,14 @@ class SolverDenseQR(LinearSolver):
 class SolverDenseLU(LinearSolver):
     """ Solver for dense (square) matrices using an LU decomposition """
     def update(self, A):
-        """  Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{U}`, where :math:`\mathbf{L}` is a lower
+        r"""  Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{U}`, where :math:`\mathbf{L}` is a lower
         triangular matrix and :math:`\mathbf{U}` is upper triangular.
         """
         self.p, self.l, self.u = spla.lu(A)
         return self
 
     def solve(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{L}^{-1}\mathbf{b}`.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
@@ -81,13 +81,14 @@ class SolverDenseLU(LinearSolver):
         return spla.solve_triangular(self.u, spla.solve_triangular(self.l, self.p.T@rhs, lower=True))
 
     def adjoint(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A}^\\text{H}\mathbf{x} = \mathbf{b}` by forward and
-        backward substitution of :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{U}^{-\\text{H}}\mathbf{b}`.
+        r""" Solves the linear system of equations :math:`\mathbf{A}^\text{H}\mathbf{x} = \mathbf{b}` by forward and
+        backward substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{U}^{-\text{H}}\mathbf{b}`.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
-        return self.p@spla.solve_triangular(self.l, spla.solve_triangular(self.u, rhs, trans='C'), lower=True, trans='C')  # TODO permutation
+        return self.p@spla.solve_triangular(self.l, spla.solve_triangular(self.u, rhs, trans='C'),
+                                            lower=True, trans='C')  # TODO permutation
 
 
 # Dense Cholesky solver
@@ -101,7 +102,7 @@ class SolverDenseCholesky(LinearSolver):
         super().__init__(*args, **kwargs)
 
     def update(self, A):
-        """ Factorize the matrix as :math:`\mathbf{A}=\mathbf{U}^{\\text{H}}\mathbf{U}`, where :math:`\mathbf{U}` is an
+        r""" Factorize the matrix as :math:`\mathbf{A}=\mathbf{U}^{\text{H}}\mathbf{U}`, where :math:`\mathbf{U}` is an
         upper triangular matrix.
         """
         try:
@@ -114,8 +115,8 @@ class SolverDenseCholesky(LinearSolver):
         return self
 
     def solve(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
-        substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{U}^{-\\text{H}}\mathbf{b}`.
+        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+        substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{U}^{-\text{H}}\mathbf{b}`.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
@@ -128,7 +129,7 @@ class SolverDenseCholesky(LinearSolver):
             return self.backup_solver.solve(rhs)
 
     def adjoint(self, rhs):
-        """ A Hermitian matrix is self-adjoint (:math:`\mathbf{A}=\mathbf{A}^\\text{H}`), so this is equal to the
+        r""" A Hermitian matrix is self-adjoint (:math:`\mathbf{A}=\mathbf{A}^\text{H}`), so this is equal to the
         regular solution.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
@@ -153,8 +154,8 @@ class SolverDenseLDL(LinearSolver):
         super().__init__(*args, **kwargs)
 
     def update(self, A):
-        """ Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{D}\mathbf{L}^{\\text{H}}` in case it is
-        Hermitian, or as :math:`\mathbf{A}=\mathbf{L}\mathbf{D}\mathbf{L}^{\\text{T}}` if it is symmetric. In the case
+        r""" Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{D}\mathbf{L}^{\text{H}}` in case it is
+        Hermitian, or as :math:`\mathbf{A}=\mathbf{L}\mathbf{D}\mathbf{L}^{\text{T}}` if it is symmetric. In the case
         matrix :math:`\mathbf{A}` is real-valued, there is no difference between the two.
         The matrix :math:`\mathbf{L}` is lower triangular and :math:`\mathbf{D}` is a diagonal matrix.
         """
@@ -171,9 +172,9 @@ class SolverDenseLDL(LinearSolver):
         return self
 
     def solve(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
-        substitution of :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{D}^{-1}\mathbf{L}^{-1}\mathbf{b}` in the
-        Hermitian case or as :math:`\mathbf{x} = \mathbf{L}^{-\\text{T}}\mathbf{D}^{-1}\mathbf{L}^{-1}\mathbf{b}` in the
+        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+        substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{D}^{-1}\mathbf{L}^{-1}\mathbf{b}` in the
+        Hermitian case or as :math:`\mathbf{x} = \mathbf{L}^{-\text{T}}\mathbf{D}^{-1}\mathbf{L}^{-1}\mathbf{b}` in the
         symmetric case.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
@@ -186,10 +187,10 @@ class SolverDenseLDL(LinearSolver):
         return u
 
     def adjoint(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A}^\\text{H} \mathbf{x} = \mathbf{b}` by forward and
+        r""" Solves the linear system of equations :math:`\mathbf{A}^\text{H} \mathbf{x} = \mathbf{b}` by forward and
         backward substitution of
-        :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{D}^{-\\text{H}}\mathbf{L}^{-1}\mathbf{b}` in the  Hermitian
-        case or as :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{D}^{-\\text{H}}\mathbf{L}^{-*}\mathbf{b}`
+        :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{D}^{-\text{H}}\mathbf{L}^{-1}\mathbf{b}` in the  Hermitian
+        case or as :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{D}^{-\text{H}}\mathbf{L}^{-*}\mathbf{b}`
         in the symmetric case.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix

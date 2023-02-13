@@ -28,7 +28,8 @@ class SolverSparsePardiso(LinearSolver):
 
     References:
         `PyPardiso <https://github.com/haasad/PyPardisoProject>`_
-        `Intel MKL Pardiso <https://www.intel.com/content/www/us/en/develop/documentation/onemkl-developer-reference-c/top/sparse-solver-routines/onemkl-pardiso-parallel-direct-sparse-solver-iface.html>`_
+        `Intel MKL Pardiso <https://www.intel.com/content/www/us/en/develop/documentation/onemkl-developer-reference-c/
+          top/sparse-solver-routines/onemkl-pardiso-parallel-direct-sparse-solver-iface.html>`_
     """
 
     defined = _has_pardiso
@@ -60,7 +61,9 @@ class SolverSparsePardiso(LinearSolver):
           - ``13`` Complex and non-symmetric
 
         References:
-            `Intel MKL Pardiso arguments <https://www.intel.com/content/www/us/en/develop/documentation/onemkl-developer-reference-c/top/sparse-solver-routines/onemkl-pardiso-parallel-direct-sparse-solver-iface/pardiso.html#pardiso>`_
+            `Intel MKL Pardiso arguments <https://www.intel.com/content/www/us/en/develop/documentation/
+              onemkl-developer-reference-c/top/sparse-solver-routines/
+              onemkl-pardiso-parallel-direct-sparse-solver-iface/pardiso.html#pardiso>`_
 
         Args:
             A: The matrix
@@ -155,7 +158,8 @@ class SolverSparsePardiso(LinearSolver):
         keys[15] = 'Permanent memory on symbolic factorization'
         keys[16] = 'Size of factors/Peak memory on numerical factorization and solution'
         keys[17] = 'Report the number of non-zero elements in the factors'
-        keys[18] = 'Report number of floating point operations (in 10^6 floating point operations) that are necessary to factor the matrix A'
+        keys[18] = 'Report number of floating point operations (in 10^6 floating point operations) that are necessary ' \
+                   'to factor the matrix A'
         keys[19] = 'Report CG/CGS diagnostics'
         keys[20] = 'Pivoting for symmetric indefinite matrices'
         keys[21] = 'Inertia: number of positive eigenvalues'
@@ -170,7 +174,8 @@ class SolverSparsePardiso(LinearSolver):
         keys[34] = 'One- or zero-based indexing of columns and rows'
         keys[35] = 'Schur complement matrix computation control'
         keys[36] = 'Format for matrix storage'
-        keys[37] = 'Enable low rank update to accelerate factorization for multiple matrices with identical structure and similar values'
+        keys[37] = 'Enable low rank update to accelerate factorization for multiple matrices with identical structure ' \
+                   'and similar values'
         keys[42] = 'Control parameter for the computation of the diagonal of inverse matrix'
         keys[55] = 'Diagonal and pivoting control'
         keys[59] = 'Intel® oneAPI Math Kernel Library PARDISO mode'
@@ -198,7 +203,7 @@ class SolverSparseLU(LinearSolver):
       - `Scipy UMFPACK <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.use_solver.html>`_
     """
     def update(self, A):
-        """  Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{U}`, where :math:`\mathbf{L}` is a lower
+        r"""  Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{U}`, where :math:`\mathbf{L}` is a lower
         triangular matrix and :math:`\mathbf{U}` is upper triangular.
         """
         self.iscomplex = matrix_is_complex(A)
@@ -206,14 +211,14 @@ class SolverSparseLU(LinearSolver):
         return self
 
     def solve(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{L}^{-1}\mathbf{b}`.
         """
         return self.inv.solve(rhs)
 
     def adjoint(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A}^\\text{H}\mathbf{x} = \mathbf{b}` by forward and
-        backward substitution of :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{U}^{-\\text{H}}\mathbf{b}`.
+        r""" Solves the linear system of equations :math:`\mathbf{A}^\text{H}\mathbf{x} = \mathbf{b}` by forward and
+        backward substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{U}^{-\text{H}}\mathbf{b}`.
         """
         return self.inv.solve(rhs, trans=('H' if self.iscomplex else 'T'))
 
@@ -249,14 +254,14 @@ class SolverSparseCholeskyScikit(LinearSolver):
     def __init__(self, A=None):
         super().__init__(A)
         if not self.defined:
-            raise ImportError(f"scikit-sparse is not installed on this system")
+            raise ImportError("scikit-sparse is not installed on this system")
 
     def update(self, A):
-        """ Factorize the matrix using Cholmod. In case the matrix :math:`\mathbf{A}` is non-Hermitian, the
+        r""" Factorize the matrix using Cholmod. In case the matrix :math:`\mathbf{A}` is non-Hermitian, the
         system of equations is solved in a least-squares sense:
-        :math:`\min \left| \mathbf{A}\mathbf{x} - \mathbf{b} \\right|^2`.
+        :math:`\min \left| \mathbf{A}\mathbf{x} - \mathbf{b} \right|^2`.
         The solution of this minimization is
-        :math:`\mathbf{x}=(\mathbf{A}^\\text{H}\mathbf{A})^{-1}\mathbf{A}^\\text{H}\mathbf{b}`.
+        :math:`\mathbf{x}=(\mathbf{A}^\text{H}\mathbf{A})^{-1}\mathbf{A}^\text{H}\mathbf{b}`.
         """
         self.A = A
         if not hasattr(self, 'inv'):
@@ -268,8 +273,8 @@ class SolverSparseCholeskyScikit(LinearSolver):
         return self
 
     def solve(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
-        substitution of :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{L}^{-1}\mathbf{b}` in case of an
+        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+        substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{L}^{-1}\mathbf{b}` in case of an
         Hermitian matrix.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
@@ -306,12 +311,12 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not self.defined:
-            raise ImportError(f"cvxopt is not installed on this system")
+            raise ImportError("cvxopt is not installed on this system")
         self._dtype = None
         self.inv = None
 
     def update(self, A):
-        """ Factorize the matrix using CVXOPT's Cholmod as :math:`\mathbf{A}=\mathbf{L}\mathbf{L}^\\text{H}`. """
+        r""" Factorize the matrix using CVXOPT's Cholmod as :math:`\mathbf{A}=\mathbf{L}\mathbf{L}^\text{H}`. """
         if not isinstance(A, cvxopt.spmatrix):
             if not isinstance(A, sps.coo_matrix):
                 Kcoo = A.tocoo()
@@ -331,8 +336,8 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
         return self
 
     def solve(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
-        substitution of :math:`\mathbf{x} = \mathbf{L}^{-\\text{H}}\mathbf{L}^{-1}\mathbf{b}`. """
+        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+        substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{L}^{-1}\mathbf{b}`. """
         if rhs.dtype != self._dtype:
             warnings.warn(f"{type(self).__name__}: Type warning: rhs value type ({rhs.dtype}) is converted to {self._dtype}")
         B = cvxopt.matrix(rhs.astype(self._dtype))

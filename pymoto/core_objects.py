@@ -371,8 +371,10 @@ class Module(ABC, RegisteredClass):
             str_list.append(f"Implemented in File \"{filename}\", line {lineno}, in {name}")
         return err_fmt(*str_list)
 
+    # flake8: noqa: C901
     def __init__(self, sig_in: Union[Signal, List[Signal]] = None, sig_out: Union[Signal, List[Signal]] = None,
                  *args, **kwargs):
+        # TODO: Reduce complexity of this init
         self._init_loc = get_init_str()
 
         self.sig_in = _parse_to_list(sig_in)
@@ -578,19 +580,11 @@ class Network(Module):
 
         # Check if the blocks are initialized, else create them
         for i, b in enumerate(modlist):
-            if isinstance(b, dict):
-                try:
-                    if 'type' not in b.keys():
-                        raise ValueError('The type must be defined')
-                    exclude_keys = ['type']
-                    b_ex = {k: b[k] for k in set(list(b.keys())) - set(exclude_keys)}
-                    modlist[i] = Module.create(b['type'], **b_ex)
-                except Exception as e:
-                    raise type(e)("append() - Trying to append invalid module " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
             try:  # Check validity of modules
-                _check_valid_module(modlist[i])
+                _check_valid_module(b)
             except Exception as e:
-                raise type(e)("append() - Trying to append invalid module " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
+                raise type(e)("append() - Trying to append invalid module " + str(e.args[0])
+                              + self._err_str(add_signal=False), *e.args[1:]) from None
 
         # Obtain the internal blocks
         self.mods.extend(modlist)
@@ -606,11 +600,13 @@ class Network(Module):
         try:
             [_check_valid_signal(s) for s in self.sig_in]
         except Exception as e:
-            raise type(e)("append() - Invalid input signals " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
+            raise type(e)("append() - Invalid input signals " + str(e.args[0])
+                          + self._err_str(add_signal=False), *e.args[1:]) from None
         self.sig_out = _parse_to_list(all_out)
         try:
             [_check_valid_signal(s) for s in self.sig_out]
         except Exception as e:
-            raise type(e)("append() - Invalid output signals " + str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
+            raise type(e)("append() - Invalid output signals " + str(e.args[0])
+                          + self._err_str(add_signal=False), *e.args[1:]) from None
 
         return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out  # Returns the output signal

@@ -27,7 +27,7 @@ def matrix_is_diagonal(A):
             return len(A.offsets) == 1 and A.offsets[0] == 0
         else:
             return np.allclose((A - sps.spdiags(A.diagonal(), 0, *A.shape)).data, 0.0)
-    elif is_cvxopt_spmatrix(A) :
+    elif is_cvxopt_spmatrix(A):
         return max(abs(A.I - A.J)) == 0
     else:
         return np.allclose(A, np.diag(np.diag(A)))
@@ -85,7 +85,7 @@ class LinearSolver:
         raise NotImplementedError(f"Solver not implemented {self._err_msg}")
 
     def solve(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}`
+        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}`
 
         Args:
             rhs: Right hand side :math:`\mathbf{b}` of shape ``(N)`` or ``(N, K)`` for multiple right-hand-sides
@@ -96,10 +96,10 @@ class LinearSolver:
         raise NotImplementedError(f"Solver not implemented {self._err_msg}")
 
     def adjoint(self, rhs):
-        """ Solves the adjoint linear system of equations
+        r""" Solves the adjoint linear system of equations
 
-        The system of equations is :math:`\mathbf{A}^\\text{H} \mathbf{x} = \mathbf{b}` (conjugate transpose) in case of
-        complex matrix or :math:`\mathbf{A}^\\text{T} \mathbf{x} = \mathbf{b}` for a real-valued matrix.
+        The system of equations is :math:`\mathbf{A}^\text{H} \mathbf{x} = \mathbf{b}` (conjugate transpose) in case of
+        complex matrix or :math:`\mathbf{A}^\text{T} \mathbf{x} = \mathbf{b}` for a real-valued matrix.
 
         Args:
             rhs: Right hand side :math:`\mathbf{b}` of shape ``(N)`` or ``(N, K)`` for multiple right-hand-sides
@@ -111,10 +111,10 @@ class LinearSolver:
 
     @staticmethod
     def residual(A, x, b):
-        """ Calculates the (relative) residual of the linear system of equations
+        r""" Calculates the (relative) residual of the linear system of equations
 
         The residual is calculated as
-        :math:`r = \\frac{\left| \mathbf{A} \mathbf{x} - \mathbf{b} \\right|}{\left| \mathbf{b} \\right|}`
+        :math:`r = \frac{\left| \mathbf{A} \mathbf{x} - \mathbf{b} \right|}{\left| \mathbf{b} \right|}`
 
         Args:
             A: The matrix
@@ -128,7 +128,7 @@ class LinearSolver:
 
 
 class LDAWrapper(LinearSolver):
-    """ Linear dependency aware solver (LDAS)
+    r""" Linear dependency aware solver (LDAS)
 
     This solver uses previous solutions of the system :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` to reduce computational
     effort. In case the solution :math:`\mathbf{x}` is linearly dependent on the previous solutions, the solution
@@ -198,13 +198,13 @@ class LDAWrapper(LinearSolver):
         return self._do_solve_1rhs(self.A.conj().T, b, self.xadj_stored, self.badj_stored, self.solver.adjoint)
 
     def solve(self, rhs):
-        """ Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by performing a modified
+        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by performing a modified
         Gram-Schmidt over the previously calculated solutions :math:`\mathbf{U}` and corresponding right-hand-sides
         :math:`\mathbf{F}`. This is used to construct an approximate solution
-        :math:`\\tilde{\mathbf{x}} = \sum_k \\alpha_k \mathbf{u}_k` in the subspace of :math:`\mathbf{U}`.
-        If the residual of :math:`\mathbf{A} \\tilde{\mathbf{x}} = \mathbf{b}` is above the tolerance, a new solution
+        :math:`\tilde{\mathbf{x}} = \sum_k \alpha_k \mathbf{u}_k` in the subspace of :math:`\mathbf{U}`.
+        If the residual of :math:`\mathbf{A} \tilde{\mathbf{x}} = \mathbf{b}` is above the tolerance, a new solution
         :math:`\mathbf{u}_{k+1}` will be added to the database such that
-        :math:`\mathbf{x} = \\tilde{\mathbf{x}}+\mathbf{u}_{k+1}` is the solution to the system
+        :math:`\mathbf{x} = \tilde{\mathbf{x}}+\mathbf{u}_{k+1}` is the solution to the system
         :math:`\mathbf{A} \mathbf{x} = \mathbf{b}`.
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix

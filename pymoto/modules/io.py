@@ -1,6 +1,7 @@
 import os
 import platform
 import numbers
+import sys
 from pathlib import Path
 import numpy as np
 if platform.system() == 'Darwin':  # Avoid "Python is not installed as a framework (Mac OS X)" error
@@ -119,7 +120,8 @@ class PlotDomain(_FigModule):
 
         # and plot everything
         if len(self.fig.axes) == 0:
-            from mpl_toolkits.mplot3d import Axes3D  # TODO can this be removed?
+            # flake8: noqa: F401
+            from mpl_toolkits.mplot3d import Axes3D  # This import is needed in order to support 3d plotting
             ax = self.fig.add_subplot(projection='3d')
             max_ext = max(self.domain.nelx, self.domain.nely, self.domain.nelz)
             ax.set(xlabel='x', ylabel='y', zlabel='z',
@@ -214,7 +216,7 @@ class PlotIter(_FigModule):
                 xadd = xx.reshape(xx.size)
                 self.line[i].set_ydata(np.concatenate([self.line[i].get_ydata(), xadd]))
                 self.line[i].set_xdata(np.concatenate([self.line[i].get_xdata(), self.iter*np.ones_like(xadd)]))
-            except:  # TODO what is the exception?
+            except AttributeError:  # In case xx is not numpy, it doesn't have "reshape" nor "size" attributes
                 xadd = xx
                 self.line[i].set_ydata(np.append(self.line[i].get_ydata(), xadd))
                 self.line[i].set_xdata(np.append(self.line[i].get_xdata(), self.iter))
@@ -222,11 +224,11 @@ class PlotIter(_FigModule):
             self.minlim = min(self.minlim, np.min(xadd))
             self.maxlim = max(self.maxlim, np.max(xadd))
 
-        # dy = max((self.maxlim - self.minlim)/10, 1e-5 * self.maxlim)
+        dy = max((self.maxlim - self.minlim)*0.05, sys.float_info.min)
 
         self.ax.set_xlim([-0.5, self.iter+0.5])
         if np.isfinite(self.minlim) and np.isfinite(self.maxlim):
-            self.ax.set_ylim([self.minlim*0.95, self.maxlim*1.05])
+            self.ax.set_ylim([self.minlim - dy, self.maxlim + dy])
 
         self._update_fig()
 

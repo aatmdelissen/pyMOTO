@@ -1,13 +1,9 @@
 """ Assembly modules for finite element analysis """
 import sys
-import base64  # For binary writing
-import struct  # For binary writing
-import os.path
 from pymoto import Module, DyadCarrier, DomainDefinition
 import numpy as np
 from scipy.sparse import csc_matrix
 from typing import Union
-import warnings
 try:
     from opt_einsum import contract as einsum
 except ModuleNotFoundError:
@@ -15,7 +11,7 @@ except ModuleNotFoundError:
 
 
 class AssembleGeneral(Module):
-    """ Assembles a sparse matrix according to element scaling :math:`\mathbf{A} = \sum_e x_e \mathbf{A}_e`
+    r""" Assembles a sparse matrix according to element scaling :math:`\mathbf{A} = \sum_e x_e \mathbf{A}_e`
 
     Each element matrix is scaled and with the scaling parameter of that element
     :math:`\mathbf{A} = \sum_e x_e \mathbf{A}_e`.
@@ -32,9 +28,11 @@ class AssembleGeneral(Module):
     Args:
         domain: The domain-definition for which should be assembled
         element_matrix: The element matrix for one element :math:`\mathbf{K}_e`
-        bc (optional): Indices of any dofs that are constrained to zero (Dirichlet boundary condition). These boundary conditions are enforced by setting the row and column of that dof to zero.
+        bc (optional): Indices of any dofs that are constrained to zero (Dirichlet boundary condition).
+          These boundary conditions are enforced by setting the row and column of that dof to zero.
         bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are active.
-        matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments ``matrix_type((vals, (row_idx, col_idx)), shape=(n, n))``
+        matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments
+          ``matrix_type((vals, (row_idx, col_idx)), shape=(n, n))``
     """
     def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None, matrix_type=csc_matrix):
         self.elmat = element_matrix
@@ -74,7 +72,9 @@ class AssembleGeneral(Module):
         try:
             mat = self.matrix_type((mat_values, (self.rows, self.cols)), shape=(self.n, self.n))
         except TypeError as e:
-            raise type(e)(str(e) + "\n\tInvalid matrix_type={}. Either scipy.sparse.cscmatrix or scipy.sparse.csrmatrix are supported".format(self.matrix_type)).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(str(e) + "\n\tInvalid matrix_type={}. Either scipy.sparse.cscmatrix or "
+                                   "scipy.sparse.csrmatrix are supported"
+                          .format(self.matrix_type)).with_traceback(sys.exc_info()[2]) from None
 
         return mat
 
@@ -115,15 +115,15 @@ def get_B(dN_dx):
             B[i, 0] = dN_dx[i, 0]
     elif n_dim == 2:
         for i in range(n_shapefn):
-            B[:, i*n_dim:(i+1)*n_dim] = np.array([[dN_dx[0, i], 0          ],
+            B[:, i*n_dim:(i+1)*n_dim] = np.array([[dN_dx[0, i], 0],
                                                   [0,           dN_dx[1, i]],
                                                   [dN_dx[1, i], dN_dx[0, i]]])
     elif n_dim == 3:
         for i in range(n_shapefn):
-            B[:, i*n_dim:(i+1)*n_dim] = np.array([[dN_dx[0, i], 0,           0          ],
-                                                  [0,           dN_dx[1, i], 0          ],
+            B[:, i*n_dim:(i+1)*n_dim] = np.array([[dN_dx[0, i], 0,           0],
+                                                  [0,           dN_dx[1, i], 0],
                                                   [0,           0,           dN_dx[2, i]],
-                                                  [dN_dx[1, i], dN_dx[0, i], 0          ],
+                                                  [dN_dx[1, i], dN_dx[0, i], 0],
                                                   [0,           dN_dx[2, i], dN_dx[1, i]],
                                                   [dN_dx[2, i], 0,           dN_dx[0, i]]])
     else:
@@ -166,7 +166,7 @@ def get_D(E: float, nu: float, mode: str = 'strain'):
 
 
 class AssembleStiffness(AssembleGeneral):
-    """ Stiffness matrix assembly by scaling elements in 2D or 3D
+    r""" Stiffness matrix assembly by scaling elements in 2D or 3D
     :math:`\mathbf{K} = \sum_e x_e \mathbf{K}_e`
 
     Input Signal:
@@ -186,7 +186,8 @@ class AssembleStiffness(AssembleGeneral):
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
         kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
-    def _prepare(self, domain: DomainDefinition, *args, e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane='strain', **kwargs):
+    def _prepare(self, domain: DomainDefinition, *args,
+                 e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane='strain', **kwargs):
         self.E, self.nu = e_modulus, poisson_ratio
 
         # Get material relation
@@ -213,7 +214,7 @@ class AssembleStiffness(AssembleGeneral):
 
 
 class AssembleMass(AssembleGeneral):
-    """ Consistent mass matrix assembly by scaling elements
+    r""" Consistent mass matrix assembly by scaling elements
     :math:`\mathbf{M} = \sum_e x_e \mathbf{M}_e`
 
     Input Signal:

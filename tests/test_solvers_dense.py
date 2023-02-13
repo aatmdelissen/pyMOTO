@@ -66,7 +66,14 @@ class TestGenericUtility(unittest.TestCase):
         start = src.find('data')
         start += src[start:].find('=') + 1
         finish = start + src[start:].find(']')
-        return [t.replace('\n', '').replace(' ', '').replace('(', '').replace(',', '').replace('True', '').replace('False', '') for t in src[start:finish].strip(' []').split(')')]
+
+        def parse_str(t: str):
+            rmv = ['\n', ' ', '(', ',', 'True', 'False']
+            for c in rmv:
+                t = t.replace(c, '')
+            return t
+
+        return [parse_str(t) for t in src[start:finish].strip(' []').split(')')]
 
     def test_all_matrices(self):
         """ Test all the matrices """
@@ -210,7 +217,6 @@ class GenericTestDenseSolvers(unittest.TestCase):
         self.assertTrue(np.allclose(Aadj @ xadj - b, 0.0))
 
         # Run with LDAWrapper
-        is_cplx = pym.matrix_is_complex(A)
         is_herm = pym.matrix_is_hermitian(A)
         is_symm = pym.matrix_is_symmetric(A)
         LDAsolver = pym.LDAWrapper(solver, hermitian=is_herm, symmetric=is_symm)
@@ -371,7 +377,14 @@ class TestLinSolveModule_dense(unittest.TestCase):
         start = src.find('matrices')
         start += src[start:].find('=') + 1
         finish = start + src[start:].find(']')
-        return [t.strip(' ').replace('\n', '').replace(' ', '') for t in src[start:finish].strip(' []').split(',')]
+
+        def parse_str(t: str):
+            rmv = ['\n', ' ', '(', ',', 'True', 'False']
+            for c in rmv:
+                t = t.replace(c, '')
+            return t
+
+        return [parse_str(t) for t in src[start:finish].strip(' []').split(')')]
 
     def run_solver(self, A, b):
         sA = pym.Signal("A", A)
@@ -398,9 +411,9 @@ class TestLinSolveModule_dense(unittest.TestCase):
         self.assertTrue(np.allclose(sAsys.state@sx.state, sb.state))
 
         # Check finite difference
-        test_fn = lambda x0, dx, df_an, df_fd: self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-        # test_fn = lambda x0, dx, df_an, df_fd: np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
-        pym.finite_difference(fn, [sA, sb], sx, test_fn=test_fn, verbose=False)
+        # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+        pym.finite_difference(fn, [sA, sb], sx, test_fn=tfn, verbose=False)
 
     def test_all_matrices(self):
         """ Run the tests on all given matrices """

@@ -242,67 +242,69 @@ class DyadCarrier(object):
         """ Returns a deep copy of the imaginary part of the DyadCarrier """
         return DyadCarrier([*[u.real for u in self.u], *[u.imag for u in self.u]], [*[v.imag for v in self.v], *[v.real for v in self.v]])
 
+    # flake8: noqa: C901
     def contract(self, mat: Union[NDArray, spmatrix] = None, rows: NDArray[int] = None, cols: NDArray[int] = None):
-        """ Performs a number of contraction operations using the DyadCarrier
+        r""" Performs a number of contraction operations using the DyadCarrier
 
         Calculates the result(s) of the quadratic form:
-        :math:`y = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B} \mathbf{v}_k`
+        :math:`y = \sum_k \mathbf{u}_k^{\text{T}} \mathbf{B} \mathbf{v}_k`
 
         Examples:
             * Contraction using identity matrix, is the sum of dot products, which is equal to the trace of the rank-N
               matrix:
 
               ``y = A.contract()`` equals
-              :math:`y = \\text{trace}(\mathbf{A}) = \sum_k \mathbf{u}_k^{\\text{T}}\mathbf{v}_k`
+              :math:`y = \text{trace}(\mathbf{A}) = \sum_k \mathbf{u}_k^{\text{T}}\mathbf{v}_k`
 
             * Contraction using matrix ``B`` of size ``(N, M)`` calculates the quadratic form:
 
               ``y = A.contract(B)`` equals
-              :math:`y = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B} \mathbf{v}_k`
+              :math:`y = \sum_k \mathbf{u}_k^{\text{T}} \mathbf{B} \mathbf{v}_k`
 
             * Sliced contraction with sliced row, matrix ``B`` of size ``(n, M)`` and ``rows`` of size ``n``:
 
               ``y = A.contract(B, rows)``
-              :math:`y =\sum_k \mathbf{u}[\\texttt{rows}]_k^{\\text{T}} \mathbf{B} \mathbf{v}_k`
+              :math:`y =\sum_k \mathbf{u}[\texttt{rows}]_k^{\text{T}} \mathbf{B} \mathbf{v}_k`
 
             * Sliced contraction with sliced column, matrix ``B`` of size ``(N, m)`` and ``cols`` of size ``m``:
 
               ``y = A.contract(B, cols=cols)`` equals
-              :math:`y = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B} \mathbf{v}[\\texttt{cols}]_k`
+              :math:`y = \sum_k \mathbf{u}_k^{\text{T}} \mathbf{B} \mathbf{v}[\texttt{cols}]_k`
 
             * Sliced contraction with both sliced rows and columns, matrix ``B`` of size ``(n, m)``,
               ``rows`` of size ``n``, and ``cols`` of size ``m``:
 
               ``y = A.contract(B, rows, cols)`` equals
-              :math:`y = \sum_k \mathbf{u}[\\texttt{rows}]_k^{\\text{T}} \mathbf{B} \mathbf{v}[\\texttt{cols}]_k`
+              :math:`y = \sum_k \mathbf{u}[\texttt{rows}]_k^{\text{T}} \mathbf{B} \mathbf{v}[\texttt{cols}]_k`
 
             * Batch contraction with multiple matrices in batch mode, matrix ``B`` of size ``(P, N, M)``:
 
               ``y = A.contract(B)`` equals
-              :math:`y_p = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B}_p \mathbf{v}_k`
+              :math:`y_p = \sum_k \mathbf{u}_k^{\text{T}} \mathbf{B}_p \mathbf{v}_k`
 
             * Batch contraction with multiple slices, matrix ``B`` of size ``(n, M)``, ``rows`` of size ``(P, n)``:
 
               ``y = A.contract(B, rows)`` equals
-              :math:`y_p = \sum_k \mathbf{u}[\\texttt{rows}_p]_k^{\\text{T}} \mathbf{B} \mathbf{v}_k`
+              :math:`y_p = \sum_k \mathbf{u}[\texttt{rows}_p]_k^{\text{T}} \mathbf{B} \mathbf{v}_k`
 
-            * Batch contraction with multiple matrices and slices, matrix ``B`` of size ``(P, n, M)``, ``rows`` of size ``(P, n)``:
+            * Batch contraction with multiple matrices and slices, matrix ``B`` of size ``(P, n, M)``, ``rows`` of
+              size ``(P, n)``:
 
               ``y = A.contract(B, rows)`` equals
-              :math:`y_p = \sum_k \mathbf{u}[\\texttt{rows}_p]_k^{\\text{T}} \mathbf{B}_p \mathbf{v}_k`
+              :math:`y_p = \sum_k \mathbf{u}[\texttt{rows}_p]_k^{\text{T}} \mathbf{B}_p \mathbf{v}_k`
 
             * Batch contraction with multiple matrices, row slice, and column slice, which is used ,`e.g.`, for finite
               element sensitivities. Matrix ``B`` is of size ``(P, n, m)``, ``rows`` of  size ``(P, n)``, and ``cols``
               of size ``(P, m)``:
 
               ``y = A.contract(B, rows, cols)`` equals
-              :math:`y_p = \sum_k \mathbf{u}[\\texttt{rows}_p]_k^{\\text{T}} \mathbf{B}_p \mathbf{v}[\\texttt{cols}_p]_k`
+              :math:`y_p = \sum_k \mathbf{u}[\texttt{rows}_p]_k^{\text{T}} \mathbf{B}_p \mathbf{v}[\texttt{cols}_p]_k`
 
             * Batch contractions can be extended with multiple extra batch-dimensions. For instance, matrix
               ``B`` of size ``(P, Q, R, N, M)`` results in ``y`` of size ``(P, Q, R)``:
 
               ``y = A.contract(B)`` equals
-              :math:`y_{pqr} = \sum_k \mathbf{u}_k^{\\text{T}} \mathbf{B}_{pqr} \mathbf{v}_k`
+              :math:`y_{pqr} = \sum_k \mathbf{u}_k^{\text{T}} \mathbf{B}_{pqr} \mathbf{v}_k`
 
         Args:
             mat: The matrix to contract with (optional)
@@ -375,7 +377,8 @@ class DyadCarrier(object):
         """ Returns a full (dense) matrix from the DyadCarrier matrix """
         warning_size = 100e+6  # Bytes
         if (self.shape[0]*self.shape[1]*self.dtype.itemsize) > warning_size:
-            warnings.warn(f"Expanding a dyad results into a dense matrix. This is not advised for large matrices {self.shape}", ResourceWarning, stacklevel=2)
+            warnings.warn(f"Expanding a dyad results into a dense matrix. "
+                          f"This is not advised for large matrices {self.shape}", ResourceWarning, stacklevel=2)
 
         val = np.zeros((max(0, self.shape[0]), max(0, self.shape[1])), dtype=self.dtype)
 

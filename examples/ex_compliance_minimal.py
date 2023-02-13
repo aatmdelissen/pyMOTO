@@ -1,4 +1,5 @@
 """ Minimal example for a structural compliance topology optimization """
+# flake8: noqa
 import pymoto as pym
 import numpy as np
 nx, ny = 100, 40

@@ -5,9 +5,11 @@ import scipy.sparse as spsp
 
 
 def generate_random(*dn, lower=-1.0, upper=1.0):
-    return np.random.rand(*dn)*(upper-lower) + lower
+    return np.random.rand(*dn) * (upper - lower) + lower
+
 
 class TestDyadCarrier(unittest.TestCase):
+    # flake8: noqa: C901
     @staticmethod
     def setup_dyads(n=10, complex=False, nonsquare=False, empty=True, rnd=generate_random):
         dyads = {}
@@ -21,7 +23,9 @@ class TestDyadCarrier(unittest.TestCase):
 
         if complex:
             for s in ndyads:
-                dyads[f'square_complex_{s}_dyads'] = pym.DyadCarrier([rnd(n)+1j*rnd(n) for _ in range(s)], [rnd(n)+1j*rnd(n) for _ in range(s)])
+                dyads[f'square_complex_{s}_dyads'] = \
+                    pym.DyadCarrier([rnd(n)+1j*rnd(n) for _ in range(s)],
+                                    [rnd(n)+1j*rnd(n) for _ in range(s)])
 
         if nonsquare:
             nonsquare_offsets_u = [1]
@@ -29,20 +33,27 @@ class TestDyadCarrier(unittest.TestCase):
 
             for off_u in nonsquare_offsets_u:
                 for s in ndyads:
-                    dyads[f'nonsquare_u_{s}_dyads'] = pym.DyadCarrier([rnd(n+off_u) for _ in range(s)], [rnd(n) for _ in range(s)])
+                    dyads[f'nonsquare_u_{s}_dyads'] = \
+                        pym.DyadCarrier([rnd(n+off_u) for _ in range(s)],
+                                        [rnd(n) for _ in range(s)])
             for off_v in nonsquare_offsets_v:
                 for s in ndyads:
-                    dyads[f'nonsquare_v_{s}_dyads'] = pym.DyadCarrier([rnd(n) for _ in range(s)], [rnd(n+off_v) for _ in range(s)])
+                    dyads[f'nonsquare_v_{s}_dyads'] = \
+                        pym.DyadCarrier([rnd(n) for _ in range(s)],
+                                        [rnd(n+off_v) for _ in range(s)])
 
             if complex:
                 for off_u in nonsquare_offsets_u:
                     for s in ndyads:
-                        dyads[f'nonsquare_u_complex_{s}_dyads'] = pym.DyadCarrier([rnd(n+off_u)+1j*rnd(n+off_u) for _ in range(s)], [rnd(n)+1j*rnd(n) for _ in range(s)])
+                        dyads[f'nonsquare_u_complex_{s}_dyads'] = \
+                            pym.DyadCarrier([rnd(n+off_u)+1j*rnd(n+off_u) for _ in range(s)],
+                                            [rnd(n)+1j*rnd(n) for _ in range(s)])
                 for off_v in nonsquare_offsets_v:
                     for s in ndyads:
-                        dyads[f'nonsquare_v_complex_{s}_dyads'] = pym.DyadCarrier([rnd(n)+1j*rnd(n) for _ in range(s)], [rnd(n+off_v)+1j*rnd(n+off_v) for _ in range(s)])
+                        dyads[f'nonsquare_v_complex_{s}_dyads'] = \
+                            pym.DyadCarrier([rnd(n)+1j*rnd(n) for _ in range(s)],
+                                            [rnd(n+off_v)+1j*rnd(n+off_v) for _ in range(s)])
         return dyads
-
 
     def test_initialize(self):
         n = 10
@@ -259,9 +270,6 @@ class TestDyadCarrier(unittest.TestCase):
         self.assertTrue(np.allclose(np.imag(c.todense()), c.imag.todense()))
         self.assertTrue(np.allclose(np.imag(d.todense()), d.imag.todense()))
 
-
-
-
     def test_todense(self):
         n = 10
         u1 = np.random.rand(n)
@@ -277,21 +285,21 @@ class TestDyadCarrier(unittest.TestCase):
         uu1 = np.random.rand(2, n)
         vv1 = np.random.rand(2, n)
         b = pym.DyadCarrier(uu1, vv1)
-        bchk = np.outer(uu1[0, :], vv1[0, :]) + np.outer(uu1[1, :], vv1[0, :]) + \
-               np.outer(uu1[0, :], vv1[1, :]) + np.outer(uu1[1, :], vv1[1, :])
+        bchk = np.outer(uu1[0, :], vv1[0, :]) + np.outer(uu1[1, :], vv1[0, :]) \
+            + np.outer(uu1[0, :], vv1[1, :]) + np.outer(uu1[1, :], vv1[1, :])
         self.assertTrue(np.allclose(b.todense(), bchk))
 
         cu1 = np.random.rand(2, 2, n)
         cv1 = np.random.rand(2, 2, n)
         c = pym.DyadCarrier(cu1, cv1)
-        cchk = np.outer(cu1[0, 0, :], cv1[0, 0, :]) + np.outer(cu1[0, 1, :], cv1[0, 0, :]) + \
-               np.outer(cu1[0, 0, :], cv1[0, 1, :]) + np.outer(cu1[0, 1, :], cv1[0, 1, :]) + \
-               np.outer(cu1[1, 0, :], cv1[0, 0, :]) + np.outer(cu1[1, 1, :], cv1[0, 0, :]) + \
-               np.outer(cu1[1, 0, :], cv1[0, 1, :]) + np.outer(cu1[1, 1, :], cv1[0, 1, :]) + \
-               np.outer(cu1[0, 0, :], cv1[1, 0, :]) + np.outer(cu1[0, 1, :], cv1[1, 0, :]) + \
-               np.outer(cu1[0, 0, :], cv1[1, 1, :]) + np.outer(cu1[0, 1, :], cv1[1, 1, :]) + \
-               np.outer(cu1[1, 0, :], cv1[1, 0, :]) + np.outer(cu1[1, 1, :], cv1[1, 0, :]) + \
-               np.outer(cu1[1, 0, :], cv1[1, 1, :]) + np.outer(cu1[1, 1, :], cv1[1, 1, :])
+        cchk = np.outer(cu1[0, 0, :], cv1[0, 0, :]) + np.outer(cu1[0, 1, :], cv1[0, 0, :]) \
+            + np.outer(cu1[0, 0, :], cv1[0, 1, :]) + np.outer(cu1[0, 1, :], cv1[0, 1, :]) \
+            + np.outer(cu1[1, 0, :], cv1[0, 0, :]) + np.outer(cu1[1, 1, :], cv1[0, 0, :]) \
+            + np.outer(cu1[1, 0, :], cv1[0, 1, :]) + np.outer(cu1[1, 1, :], cv1[0, 1, :]) \
+            + np.outer(cu1[0, 0, :], cv1[1, 0, :]) + np.outer(cu1[0, 1, :], cv1[1, 0, :]) \
+            + np.outer(cu1[0, 0, :], cv1[1, 1, :]) + np.outer(cu1[0, 1, :], cv1[1, 1, :]) \
+            + np.outer(cu1[1, 0, :], cv1[1, 0, :]) + np.outer(cu1[1, 1, :], cv1[1, 0, :]) \
+            + np.outer(cu1[1, 0, :], cv1[1, 1, :]) + np.outer(cu1[1, 1, :], cv1[1, 1, :])
         self.assertTrue(np.allclose(c.todense(), cchk))
 
         d = pym.DyadCarrier([u1, uu1], [vv1, v1])
@@ -313,10 +321,10 @@ class TestDyadCarrier(unittest.TestCase):
 
     def test_todense_complex(self):
         n = 10
-        u1 = np.random.rand(n) + 1j*np.random.rand(n)
+        u1 = np.random.rand(n) + 1j * np.random.rand(n)
         u2 = np.random.rand(n)
-        v1 = np.random.rand(n) + 1j*np.random.rand(n)
-        v2 = np.random.rand(n) + 1j*np.random.rand(n)
+        v1 = np.random.rand(n) + 1j * np.random.rand(n)
+        v2 = np.random.rand(n) + 1j * np.random.rand(n)
 
         dyad1 = pym.DyadCarrier([u1, u2], [v1, v2])
         dyad1chk = np.outer(u1, v1) + np.outer(u2, v2)
@@ -387,13 +395,13 @@ class TestDyadCarrier(unittest.TestCase):
         a_submat = np.random.rand(3, 4)
         rows = np.array([[3, 5, 5], [5, 6, 7], [8, 9, 0]])
         cols = np.array([0, 1, 2, 8])
-        self.assertEqual(a.contract(a_submat, rows, cols).shape, (3, ))
+        self.assertEqual(a.contract(a_submat, rows, cols).shape, (3,))
         self.assertTrue(np.allclose(a.contract(a_submat, rows, cols),
                                     u1[rows].dot(a_submat.dot(v1[cols])) + u2[rows].dot(a_submat.dot(v2[cols]))))
 
-        self.assertEqual(a.contract(rows=rows, cols=rows).shape, (3, ))
+        self.assertEqual(a.contract(rows=rows, cols=rows).shape, (3,))
         self.assertTrue(np.allclose(a.contract(rows=rows, cols=rows),
-                                    np.sum(u1[rows]*v1[rows], axis=1) + np.sum(u2[rows]*v2[rows], axis=1)))
+                                    np.sum(u1[rows] * v1[rows], axis=1) + np.sum(u2[rows] * v2[rows], axis=1)))
 
         cols_fail = np.array([[0, 1, 2, 8], [3, 4, 7, 8]])
         self.assertRaises(ValueError, a.contract, rows=rows, cols=cols_fail)
@@ -432,7 +440,7 @@ class TestDyadCarrier(unittest.TestCase):
         diag = np.random.rand(1, n)
         S = spsp.spdiags(diag, 0)
 
-        self.assertAlmostEqual(a.contract(S), np.sum(u1*diag*v1 + u2*diag*v2), delta=1e-10)
+        self.assertAlmostEqual(a.contract(S), np.sum(u1 * diag * v1 + u2 * diag * v2), delta=1e-10)
 
     def test_contract_sparse_slice(self):
         # Test contraction with a sliced sparse matrix
@@ -443,12 +451,11 @@ class TestDyadCarrier(unittest.TestCase):
         v2 = np.random.rand(n)
 
         a = pym.DyadCarrier([u1, u2], [v1, v2])
-        diag = np.random.rand(1, n-2)
+        diag = np.random.rand(1, n - 2)
         S = spsp.spdiags(diag, 0)
 
         self.assertAlmostEqual(a.contract(S, rows=np.arange(8), cols=np.arange(8)),
-                               np.sum(u1[:8]*diag*v1[:8] + u2[:8]*diag*v2[:8]), delta=1e-10)
-
+                               np.sum(u1[:8] * diag * v1[:8] + u2[:8] * diag * v2[:8]), delta=1e-10)
 
     def test_diagonal(self):
         n = 10
@@ -458,7 +465,6 @@ class TestDyadCarrier(unittest.TestCase):
             for key, d in dyads.items():
                 self.assertTrue(np.allclose(d.diagonal(k), np.diagonal(d.todense(), offset=k)),
                                 msg=f"Failed diagonal test with offset \"{k}\" and dyad \"{key}\"")
-
 
     def test_add_to_zeroarray(self):
         n = 10
@@ -488,8 +494,8 @@ class TestDyadCarrier(unittest.TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             q = generate_random(d.shape[1])
-            chk = d.todense()@q
-            res = d@q
+            chk = d.todense() @ q
+            res = d @ q
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
 
     def test_rmatmul_vec(self):
@@ -497,8 +503,8 @@ class TestDyadCarrier(unittest.TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             q = generate_random(d.shape[0])
-            chk = q@(d.todense())
-            res = q@d
+            chk = q @ (d.todense())
+            res = q @ d
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
 
     def test_matmul(self):
@@ -506,8 +512,8 @@ class TestDyadCarrier(unittest.TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             A = generate_random(d.shape[1], d.shape[1])
-            chk = d.todense()@A
-            res = (d@A).todense()
+            chk = d.todense() @ A
+            res = (d @ A).todense()
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
 
     def test_rmatmul(self):
@@ -515,8 +521,8 @@ class TestDyadCarrier(unittest.TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             A = generate_random(d.shape[0], d.shape[0])
-            chk = A@(d.todense())
-            res = (A@d).todense()
+            chk = A @ (d.todense())
+            res = (A @ d).todense()
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with dyad \"{key}\"")
 
     def test_matmul_dyad(self):
@@ -524,8 +530,8 @@ class TestDyadCarrier(unittest.TestCase):
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
         for key, d in dyads.items():
             A = d.todense()
-            chk = A.T@A
-            res = (d.T@d).todense()
+            chk = A.T @ A
+            res = (d.T @ d).todense()
             self.assertTrue(np.allclose(chk, res), msg=f"Failed matmul with 2 dyads \"{key}\"")
 
     def test_slice(self):
@@ -540,9 +546,9 @@ class TestDyadCarrier(unittest.TestCase):
             self.assertTrue(np.allclose(A[0:5, 1:3], d[0:5, 1:3].todense()))
             self.assertTrue(np.allclose(A[0, 1], d[0, 1]))
             self.assertTrue(np.allclose(A[3, 1], d[3, 1]))
-            
+
             indi = np.arange(0, 4)
-            
+
             self.assertTrue(np.allclose(A[indi, :], d[indi, :].todense()))
             self.assertTrue(np.allclose(A[:, indi], d[:, indi].todense()))
             self.assertTrue(np.allclose(A[indi, indi], d[indi, indi]))
@@ -552,8 +558,7 @@ class TestDyadCarrier(unittest.TestCase):
             self.assertTrue(np.allclose(A[:, indi], d[:, indi].todense()))
             self.assertTrue(np.allclose(A[indi, indi], d[indi, indi]))
 
-            fn = lambda: d[np.array([1, 2]), np.array([1, 2, 3])]
-            self.assertRaises(IndexError, fn)
+            self.assertRaises(IndexError, lambda: d[np.array([1, 2]), np.array([1, 2, 3])])
 
     def test_slice_asignment(self):
         n = 10
@@ -624,25 +629,26 @@ class TestDyadCarrier(unittest.TestCase):
             A = d.todense()
 
             if np.iscomplexobj(A):
-                c = generate_random(1) + 1j*generate_random(1)
+                c = generate_random(1) + 1j * generate_random(1)
             else:
                 c = generate_random(1)
 
-            chk = A*c
-            res = (d*c).todense()
+            chk = A * c
+            res = (d * c).todense()
             self.assertTrue(np.allclose(chk, res))
 
-            chk = A*c[0]
-            res = (d*c[0]).todense()
+            chk = A * c[0]
+            res = (d * c[0]).todense()
             self.assertTrue(np.allclose(chk, res))
 
-            chk = c*A
-            res = (c*d).todense()
+            chk = c * A
+            res = (c * d).todense()
             self.assertTrue(np.allclose(chk, res))
 
-            chk = c[0]*A
-            res = (c[0]*d).todense()
+            chk = c[0] * A
+            res = (c[0] * d).todense()
             self.assertTrue(np.allclose(chk, res))
+
 
 if __name__ == '__main__':
     unittest.main()

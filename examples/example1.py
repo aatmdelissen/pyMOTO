@@ -4,7 +4,7 @@ shown, and the ordering of the Modules in the Network can be changed to obtain o
 sensitivity calculation, and finite-difference validation is demonstrated.
 """
 from pymoto import Module, Signal, Network, finite_difference
-from math import *
+import math
 
 
 # Module definitions
@@ -16,11 +16,11 @@ class ModuleA(Module):
         # Store state for use in sensitivity
         self.x1 = x1
         self.x2 = x2
-        return self.x2 * sin(self.x1)
+        return self.x2 * math.sin(self.x1)
 
     def _sensitivity(self, df_dy):
-        df_dx1 = df_dy * self.x2 * cos(self.x1)
-        df_dx2 = df_dy * sin(self.x1)
+        df_dx1 = df_dy * self.x2 * math.cos(self.x1)
+        df_dx2 = df_dy * math.sin(self.x1)
         return df_dx1, df_dx2
 
 
@@ -30,9 +30,9 @@ class ModuleB(Module):
     """
     def _response(self, x1, x2):
         # Already calculate the state derivative
-        self.dy_dx1 = sin(x1) * cos(x2)
-        self.dy_dx2 = cos(x1) * sin(x2)
-        return cos(x2) * cos(x1)
+        self.dy_dx1 = math.sin(x1) * math.cos(x2)
+        self.dy_dx2 = math.cos(x1) * math.sin(x2)
+        return math.cos(x2) * math.cos(x1)
 
     def _sensitivity(self, df_dy):
         df_dx1 = - df_dy * self.dy_dx1

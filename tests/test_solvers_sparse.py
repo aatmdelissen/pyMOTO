@@ -111,7 +111,14 @@ class TestGenericUtility(unittest.TestCase):
         start = src.find('data')
         start += src[start:].find('=') + 1
         finish = start + src[start:].find(']')
-        return [t.replace('\n', '').replace(' ', '').replace('(', '').replace(',', '').replace('True', '').replace('False', '') for t in src[start:finish].strip(' []').split(')')]
+
+        def parse_str(t: str):
+            rmv = ['\n', ' ', '(', ',', 'True', 'False']
+            for c in rmv:
+                t = t.replace(c, '')
+            return t
+
+        return [parse_str(t) for t in src[start:finish].strip(' []').split(')')]
 
     def test_all_matrices(self):
         """ Test all the matrices """
@@ -425,10 +432,11 @@ class TestLinSolveModule_sparse(unittest.TestCase):
 
         fn.response()
 
-        self.assertTrue(np.allclose(sK.state@su.state, sf.state)) # Check residual
+        self.assertTrue(np.allclose(sK.state@su.state, sf.state))  # Check residual
         # Check finite difference
-        test_fn = lambda x0, dx, df_an, df_fd: self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-        pym.finite_difference(fn, [sx, sf], su, test_fn=test_fn, dx=1e-5, tol=1e-4, verbose=False)
+        # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+        pym.finite_difference(fn, [sx, sf], su, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_symmetric_real_compliance3d(self):
         """ Test symmetric real sparse matrix (compliance in 3D)"""
@@ -450,8 +458,9 @@ class TestLinSolveModule_sparse(unittest.TestCase):
 
         self.assertTrue(np.allclose(sK.state@su.state, sf.state))  # Check residual
         # Check finite difference
-        test_fn = lambda x0, dx, df_an, df_fd: self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-        pym.finite_difference(fn, [sx, sf], su, test_fn=test_fn, dx=1e-5, tol=1e-4, verbose=False)
+        # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+        pym.finite_difference(fn, [sx, sf], su, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_symmetric_complex_dyncompliance2d(self):
         """ Test symmetric complex sparse matrix (dynamic compliance in 2D)"""
@@ -478,9 +487,9 @@ class TestLinSolveModule_sparse(unittest.TestCase):
 
         self.assertTrue(np.allclose(sZ.state@su.state, sf.state))  # Check residual
         # Check finite difference
-        # test_fn = lambda x0, dx, df_an, df_fd: np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
-        test_fn = lambda x0, dx, df_an, df_fd: self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-        pym.finite_difference(fn, [sx, sf, sOmega], su, test_fn=test_fn, dx=1e-7, tol=1e-4, verbose=False)
+        # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+        pym.finite_difference(fn, [sx, sf, sOmega], su, test_fn=tfn, dx=1e-7, tol=1e-4, verbose=False)
 
 
 if __name__ == '__main__':

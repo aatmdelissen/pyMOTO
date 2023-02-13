@@ -40,19 +40,25 @@ class TestSignal(unittest.TestCase):
         self.assertEqual(a.sensitivity, None, msg="Reset sensitivity")
 
         a.add_sensitivity(np.array([1.1, 2.2, 3.3]))
-        self.assertTrue(np.allclose(a.sensitivity, np.array([1.1, 2.2, 3.3])), msg="Set initial sensitivity by add_sensitivity")
+        self.assertTrue(np.allclose(a.sensitivity, np.array([1.1, 2.2, 3.3])),
+                        msg="Set initial sensitivity by add_sensitivity")
 
         a.add_sensitivity(None)
-        self.assertTrue(np.allclose(a.sensitivity, np.array([1.1, 2.2, 3.3])), msg="After adding None by add_sensitivity")
+        self.assertTrue(np.allclose(a.sensitivity, np.array([1.1, 2.2, 3.3])),
+                        msg="After adding None by add_sensitivity")
 
         b = pym.Signal('foo', np.array([5.0, 6.0]), np.array([7.0, 8.0]))
-        self.assertEqual(b.tag, 'foo', msg="Set tag from init with state and sensitivity")
-        self.assertTrue(np.allclose(b.state, np.array([5.0, 6.0])), msg="Set state from init and sensitivity")
-        self.assertTrue(np.allclose(b.sensitivity, np.array([7.0, 8.0])), msg="Set sensitivity from init and sensitivity")
+        self.assertEqual(b.tag, 'foo',
+                         msg="Set tag from init with state and sensitivity")
+        self.assertTrue(np.allclose(b.state, np.array([5.0, 6.0])),
+                        msg="Set state from init and sensitivity")
+        self.assertTrue(np.allclose(b.sensitivity, np.array([7.0, 8.0])),
+                        msg="Set sensitivity from init and sensitivity")
 
         c = pym.Signal('bar', sensitivity=np.array([7.0, 8.0]))
         self.assertEqual(c.tag, 'bar', msg="Set tag from init with sensitivity")
-        self.assertTrue(np.allclose(c.sensitivity, np.array([7.0, 8.0])), msg="Set sensitivity from init with sensitivity")
+        self.assertTrue(np.allclose(c.sensitivity, np.array([7.0, 8.0])),
+                        msg="Set sensitivity from init with sensitivity")
 
     def test_make_signals(self):
         d = pym.make_signals('a', 'b', 'c')
@@ -63,10 +69,9 @@ class TestSignal(unittest.TestCase):
         self.assertEqual(d['b'].tag, 'b')
         self.assertEqual(d['c'].tag, 'c')
 
-
     def test_add_sensitivity_errors(self):
         a = pym.Signal('foo')
-        a.sensitivity = np.array([1.0,2.0,3.0])
+        a.sensitivity = np.array([1.0, 2.0, 3.0])
         # Add wrong type
         self.assertRaises(TypeError, a.add_sensitivity, "cannot add a string")
         # a.add_sensitivity("cannot add a string")
@@ -84,7 +89,7 @@ class TestSignal(unittest.TestCase):
         c.add_sensitivity(np.array(1.345))
         c.add_sensitivity(np.array([1.3344]))
         # c.add_sensitivity(np.array([[394]]))
-        self.assertRaises(ValueError, c.add_sensitivity, np.array([[23454]])) # Cannot add this shape to existing array
+        self.assertRaises(ValueError, c.add_sensitivity, np.array([[23454]]))  # Cannot add this shape to existing array
 
         d = pym.Signal('integer', 1.0)
         d.add_sensitivity(np.array([[23454]]))  # But it can be added to a float
@@ -138,10 +143,10 @@ class TestSignalSlice(unittest.TestCase):
         assert np.allclose(sx.state[4:9], 0.2)
 
         assert sx[0].sensitivity is None
-        assert sx[1:34, 53, 123:56, [2,34,5]].sensitivity is None
+        assert sx[1:34, 53, 123:56, [2, 34, 5]].sensitivity is None
 
         sx[1].add_sensitivity(1.0)
-        self.assertRaises(ValueError, sx[1].add_sensitivity, np.array([1,2,34]))
+        self.assertRaises(ValueError, sx[1].add_sensitivity, np.array([1, 2, 34]))
         assert sx.state.size == sx.sensitivity.size
         assert sx[1].state.size == sx[1].sensitivity.size
         assert sx[1].sensitivity == 1.0
@@ -163,9 +168,9 @@ class TestSignalSlice(unittest.TestCase):
         assert np.allclose(sx.sensitivity[4:8], 3.0)
         assert np.allclose(sx[9].sensitivity, 0.0)
 
-        sx[9:12].add_sensitivity(np.array([4,5,6]))
-        self.assertRaises(ValueError, sx[9:12].add_sensitivity, np.array([4,5,6,4]))
-        assert np.allclose(sx[9:12].sensitivity, np.array([4,5,6]))
+        sx[9:12].add_sensitivity(np.array([4, 5, 6]))
+        self.assertRaises(ValueError, sx[9:12].add_sensitivity, np.array([4, 5, 6, 4]))
+        assert np.allclose(sx[9:12].sensitivity, np.array([4, 5, 6]))
         sx[9:11].reset()
         assert np.allclose(sx[9:11].sensitivity, 0)
         assert sx[11].sensitivity == 6.0
@@ -174,10 +179,13 @@ class TestSignalSlice(unittest.TestCase):
         class MyObj:
             def __init__(self, val):
                 self.val = val
+
         def call_state(s):
             return s.state
+
         def call_sens(s):
             return s.sensitivity
+
         # Object that cannot be sliced
         a = pym.Signal("myobj", state=MyObj(1.23), sensitivity=MyObj(1.34))
         # call_state(a[2]) # Empty state
@@ -189,15 +197,16 @@ class TestSignalSlice(unittest.TestCase):
         b = pym.Signal("2dim", state=np.random.rand(10, 10), sensitivity=np.random.rand(10, 10))
         # call_state(b[2,3,4]) # Too many dimensions
         # call_sens(b[2,3,4])
-        self.assertRaises(IndexError, call_state, b[2,3,4])
-        self.assertRaises(IndexError, call_sens, b[2,3,4])
+        self.assertRaises(IndexError, call_state, b[2, 3, 4])
+        self.assertRaises(IndexError, call_sens, b[2, 3, 4])
         # call_state(b[np.array([1,2,493]), 1]) # Out of range
         # call_sens(b[np.array([1,2,493]), 1])
-        self.assertRaises(IndexError, call_state, b[np.array([1,2,493]), 1])
-        self.assertRaises(IndexError, call_sens, b[np.array([1,2,493]), 1])
+        self.assertRaises(IndexError, call_state, b[np.array([1, 2, 493]), 1])
+        self.assertRaises(IndexError, call_sens, b[np.array([1, 2, 493]), 1])
 
     def test_sensitivity_set_error(self):
         s = pym.Signal("empty")
+
         def set_sens(s, val):
             s.sensitivity = val
 
@@ -219,21 +228,21 @@ class TestSignalSlice(unittest.TestCase):
         self.assertEqual(s.state[0, 4], 0.4)
 
         s[:, 3].state = 0.8
-        self.assertTrue(np.alltrue(s[:,3].state==0.8))
-        self.assertTrue(np.alltrue(s.state[:,3]==0.8))
+        self.assertTrue(np.alltrue(s[:, 3].state == 0.8))
+        self.assertTrue(np.alltrue(s.state[:, 3] == 0.8))
 
         s[0, 2:8].sensitivity = 1.0
         self.assertEqual(s.sensitivity.shape, s.state.shape)
-        self.assertTrue(np.alltrue(s.sensitivity[0, 2:8]==1.0))
+        self.assertTrue(np.alltrue(s.sensitivity[0, 2:8] == 1.0))
         self.assertEqual(s.sensitivity[0, 0], 0.0)
-        self.assertEqual(s.state[0, 4], 0.4) # Must be still the same as previously
-        self.assertTrue(np.alltrue(s.state[:,3]==0.8))
+        self.assertEqual(s.state[0, 4], 0.4)  # Must be still the same as previously
+        self.assertTrue(np.alltrue(s.state[:, 3] == 0.8))
 
         s[0, 2:8].sensitivity = 0.0
-        self.assertTrue(np.alltrue(s.sensitivity==0.0))
+        self.assertTrue(np.alltrue(s.sensitivity == 0.0))
 
         # Test add_sensitivity
-        add_arr =  np.random.rand(6)
+        add_arr = np.random.rand(6)
         s[0, 2:8].add_sensitivity(add_arr)
         self.assertTrue(np.alltrue(s.sensitivity[0, 2:8] == add_arr))
         s[0, 2:8].add_sensitivity(add_arr)
@@ -241,11 +250,11 @@ class TestSignalSlice(unittest.TestCase):
 
         # Test reset
         s[0, 2:8].reset(keep_alloc=False)
-        self.assertTrue(np.alltrue(s.sensitivity[0, 2:8]==0))
+        self.assertTrue(np.alltrue(s.sensitivity[0, 2:8] == 0))
 
         s[0, 2:8].add_sensitivity(add_arr)
         s[0, 2:8].reset(keep_alloc=True)
-        self.assertTrue(np.alltrue(s.sensitivity[0, 2:8]==0))
+        self.assertTrue(np.alltrue(s.sensitivity[0, 2:8] == 0))
 
         s[0, 2:8].add_sensitivity(add_arr)
         s[0, 2:8].add_sensitivity(None)
@@ -485,6 +494,7 @@ class TestModule(unittest.TestCase):
         class ErrModule(pym.Module):
             def _response(self, a, b):
                 return a * b
+
             def _sensitivity(self, dc):
                 raise ValueError("some error in calculation")
         m1 = ErrModule([sa, sb], sc)

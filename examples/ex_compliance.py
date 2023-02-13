@@ -2,7 +2,7 @@
 import pymoto as pym
 import numpy as np
 
-nx, ny, nz = 60, 30, 0  # Set nz to zero for the 2D problem
+nx, ny, nz = 10, 10, 10  # Set nz to zero for the 2D problem
 xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5
@@ -145,5 +145,3 @@ if __name__ == "__main__":
     print("The optimization has finished!")
     print(f"The final compliance value obtained is {scompl.state}")
     print(f"The maximum {'temperature' if thermal else 'displacement'} is {max(np.absolute(su.state))}")
-
-

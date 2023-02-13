@@ -105,8 +105,8 @@ class MathGeneral(Module):
                 dg_dx_add = np.real(dg_dx_add)
 
             # Add the contribution
-            if (not hasattr(dg_dx[i], '__len__')) or \
-                (hasattr(dg_dx[i], 'ndim') and dg_dx[i].ndim == 0): # Scalar type or 0-dimensional array
+            if (not hasattr(dg_dx[i], '__len__')) or (hasattr(dg_dx[i], 'ndim') and dg_dx[i].ndim == 0):
+                # Scalar type or 0-dimensional array
                 dg_dx[i] += np.sum(dg_dx_add)
             else:
                 dg_dx[i] += dg_dx_add

@@ -49,8 +49,8 @@ class TestEigenSolverDense(unittest.TestCase):
         self.assertTrue(np.allclose(np.diag(sU.state.T @ sU.state), 1.0))
 
         # Check finite difference (test_fn with quite loose tolerances because of numerical precision)
-        test_fn = lambda x0, dx, df_an, df_fd: self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-        pym.finite_difference(fn, sA, [slambda, sU, sLamsum, sVecsum, sSumsum], test_fn=test_fn, verbose=True)
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+        pym.finite_difference(fn, sA, [slambda, sU, sLamsum, sVecsum, sSumsum], test_fn=tfn, verbose=True)
 
     def test_asymmetric_real(self):
         """ Test asymmetric real dense matrix """
@@ -120,8 +120,8 @@ class TestEigenSolverDense_Generalized(unittest.TestCase):
         self.assertTrue(np.allclose(np.diag(sU.state.T @ sBsys.state @ sU.state), 1.0))
 
         # Check finite difference (test_fn with quite loose tolerances because of numerical precision)
-        test_fn = lambda x0, dx, df_an, df_fd: self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-        pym.finite_difference(fn, [sA, sB], [sLamsum, sVecsum, sSumsum], test_fn=test_fn, verbose=True)
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+        pym.finite_difference(fn, [sA, sB], [sLamsum, sVecsum, sSumsum], test_fn=tfn, verbose=True)
 
     def test_asymmetric_real(self):
         """ Test asymmetric real dense matrix """

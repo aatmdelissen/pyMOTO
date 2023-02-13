@@ -2,12 +2,13 @@ import os
 import sys
 import base64
 import struct
+import warnings
 from typing import Union
 import numpy as np
 
 
 class DomainDefinition:
-    """ Definition for a structured domain
+    r""" Definition for a structured domain
     Nodal numbering used in the domain is given below.
 
     Quadrangle in 2D
@@ -29,9 +30,9 @@ class DomainDefinition:
 
                y
         2----------3
-        |\     ^   |\\
-        | \    |   | \\
-        |  \   |   |  \\
+        |\     ^   |\
+        | \    |   | \
+        |  \   |   |  \
         |   6------+---7
         |   |  +-- |-- | -> x
         0---+---\--1   |
@@ -152,22 +153,22 @@ class DomainDefinition:
         return np.repeat(self.conn*ndof, ndof, axis=-1) + np.tile(np.arange(ndof), self.elemnodes)
 
     def eval_shape_fun(self, pos: np.ndarray):
-        """ Evaluate the linear shape functions of the finite element
+        r""" Evaluate the linear shape functions of the finite element
 
         In 1D
-          * :math:`N_1(x) = \\frac{1}{w} \\left(\\frac{w}{2} - x\\right)`
-          * :math:`N_2(x) = \\frac{1}{w} \\left(\\frac{w}{2} + x\\right)`
+          * :math:`N_1(x) = \frac{1}{w} \left(\frac{w}{2} - x\right)`
+          * :math:`N_2(x) = \frac{1}{w} \left(\frac{w}{2} + x\right)`
 
         In 2D [1]
-          * :math:`N_1(x,y) = \\frac{1}{A} \\left(\\frac{w}{2} - x\\right) \\left(\\frac{h}{2} - y\\right)`
-          * :math:`N_2(x,y) = \\frac{1}{A} \\left(\\frac{w}{2} + x\\right) \\left(\\frac{h}{2} - y\\right)`
-          * :math:`N_3(x,y) = \\frac{1}{A} \\left(\\frac{w}{2} - x\\right) \\left(\\frac{h}{2} + y\\right)`
-          * :math:`N_4(x,y) = \\frac{1}{A} \\left(\\frac{w}{2} + x\\right) \\left(\\frac{h}{2} + y\\right)`
+          * :math:`N_1(x,y) = \frac{1}{A} \left(\frac{w}{2} - x\right) \left(\frac{h}{2} - y\right)`
+          * :math:`N_2(x,y) = \frac{1}{A} \left(\frac{w}{2} + x\right) \left(\frac{h}{2} - y\right)`
+          * :math:`N_3(x,y) = \frac{1}{A} \left(\frac{w}{2} - x\right) \left(\frac{h}{2} + y\right)`
+          * :math:`N_4(x,y) = \frac{1}{A} \left(\frac{w}{2} + x\right) \left(\frac{h}{2} + y\right)`
 
         with :math:`A = wh`
 
         In 3D
-          * :math:`N_1(x,y,z) = \\frac{1}{V} \\left(\\frac{w}{2} - x\\right) \\left(\\frac{h}{2} - y\\right) \\left(\\frac{d}{2} - z\\right)`
+          * :math:`N_1(x,y,z) = \frac{1}{V} \left(\frac{w}{2} - x\right) \left(\frac{h}{2} - y\right) \left(\frac{d}{2} - z\right)`
           * etc.
 
         with :math:`V = whd`
@@ -209,6 +210,7 @@ class DomainDefinition:
             dN_dx[i, :] *= np.array([n[i] for n in self.node_numbering])  # Flip +/- signs according to node position
         return dN_dx
 
+    # flake8: noqa: C901
     def write_to_vti(self, vectors: dict, filename="out.vti", scale=1.0, origin=(0.0, 0.0, 0.0)):
         """ Write all given vectors to a Paraview (VTI) file
 
@@ -249,7 +251,10 @@ class DomainDefinition:
             file.write(b'<?xml version=\"1.0\"?>\n')
 
             # Vtk header
-            file.write(f'<VTKFile type=\"ImageData\" version=\"0.1\" header_type=\"UInt64\" byte_order=\"{"LittleEndian" if sys.byteorder=="little" else "BigEndian"}\">\n'.encode())
+            byte_order = "LittleEndian" if sys.byteorder == "little" else "BigEndian"
+            file.write(f'<VTKFile type=\"ImageData\" version=\"0.1\" '
+                       f'header_type=\"UInt64\" '
+                       f'byte_order=\"{byte_order}\">\n'.encode())
 
             # Extend of coordinates
             file.write(f"<ImageData WholeExtent=\"0 {self.nelx} 0 {self.nely} 0 {self.nelz}\"".encode())
@@ -258,7 +263,8 @@ class DomainDefinition:
             file.write(f" Origin=\"{origin[0]*scale} {origin[1]*scale} {origin[2]*scale}\"".encode())
 
             # Spacing of points (dx, dy, dz)
-            file.write(f" Spacing=\"{self.element_size[0]*scale} {self.element_size[1]*scale} {self.element_size[2]*scale}\">\n".encode())
+            dx, dy, dz = self.element_size[0, 1, 2]*scale
+            file.write(f" Spacing=\"{dx} {dy} {dz}\">\n".encode())
 
             # Start new piece
             file.write(f"<Piece Extent=\"0 {self.nelx} 0 {self.nely} 0 {self.nelz}\">\n".encode())
@@ -291,9 +297,13 @@ class DomainDefinition:
                             vec_pad[1::3] = vec_to_write[1::2]
                             vec_to_write = vec_pad
 
-                        file.write(f'<DataArray type=\"Float32\" Name=\"{vecname}\" NumberOfComponents=\"{3 if pad_to_vector else ncomponents}\" format=\"binary\">\n'.encode())
+                        file.write(f'<DataArray type=\"Float32\" '
+                                   f'Name=\"{vecname}\" '
+                                   f'NumberOfComponents=\"{3 if pad_to_vector else ncomponents}\" '
+                                   f'format=\"binary\">\n'.encode())
                         enc_data = base64.b64encode(vec_to_write)  # Encode the data
-                        enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))  # Get the length of encoded data block
+                        # Get the length of encoded data block
+                        enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))
                         file.write(enc_len)  # Write length
                         file.write(enc_data)  # Write data
                         file.write(b'\n</DataArray>\n')
@@ -318,9 +328,13 @@ class DomainDefinition:
                         else:
                             vec_to_write = vec.astype(np.float32)
 
-                        file.write(f'<DataArray type=\"Float32\" Name=\"{vecname}\" NumberOfComponents=\"{ncomponents}\" format=\"binary\">\n'.encode())
+                        file.write(f'<DataArray type=\"Float32\" '
+                                   f'Name=\"{vecname}\" '
+                                   f'NumberOfComponents=\"{ncomponents}\" '
+                                   f'format=\"binary\">\n'.encode())
                         enc_data = base64.b64encode(vec_to_write)  # Encode the data
-                        enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))  # Get the length of encoded data block
+                        # Get the length of encoded data block
+                        enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))
                         file.write(enc_len)  # Write length
                         file.write(enc_data)  # Write data
                         file.write(b'\n</DataArray>\n')

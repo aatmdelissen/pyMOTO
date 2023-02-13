@@ -17,7 +17,7 @@ from pymoto import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardi
 
 
 class Inverse(Module):
-    """ Calculate the inverse of a matrix :math:`\mathbf{B} = \mathbf{A}^{-1}`
+    r""" Calculate the inverse of a matrix :math:`\mathbf{B} = \mathbf{A}^{-1}`
 
     Input Signal:
       - ``A`` (`np.ndarray`): Dense matrix:math:`\mathbf{A}`
@@ -35,7 +35,9 @@ class Inverse(Module):
         return dA if np.iscomplexobj(A) else np.real(dA)
 
 
-def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertriangular=None, ishermitian=None, issymmetric=None, ispositivedefinite=None):
+# flake8: noqa: C901
+def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertriangular=None,
+                          ishermitian=None, issymmetric=None, ispositivedefinite=None):
     """
     Uses parts of Matlab's scheme https://nl.mathworks.com/help/matlab/ref/mldivide.html
     :param A: The matrix
@@ -68,16 +70,19 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
     if islowertriangular is None:  # Check if matrix is lower triangular
         islowertriangular = False if issparse else np.allclose(A, np.tril(A))
     if islowertriangular:
-        warnings.WarningMessage("Lower triangular solver not implemented", UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
+        warnings.WarningMessage("Lower triangular solver not implemented",
+                                UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
 
     if isuppertriangular is None:  # Check if matrix is upper triangular
         isuppertriangular = False if issparse else np.allclose(A, np.triu(A))
     if isuppertriangular:
-        warnings.WarningMessage("Upper triangular solver not implemented", UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
+        warnings.WarningMessage("Upper triangular solver not implemented",
+                                UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
 
     ispermutedtriangular = False
     if ispermutedtriangular:
-        warnings.WarningMessage("Permuted triangular solver not implemented", UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
+        warnings.WarningMessage("Permuted triangular solver not implemented",
+                                UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
 
     # Check if the matrix is complex-valued
     iscomplex = np.iscomplexobj(A)
@@ -130,7 +135,7 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
 
 
 class LinSolve(Module):
-    """ Solves linear system of equations :math:`\mathbf{A}\mathbf{x}=\mathbf{b}`
+    r""" Solves linear system of equations :math:`\mathbf{A}\mathbf{x}=\mathbf{b}`
 
     Self-adjointness is automatically detected using :class:`LDAWrapper`.
 
@@ -207,12 +212,12 @@ class LinSolve(Module):
 
 
 class EigenSolve(Module):
-    """ Solves the (generalized) eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{B} \mathbf{q}_i`
+    r""" Solves the (generalized) eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{B} \mathbf{q}_i`
 
     Solves the eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{q}_i` with normalization
-    :math:`\mathbf{q}_i^\\text{T} \mathbf{q}_i = 1` or
+    :math:`\mathbf{q}_i^\text{T} \mathbf{q}_i = 1` or
     the generalized eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{B} \mathbf{q}_i`
-    with normalization :math:`\mathbf{q}_i^\\text{T} \mathbf{B} \mathbf{q}_i = 1` (:math:`\mathbf{B}` must be positive
+    with normalization :math:`\mathbf{q}_i^\text{T} \mathbf{B} \mathbf{q}_i = 1` (:math:`\mathbf{B}` must be positive
     definite). The eigenvectors are returned as a dense matrix ``Q``, where eigenvector ``Q[:, i]`` belongs to
     eigenvalue ``λ[i]``.
 
@@ -238,7 +243,7 @@ class EigenSolve(Module):
           (default = ``numpy.argsort``)
         hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
     """
-    def _prepare(self, sorting_func=lambda W,Q: np.argsort(W), hermitian=None):
+    def _prepare(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None):
         self.sorting_fn = sorting_func
         self.is_hermitian = hermitian
 
@@ -255,8 +260,8 @@ class EigenSolve(Module):
             qi *= np.sign(np.real(qi[0]))
             Bqi = qi if B is None else B@qi
             qi /= np.sqrt(qi@Bqi)
-            assert(abs(qi@(qi if B is None else B@qi) - 1.0) < 1e-5)
-            assert(np.linalg.norm(A@qi - wi*(qi if B is None else B@qi)) < 1e-5)
+            assert (abs(qi@(qi if B is None else B@qi) - 1.0) < 1e-5)
+            assert (np.linalg.norm(A@qi - wi*(qi if B is None else B@qi)) < 1e-5)
         return W, Q
 
     def _sensitivity(self, dW, dQ):
