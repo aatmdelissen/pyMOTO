@@ -438,7 +438,7 @@ class TestDyadCarrier(unittest.TestCase):
 
         a = pym.DyadCarrier([u1, u2], [v1, v2])
         diag = np.random.rand(1, n)
-        S = spsp.spdiags(diag, 0)
+        S = spsp.spdiags(diag, 0, m=diag.size, n=diag.size)  # Size must be given for scipy==1.7
 
         self.assertAlmostEqual(a.contract(S), np.sum(u1 * diag * v1 + u2 * diag * v2), delta=1e-10)
 
@@ -452,7 +452,7 @@ class TestDyadCarrier(unittest.TestCase):
 
         a = pym.DyadCarrier([u1, u2], [v1, v2])
         diag = np.random.rand(1, n - 2)
-        S = spsp.spdiags(diag, 0)
+        S = spsp.spdiags(diag, 0, m=diag.size, n=diag.size)
 
         self.assertAlmostEqual(a.contract(S, rows=np.arange(8), cols=np.arange(8)),
                                np.sum(u1[:8] * diag * v1[:8] + u2[:8] * diag * v2[:8]), delta=1e-10)
