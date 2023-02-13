@@ -16,7 +16,7 @@ setup(
       url='https://github.com/aatmdelissen/pyMOTO',
       packages=['pymoto'],
       package_data={'pymoto': ['*', 'common/*', 'modules/*']},
-      install_requires=['numpy', 'sympy', 'scipy', 'matplotlib'],
+      install_requires=['numpy', 'sympy', 'scipy>=1.7', 'matplotlib'],
       classifiers=[
             "Programming Language :: Python :: 3",
             "Operating System :: OS Independent",
