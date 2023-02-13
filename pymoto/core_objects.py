@@ -495,49 +495,6 @@ class Module(ABC, RegisteredClass):
         pass
 
 
-try:  # AutoDiff module
-    import jax
-    import numpy as np
-
-    class AutoMod(Module):
-        """ Module that automatically differentiates the response function """
-        def response(self):
-            # Calculate the response and tangent operator (JAX Vector-Jacobian product)
-            y, self.vjp_fn = jax.vjp(self._response, *[s.state for s in self.sig_in])
-            y = _parse_to_list(y)
-
-            # Assign all the states
-            for i, s in enumerate(self.sig_out):
-                s.state = y[i]
-
-        def sensitivity(self):
-            # Gather the output sensitivities
-            dfdv = [s.sensitivity for s in self.sig_out]
-            if np.all([df is None for df in dfdv]):
-                return
-            for i in range(len(dfdv)):
-                if dfdv[i] is None:  # JAX does not accept None as 0
-                    dfdv[i] = np.zeros_like(self.sig_out[i].state)
-                elif np.iscomplexobj(dfdv[i]):
-                    dfdv[i] = np.conj(dfdv[i])
-            dfdv = tuple(dfdv) if len(dfdv) > 1 else dfdv[0]
-
-            # Calculate backward sensitivity
-            dfdx = _parse_to_list(self.vjp_fn(dfdv))
-
-            # Assign the sensitivities
-            for i, s in enumerate(self.sig_in):
-                if np.iscomplexobj(dfdx[i]):
-                    s.add_sensitivity(np.conj(dfdx[i]))
-                else:
-                    s.add_sensitivity(dfdx[i])
-except ImportError:
-    class AutoMod(Module):
-        def __init__(self):
-            super().__init__()
-            raise ImportError("Could not create this object, as it is dependent on the Python library \"jax\"")
-
-
 class Network(Module):
     """ Binds multiple Modules together as one Module
 
