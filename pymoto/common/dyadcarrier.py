@@ -187,8 +187,8 @@ class DyadCarrier(object):
             raise NotImplementedError('adding a nonzero scalar from a '
                                       'dyadcarrier is not supported')
         elif isdyad(other):
-            if other.shape != self.shape:
-                raise ValueError("Inconsistent shapes")
+            if other.shape != self.shape and (self.size > 0 and other.size > 0):
+                raise ValueError(f"Inconsistent shapes {self.shape} and {other.shape}")
             return DyadCarrier(self.u, self.v).__iadd__(other)
         elif isdense(other):
             other = np.broadcast_to(other, self.shape)
