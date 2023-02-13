@@ -101,7 +101,7 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
 
     if issparse:
         # Prefer Intel Pardiso solver as it can solve any matrix TODO: Check for complex matrix
-        if SolverSparsePardiso.defined:
+        if SolverSparsePardiso.defined and not iscomplex:
             # TODO check for positive definiteness?  np.alltrue(A.diagonal() > 0) or np.alltrue(A.diagonal() < 0)
             return SolverSparsePardiso(symmetric=issymmetric, hermitian=ishermitian, positive_definite=ispositivedefinite)
 
@@ -115,7 +115,7 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
 
         return SolverSparseLU()  # Default to LU, which should be possible for any non-singular square matrix
 
-    else:  # Dense
+    else:  # Dense branch
         if ishermitian:
             # Check if diagonal is all positive or all negative
             if np.alltrue(A.diagonal() > 0) or np.alltrue(A.diagonal() < 0):
@@ -146,7 +146,12 @@ class LinSolve(Module):
         hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
         symmetric: Flag to omit the automatic detection for symmetric matrix, saves some work for large matrices
         solver: Manually override the LinearSolver used, instead of the the solver from :func:`auto_determine_solver`
+
+    Attributes:
+        use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
     """
+    use_lda_solver = True
+
     def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None):
         self.dep_tol = dep_tol
         self.ishermitian = hermitian
@@ -161,14 +166,16 @@ class LinSolve(Module):
             self.ishermitian = self.issymmetric
         if self.ishermitian is None:
             self.ishermitian = matrix_is_hermitian(mat)
+        if self.issparse and not self.iscomplex and np.iscomplexobj(rhs):
+            raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported")
 
         # Determine the solver we want to use
         if self.solver is None:
             self.solver = auto_determine_solver(mat, ishermitian=self.ishermitian)
-        if not isinstance(self.solver, LDAWrapper):
-            self.solver = LDAWrapper(self.solver)
+        if not isinstance(self.solver, LDAWrapper) and self.use_lda_solver:
+            self.solver = LDAWrapper(self.solver, hermitian=self.ishermitian, symmetric=self.issymmetric)
 
-        # Do factorication
+        # Update solver with new matrix
         self.solver.update(mat)
 
         # Solution
@@ -178,19 +185,19 @@ class LinSolve(Module):
 
     def _sensitivity(self, dfdv):
         mat, rhs = [s.state for s in self.sig_in]
-        lam = self.solver.adjoint(dfdv)
+        lam = self.solver.adjoint(dfdv.conj()).conj()
 
         if self.issparse:
             if not self.iscomplex and (np.iscomplexobj(self.u) or np.iscomplexobj(lam)):
-                warnings.warn("This one has not been checked yet!")  # TODO
+                raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported")  # TODO
                 dmat = DyadCarrier([-np.real(lam), -np.imag(lam)], [np.real(self.u), np.imag(self.u)])
             else:
                 dmat = DyadCarrier(-lam, self.u)
         else:
             if self.u.ndim > 1:
-                dmat = np.einsum("iB,jB->ij", -lam, np.conj(self.u))
+                dmat = np.einsum("iB,jB->ij", -lam, self.u, optimize=True)
             else:
-                dmat = np.outer(-lam, np.conj(self.u))
+                dmat = np.outer(-lam, self.u)
             if not self.iscomplex:
                 dmat = np.real(dmat)
 
