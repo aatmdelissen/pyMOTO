@@ -1,6 +1,8 @@
 from typing import Union, Iterable
 import warnings
 import numpy as np
+from numpy.typing import NDArray
+from scipy.sparse import spmatrix
 from ..utils import _parse_to_list
 try:  # Import fast optimized einsum
     from opt_einsum import contract as einsum
@@ -64,7 +66,7 @@ class DyadCarrier(object):
         else:
             return self.ulen * self.vlen
 
-    def add_dyad(self, u: Iterable, v: Iterable = None, fac: Union[float, None] = None):
+    def add_dyad(self, u: Iterable, v: Iterable = None, fac: float = None):
         """ Adds a list of vectors to the dyad carrier
 
         Checks for conforming sizes of `u` and `v`. The data inside the vectors are copied.
@@ -240,7 +242,7 @@ class DyadCarrier(object):
         """ Returns a deep copy of the imaginary part of the DyadCarrier """
         return DyadCarrier([*[u.real for u in self.u], *[u.imag for u in self.u]], [*[v.imag for v in self.v], *[v.real for v in self.v]])
 
-    def contract(self, mat = None, rows: np.ndarray = None, cols: np.ndarray = None):
+    def contract(self, mat: Union[NDArray, spmatrix] = None, rows: NDArray[int] = None, cols: NDArray[int] = None):
         """ Performs a number of contraction operations using the DyadCarrier
 
         Calculates the result(s) of the quadratic form:
@@ -386,7 +388,7 @@ class DyadCarrier(object):
         """ Check if the DyadCarrier is of complex type """
         return np.iscomplexobj(np.array([], dtype=self.dtype))
 
-    def diagonal(self, k=0):
+    def diagonal(self, k: int = 0):
         """ Returns the diagonal of the DyadCarrier matrix """
         if (self.shape[0] == 0) or (self.shape[1] == 0):
             return np.zeros(0, dtype=self.dtype)
