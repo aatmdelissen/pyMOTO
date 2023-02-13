@@ -1,8 +1,8 @@
-'numpy'
-'sympy'
-'scipy>=1.7'
-'matplotlib'
-'cvxopt'
-'scikit-sparse'
-'pypardiso'
-'jax[cpu]'
+numpy
+sympy
+scipy>=1.7
+matplotlib
+cvxopt
+scikit-sparse
+pypardiso
+jax[cpu]
