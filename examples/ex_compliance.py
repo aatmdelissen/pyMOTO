@@ -2,7 +2,7 @@
 import pymoto as pym
 import numpy as np
 
-nx, ny, nz = 10, 10, 10  # Set nz to zero for the 2D problem
+nx, ny, nz = 10, 10, 0  # Set nz to zero for the 2D problem
 xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5
@@ -59,7 +59,7 @@ if __name__ == "__main__":
             ndof = 2
 
     else:
-        domain = pym.DomainDefinition(nx, ny, ny)
+        domain = pym.DomainDefinition(nx, ny, nz)
 
         if thermal:
             raise RuntimeError("Thermal only defined in 2D!")  # TODO
