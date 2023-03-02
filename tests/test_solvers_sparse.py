@@ -72,6 +72,19 @@ def generate_dynamic(complex=False, indef=False):
     return Ks.tocoo()
 
 
+def generate_saddlepoint():
+    K = load_matrix("bcsstk26.mtx.gz")
+    M = load_matrix("bcsstm26.mtx.gz")
+    solver = pym.SolverSparseLU().update(K.tocsc())
+    opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=solver.adjoint)
+    w, V = spspla.eigsh(K, M=M, sigma=0, k=100, OPinv=opinv, ncv=200)
+    wi, vi = w[0], V[:, [0]]
+    Mv = M@vi
+
+    return spsp.bmat([[K-wi*M, -Mv],
+                      [-Mv.T, None]]).tocoo()
+
+
 """ Perpare the set of matrices we want to test """
 # Real-valued matrices
 mat_real_spdiag = spsp.spdiags(np.random.rand(100), 0, 100, 100)  # Diagonal (spdiag format)
@@ -80,6 +93,7 @@ mat_real_symm_pos_def = load_matrix("bcsstk14.mtx.gz")  # Symmetric positive def
 mat_real_symm_pos_def_dynamic = generate_dynamic(complex=False, indef=False)  # Symmetric positive definite
 mat_real_symm_indef = generate_symm_indef()  # Symmetric indefinite
 mat_real_symm_indef_dynamic = generate_dynamic(complex=False, indef=True)  # Symmetric indefinite
+mat_real_symm_saddle = generate_saddlepoint()  # Indefinite saddlepoinnt
 mat_real_asymm = load_matrix("impcol_a.mtx.gz")  # Asymmetric
 
 # Complex-valued matrices
@@ -338,6 +352,7 @@ class TestSparseLU(GenericTestSolvers):
         mat_real_symm_indef,
         mat_real_symm_indef_dynamic,
         mat_real_asymm,
+        mat_real_symm_saddle,
         mat_complex_diagonal,
         mat_complex_spdiag,
         mat_complex_symm_pos_def_dynamic,
@@ -383,6 +398,7 @@ class TestPardiso(GenericTestSolvers):
         mat_real_symm_pos_def_dynamic,
         mat_real_symm_indef,
         mat_real_symm_indef_dynamic,
+        mat_real_symm_saddle,
         mat_real_asymm,
         # mat_complex_diagonal, # PyPardiso does not work for complex matrix yet
         # mat_complex_spdiag,
