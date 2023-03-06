@@ -38,6 +38,9 @@ class _FigModule(Module):
         super().__init__(*args, **kwargs)
 
     def _update_fig(self):
+        if self.iter == 0 and self.show:
+            plt.show(block=False)
+
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
@@ -45,9 +48,6 @@ class _FigModule(Module):
             filen = "{0:s}{1:s}".format(self.saveloc, self.saveext) if self.overwrite else \
                 "{0:s}_{1:04d}{2:s}".format(self.saveloc, self.iter, self.saveext)
             self.fig.savefig(filen)
-
-        if self.iter == 0 and self.show:
-            plt.show(block=False)
 
         self.iter += 1
 
