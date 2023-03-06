@@ -263,7 +263,7 @@ class DomainDefinition:
             file.write(f" Origin=\"{origin[0]*scale} {origin[1]*scale} {origin[2]*scale}\"".encode())
 
             # Spacing of points (dx, dy, dz)
-            dx, dy, dz = self.element_size[0, 1, 2]*scale
+            dx, dy, dz = self.element_size[[0, 1, 2]]*scale
             file.write(f" Spacing=\"{dx} {dy} {dz}\">\n".encode())
 
             # Start new piece
