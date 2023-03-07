@@ -271,7 +271,7 @@ def obtain_sensitivities(signals: Iterable[Signal]) -> List:
 
 def minimize_oc(function, variables, objective: Signal,
                 tolx=1e-4, tolf=1e-4, maxit=100, xmin=0.0, xmax=1.0, move=0.2,
-                l1init=0, l2init=100000, l1l2tol=1e-4):
+                l1init=0, l2init=100000, l1l2tol=1e-4, maxvol=None):
     """ Execute minimization using the OC-method
 
     Args:
@@ -292,13 +292,17 @@ def minimize_oc(function, variables, objective: Signal,
     """
     xval, cumlens = _concatenate_to_array([s.state for s in variables])
 
-    maxvol = np.sum(xval)
+    if maxvol is None:
+        maxvol = np.sum(xval)
+
     f = 0.0
     for it in range(maxit):
         # Calculate response
         function.response()
         fprev, f = f, objective.state
-        if abs(f-fprev)/abs(f) < tolf:
+        rel_fchange = abs(f-fprev)/abs(f)
+        if rel_fchange < tolf:
+            print(f"OC converged: Relative function change |Δf|/|f| ({rel_fchange}) below tolerance ({tolf})")
             break
 
         print("It. {0: 4d}, f0 = {1: .2e}, Δf = {2: .2e}".format(it, f, f-fprev))
@@ -317,7 +321,9 @@ def minimize_oc(function, variables, objective: Signal,
             l1, l2 = (lmid, l2) if np.sum(xnew) - maxvol > 0 else (l1, lmid)
 
         # Stopping criteria on step size
-        if (np.linalg.norm(xval - xnew)/np.linalg.norm(xval)) < tolx:
+        rel_stepsize = np.linalg.norm(xval - xnew)/np.linalg.norm(xval)
+        if rel_stepsize < tolx:
+            print(f"OC converged: Relative stepsize |Δx|/|x| ({rel_stepsize}) below tolerance ({tolx})")
             break
 
         xval = xnew
