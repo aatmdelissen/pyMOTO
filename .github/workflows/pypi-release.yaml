@@ -1,11 +1,6 @@
 name: PyPI release
 
-on:
-  push:
-    branches:
-      - master
-    tags:
-      - 'v*'
+on: [push, workflow_dispatch]
 
 jobs:
   tests:

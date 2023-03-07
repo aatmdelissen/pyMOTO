@@ -106,7 +106,16 @@ class SolverSparsePardiso(LinearSolver):
             self._mtype = self._determine_mtype(A)
 
         if self._mtype in {-2, 2, 6}:
-            A = sps.triu(A, format='csr')  # Only use upper part
+            A = sps.triu(A, format='coo')  # Only use upper part
+            # Explicitly set zero diagonal entries, as this is better for Intel Pardiso
+            zero_diag_entries, = np.where(A.diagonal() == 0)
+            if len(zero_diag_entries) > 0:
+                A.row = np.append(A.row, zero_diag_entries)
+                A.col = np.append(A.col, zero_diag_entries)
+                A.data = np.append(A.data, np.zeros_like(zero_diag_entries))
+            A = A.tocsr()
+            # assert(np.diff(A.indptr).all())  # Every row must be non-empty
+            # assert(max(np.diff(A.indices[A.indptr[:-1]])))  # All diagonals must be non-empty
         if not sps.isspmatrix_csr(A):
             warnings.warn(f'PyPardiso requires CSR matrix format, not {type(A).__name__}', SparseEfficiencyWarning)
             A = A.tocsr()
