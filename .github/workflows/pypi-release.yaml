@@ -28,6 +28,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
-          user: __token__
+          user: ${{ sectrets.TEST_PYPI_USER }}
           password: ${{ secrets.TEST_PYPI_TOKEN }}
           repository_url: https://test.pypi.org/legacy/
