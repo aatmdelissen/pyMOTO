@@ -39,35 +39,19 @@ A local installation for development in `pyMOTO` can be done by first downloadin
 * **SymPy** - Symbolic differentiation for `MathGeneral` module
 * **Matplotlib** - Plotting and visualisation
 * (optional) **SAO** - Sequential approximated optimizers
-* (optional) **opt_einsum** - Optimized function for `EinSum` module
+* (optional) [**opt_einsum**](https://optimized-einsum.readthedocs.io/en/stable/install.html) - Optimized function for `EinSum` module
 
 For fast linear solvers for sparse matrices:
-* (optional) **scikit-umfpack** - Fast LU linear solver based on UMFPACK
-* (optional) **sksparse** - Fast Cholesky solver based on CHOLMOD
-* (optional) **CVXopt** - Another fast Cholesky solver based on CHOLMOD
-* (optional) **Intel OneAPI** - Non-python library with a fast PARDISO solver
+* (optional) [**pypardiso**](https://github.com/haasad/PyPardisoProject) - Uses the Intel OneAPI PARDISO solver (recommended)
+* (optional) [**scikit-umfpack**](https://scikit-umfpack.github.io/scikit-umfpack/install.html) - Fast LU linear solver based on UMFPACK
+* (optional) [**scikit-sparse**](https://github.com/scikit-sparse/scikit-sparse) - Fast Cholesky solver based on CHOLMOD
+* (optional) [**cvxopt**](https://cvxopt.org/install/index.html) - Another fast Cholesky solver based on CHOLMOD
 
 __Note on linear solvers for sparse matrices:__ Scipy implements a version of LU which is quite slow. To increase the 
-speed of the optimization, `Intel OneAPI` is recommended as it contains a very robust and flexible solver for symmetric 
+speed of the optimization, `pypardiso` is recommended as it contains a very robust and flexible solver for symmetric 
 and asymmetric matrices. An alternative is `scikit-umfpack` which provides a fast LU factorization. For symmetric 
 matrices a Cholesky factorization is recommended (not provided with Scipy), which can be used by either installing 
-`sksparse` or `cvxopt`.
-
-
-## How to make Python fast with Intel OneAPI
-Intel provides a toolkit with many fast math operations and solvers called OneAPI (basekit). 
-It can easily be installed on Linux by for instance following the steps described in https://www.intel.com/content/www/us/en/develop/documentation/installation-guide-for-intel-oneapi-toolkits-linux/top/installation/install-using-package-managers/apt.html
-For other OSes installation can be found in https://www.intel.com/content/www/us/en/developer/articles/guide/installation-guide-for-oneapi-toolkits.html
-
-The nice thing about OneAPI is that it also includes an optimized version of Python. To use it follow the next steps (Linux)
-
-1. `source <intel install location>/intel/oneapi/setvars.sh` (usually installed in `/opt/intel` or `/opt/ud/intel`). This loads the Intel OneAPI package.
-2. `conda create --name <venv_name> --clone base` to create a new conda virtual environment to work in.
-3. `conda activate <venv_name>` to activate the virtual environment.
-
-### Usage of multi-thread linear solvers
-Intel has a Pardiso type linear solver for fast solution of large systems.
-To use it.....
+`scikit-sparse` or `cvxopt`.
 
 # License
 pyMOTO is available under te [MIT License](https://opensource.org/licenses/MIT).
