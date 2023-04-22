@@ -9,6 +9,7 @@ from inspect import currentframe, getframeinfo
 from pymoto import Module, DyadCarrier, LDAWrapper
 import numpy as np
 import scipy.sparse as sps
+import scipy.sparse.linalg as spsla
 import scipy.linalg as spla  # Dense matrix solvers
 
 from pymoto import SolverDenseLU, SolverDenseLDL, SolverDenseCholesky, SolverDiagonal, SolverDenseQR
@@ -242,22 +243,34 @@ class EigenSolve(Module):
         sorting_func: Sorting function to sort the eigenvalues, which must have signature ``func(λ,Q)``
           (default = ``numpy.argsort``)
         hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
+        nmodes: Number of modes to calculate (only for sparse matrices, default = ``0``)
+        sigma: Shift value for the eigenvalue problem (only for sparse matrices). Eigenvalues around the shift are
+          calculated first (default = ``0.0``)
     """
-    def _prepare(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None):
+    def _prepare(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None, nmodes=None, sigma=None):
         self.sorting_fn = sorting_func
         self.is_hermitian = hermitian
+        self.nmodes = nmodes
+        self.sigma = sigma
+        self.Ainv = None
+
 
     def _response(self, A, *args):
         B = args[0] if len(args) > 0 else None
         if self.is_hermitian is None:
             self.is_hermitian = (matrix_is_hermitian(A) and (B is None or matrix_is_hermitian(B)))
-        W, Q = spla.eigh(A, b=B) if self.is_hermitian else spla.eig(A, b=B)
+        self.is_sparse = sps.issparse(A) and (B is None or sps.issparse(B))
+        if self.is_sparse:
+            W, Q = self._sparse_eigs(A, B=B)
+        else:
+            W, Q = spla.eigh(A, b=B) if self.is_hermitian else spla.eig(A, b=B)
+
         isort = self.sorting_fn(W, Q)
         W = W[isort]
         Q = Q[:, isort]
         for i in range(W.size):
             qi, wi = Q[:, i], W[i]
-            qi *= np.sign(np.real(qi[0]))
+            qi *= np.sign(np.real(qi[np.argmax(abs(qi)>0)]))
             Bqi = qi if B is None else B@qi
             qi /= np.sqrt(qi@Bqi)
             assert (abs(qi@(qi if B is None else B@qi) - 1.0) < 1e-5)
@@ -267,6 +280,49 @@ class EigenSolve(Module):
     def _sensitivity(self, dW, dQ):
         A = self.sig_in[0].state
         B = self.sig_in[1].state if len(self.sig_in) > 1 else np.eye(*A.shape)
+        dA, dB = None, None
+        if not self.is_sparse:
+            dA, dB = self._dense_sens(A, B, dW, dQ)
+        else:
+            if dQ is not None:
+                raise NotImplementedError('Sparse eigenvector sensitivities not implemented')
+            elif dW is not None:
+                dA, dB = self._sparse_eigval_sens(A, B, dW)
+
+        if len(self.sig_in) == 1:
+            return dA
+        elif len(self.sig_in) == 2:
+            return dA, dB
+
+
+    def _sparse_eigs(self, A, B=None):
+        if self.nmodes is None:
+            self.nmodes = 6
+        if self.sigma is None:
+            self.sigma = 0.0
+
+        if self.sigma == 0.0:  # No shift
+            mat_shifted = A
+        else:
+            if B is None:  # If no B is given, use identity to shift
+                B = sps.eye(*A.shape)
+            mat_shifted = A - self.sigma * B
+
+        # Use shift-and-invert, so make inverse operator
+        if self.Ainv is None:
+            self.Ainv = auto_determine_solver(mat_shifted, ishermitian=self.is_hermitian)
+        self.Ainv.update(mat_shifted)
+
+        AinvOp = spsla.LinearOperator(mat_shifted.shape, matvec=self.Ainv.solve, rmatvec=self.Ainv.adjoint)
+
+        if self.is_hermitian:
+            return spsla.eigsh(A, M=B, k=self.nmodes, OPinv=AinvOp, sigma=self.sigma)
+        else:
+            # TODO
+            raise NotImplementedError('Non-Hermitian sparse matrix not supported')
+
+    def _dense_sens(self, A, B, dW, dQ):
+        """ Calculates all (eigenvector and eigenvalue) sensitivities for dense matrix """
         dA = np.zeros_like(A)
         dB = np.zeros_like(B) if len(self.sig_in) > 1 else None
         W, Q = [s.state for s in self.sig_out]
@@ -281,17 +337,39 @@ class EigenSolve(Module):
                 continue
             qi, wi = Q[:, i], W[i]
 
-            P = np.block([[(A - wi*B).T, -((B + B.T)/2)@qi[..., np.newaxis]], [-B@qi.T, 0]])
+            P = np.block([[(A - wi * B).T, -((B + B.T) / 2) @ qi[..., np.newaxis]], [-B @ qi.T, 0]])
             adj = np.linalg.solve(P, np.block([dqi, dwi]))  # Adjoint solve Lee(1999)
             nu = adj[:-1]
             alpha = adj[-1]
             dAi = np.outer(-nu, qi)
             dA += dAi if np.iscomplexobj(A) else np.real(dAi)
             if dB is not None:
-                dBi = np.outer(wi*nu + alpha/2*qi, qi)
+                dBi = np.outer(wi * nu + alpha / 2 * qi, qi)
                 dB += dBi if np.iscomplexobj(B) else np.real(dBi)
+        return dA, dB
 
-        if len(self.sig_in) == 1:
-            return dA
-        elif len(self.sig_in) == 2:
-            return dA, dB
+    def _sparse_eigval_sens(self, A, B, dW):
+        if dW is None:
+            return None, None
+        W, Q = [s.state for s in self.sig_out]
+        dA, dB = DyadCarrier(), None if B is None else DyadCarrier()
+        for i in range(W.size):
+            wi, dwi = W[i], dW[i]
+            if dwi == 0:
+                continue
+            qi = Q[:, i]
+            qmq = qi@qi if B is None else qi @ (B @ qi)
+            dA_u = (dwi/qmq) * qi
+            if np.isrealobj(A):
+                dA += DyadCarrier([np.real(dA_u), -np.imag(dA_u)], [np.real(qi), np.imag(qi)])
+            else:
+                dA += DyadCarrier(dA_u, qi)
+
+            if dB is not None:
+                dB_u = (wi*dwi/qmq) * qi
+                if np.isrealobj(B):
+                    dB -= DyadCarrier([np.real(dB_u), -np.imag(dB_u)], [np.real(qi), np.imag(qi)])
+                else:
+                    dB -= DyadCarrier(dB_u, qi)
+        return dA, dB
+
