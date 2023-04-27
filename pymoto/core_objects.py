@@ -218,7 +218,7 @@ class SignalConcat(Signal):
       cannot be updated when sliced, as it makes a new array rather than referencing the original data.
     """
     def __init__(self, *orig_signals, tag=None):
-        self.orig_signals = _parse_to_list(orig_signals)
+        self.orig_signals = _parse_to_list(*orig_signals)
         if tag is None:
             tag = f"[{', '.join([s.tag for s in self.orig_signals])}]"
         self.tag = tag
