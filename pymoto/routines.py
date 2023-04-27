@@ -318,7 +318,8 @@ def minimize_oc(function, variables, objective: Signal,
         objective.sensitivity = 1.0
         function.sensitivity()
         dfdx, _ = _concatenate_to_array(obtain_sensitivities(variables))
-        if (maxdfdx := max(dfdx)) > 0:
+        maxdfdx = max(dfdx)
+        if maxdfdx > 0:
             raise RuntimeError(f"OC only works for negative sensitivities: max(dfdx) = {maxdfdx}")
 
         # Do OC update
