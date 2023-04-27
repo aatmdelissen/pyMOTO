@@ -1,6 +1,6 @@
 __version__ = '1.0.1'
 
-from .core_objects import Signal, Module, Network, make_signals
+from .core_objects import Signal, Module, Network, SignalConcat, make_signals
 from .routines import finite_difference, minimize_oc, minimize_mma
 
 # Imports from common
@@ -21,7 +21,7 @@ from .modules.complex import MakeComplex, RealPart, ImagPart, ComplexNorm
 from .modules.autodiff import AutoMod
 
 __all__ = [
-    'Signal', 'Module', 'Network', 'make_signals',
+    'Signal', 'Module', 'Network', 'SignalConcat', 'make_signals',
     'finite_difference', 'minimize_oc', 'minimize_mma',
     # Common
     'DyadCarrier',

@@ -2,7 +2,7 @@ from typing import Union, List, Any
 import warnings
 import inspect
 import time
-from .utils import _parse_to_list
+from .utils import _parse_to_list, _concatenate_to_array, _split_from_array
 from abc import ABC, abstractmethod
 
 
@@ -145,7 +145,13 @@ class Signal:
 
 
 class SignalSlice(Signal):
+    """ Slice operator for a Signal
+    The sliced values are referenced to their original source Signal, such that they can be used and updated in modules.
+    This means that updating the values in this SignalSlice changes the data in its source Signal.
+    """
     def __init__(self, orig_signal, sl, tag=None):
+        if isinstance(orig_signal, SignalConcat):
+            raise TypeError("SignalConcat cannot be sliced")
         self.orig_signal = orig_signal
         self.slice = sl
         self.keep_alloc = True  # This parameter probably doesn't matter
@@ -165,7 +171,7 @@ class SignalSlice(Signal):
             return None if self.orig_signal.state is None else self.orig_signal.state[self.slice]
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
-            raise type(e)("Get state - " + e.args[0] + self._err_str(), *e.args[1:]) from None
+            raise type(e)("SignalSlice.state (getter)" + self._err_str()) from e
 
     @state.setter
     def state(self, new_state):
@@ -173,7 +179,7 @@ class SignalSlice(Signal):
             self.orig_signal.state[self.slice] = new_state
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
-            raise type(e)("Set state - " + e.args[0] + self._err_str(), *e.args[1:]) from None
+            raise type(e)("SignalSlice.state (setter)" + self._err_str()) from e
 
     @property
     def sensitivity(self):
@@ -181,29 +187,120 @@ class SignalSlice(Signal):
             return None if self.orig_signal.sensitivity is None else self.orig_signal.sensitivity[self.slice]
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
-            raise type(e)("Get sensitivity - " + e.args[0] + self._err_str(), *e.args[1:]) from None
+            raise type(e)("SignalSlice.sensitivity (getter)" + self._err_str()) from e
 
     @sensitivity.setter
     def sensitivity(self, new_sens):
-        if self.orig_signal.sensitivity is None:
-            if new_sens is None:
-                return  # Sensitivity doesn't need to be initialized when it is set to None
-            try:
-                self.orig_signal.sensitivity = self.orig_signal.state*0  # Make a new copy with 0 values
-            except TypeError:
-                if self.orig_signal.state is None:
-                    raise TypeError("Could not initialize sensitivity because state is not set" + self._err_str()) from None
-                else:
-                    raise TypeError(f"Could not initialize sensitivity for type \'{type(self.orig_signal.state).__name__}\'" + self._err_str()) from None
-
-        if new_sens is None:
-            new_sens = 0  # reset() uses this
-
         try:
+            if self.orig_signal.sensitivity is None:
+                if new_sens is None:
+                    return  # Sensitivity doesn't need to be initialized when it is set to None
+                try:
+                    self.orig_signal.sensitivity = self.orig_signal.state * 0  # Make a new copy with 0 values
+                except TypeError:
+                    if self.orig_signal.state is None:
+                        raise TypeError("Could not initialize sensitivity because state is not set" + self._err_str())
+                    else:
+                        raise TypeError(f"Could not initialize sensitivity for type \'{type(self.orig_signal.state).__name__}\'")
+
+            if new_sens is None:
+                new_sens = 0  # reset() uses this
+
             self.orig_signal.sensitivity[self.slice] = new_sens
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
-            raise type(e)("Set sensitivity - " + e.args[0] + self._err_str(), *e.args[1:]) from None
+            raise type(e)("SignalSlice.sensitivity (setter)" + self._err_str()) from e
+
+
+class SignalConcat(Signal):
+    """ Concatenates multiple signals while keeping track of the original Signals
+    Beware: The data in the arrays obtained when using the methods SignalConcat.state and SignalConcat.sensitivity
+      cannot be updated when sliced, as it makes a new array rather than referencing the original data.
+    """
+    def __init__(self, *orig_signals, tag=None):
+        self.orig_signals = _parse_to_list(orig_signals)
+        if tag is None:
+            tag = f"[{', '.join([s.tag for s in self.orig_signals])}]"
+        self.tag = tag
+        self.cumlens = None
+        self.shape = ()
+
+        # Save error string to location where it is initialized
+        self._init_loc = get_init_str()
+        self.keep_alloc = False  # This parameter probably doesn't matter
+
+    @property
+    def state(self):
+        try:
+            state, self.cumlens = _concatenate_to_array([s.state for s in self.orig_signals])
+            self.shape = state.shape
+            return state
+        except Exception as e:
+            raise type(e)("SignalConcat.state (getter)" + self._err_str()) from e
+
+    @state.setter
+    def state(self, new_state):
+        try:
+            if new_state is None:
+                for s in self.orig_signals:
+                    s.state = None
+            else:
+                for s, val in zip(self.orig_signals, _split_from_array(new_state, self.cumlens)):
+                    try:
+                        s.state[...] = val
+                    except TypeError:
+                        s.state = type(s.state)(val)
+            self.shape = new_state.shape
+        except Exception as e:
+            raise type(e)("SignalConcat.state (setter)" + self._err_str()) from e
+
+    @property
+    def sensitivity(self):
+        try:
+            if self.cumlens is None:  # If cumulative lengths are not known, call state to set this up
+                _ = self.state
+            all_none = True
+            sens_list = []
+            for s in self.orig_signals:
+                this_sens = s.sensitivity
+                if this_sens is not None:
+                    all_none = False
+                sens_list.append(this_sens if this_sens is not None else 0 * s.state)
+            if all_none:
+                return None
+            sens, _ = _concatenate_to_array(sens_list)
+            assert sens.shape == self.shape, f"Resulting sensitivity is not conforming in shape {sens.shape}!={self.shape}"
+            return sens
+        except Exception as e:
+            raise type(e)("SignalConcat.sensitivity (getter)", self._err_str()) from e
+
+    @sensitivity.setter
+    def sensitivity(self, new_sens):
+        try:
+            if self.cumlens is None:  # If cumulative lengths are not known, call state to set this up
+                _ = self.state
+            if new_sens is None:
+                for s in self.orig_signals:
+                    s.sensitivity = None
+            else:
+                for s, val in zip(self.orig_signals, _split_from_array(new_sens, self.cumlens)):
+                    if s.sensitivity is None:
+                        try:
+                            s.sensitivity = s.state.copy()
+                        except AttributeError:
+                            s.sensitivity = s.state*0
+
+                    try:
+                        s.sensitivity[...] = val
+                    except TypeError:
+                        s.sensitivity = type(s.state)(val)
+        except Exception as e:
+            # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
+            raise type(e)("SignalConcat.sensitivity (setter)" + self._err_str()) from e
+
+    def reset(self, keep_alloc: bool=None):
+        for s in self.orig_signals:
+            s.reset(keep_alloc)
 
 
 def make_signals(*args):
