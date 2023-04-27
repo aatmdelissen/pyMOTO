@@ -290,6 +290,7 @@ def minimize_oc(function, variables, objective: Signal,
         l2init: OC internal parameter
         l1l2tol: OC internal parameter
     """
+    variables = _parse_to_list(variables)
     xval, cumlens = _concatenate_to_array([s.state for s in variables])
 
     if maxvol is None:
@@ -312,6 +313,8 @@ def minimize_oc(function, variables, objective: Signal,
         objective.sensitivity = 1.0
         function.sensitivity()
         dfdx, _ = _concatenate_to_array(obtain_sensitivities(variables))
+        if (maxdfdx := max(dfdx)) > 0:
+            raise RuntimeError(f"OC only works for negative sensitivities: max(dfdx) = {maxdfdx}")
 
         # Do OC update
         l1, l2 = l1init, l2init
