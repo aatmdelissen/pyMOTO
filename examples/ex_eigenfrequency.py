@@ -1,4 +1,4 @@
-""" Minimal example for a compliance topology optimization """
+""" Minimal example for an eigenfrequency topology optimization """
 import pymoto as pym
 import numpy as np
 
@@ -30,10 +30,12 @@ class VecSet(pym.Module):
     def _prepare(self, indices, value):
         self.indices = indices
         self.value = value
+
     def _response(self, x):
         y = x.copy()
         y[self.indices] = self.value
         return y
+
     def _sensitivity(self, dy):
         dx = dy.copy()
         dx[self.indices] = 0
@@ -64,7 +66,6 @@ class MassInterpolation(pym.Module):
         return self.rhoval*dx*drho
 
 
-
 if __name__ == "__main__":
     print(__doc__)
 
@@ -84,7 +85,7 @@ if __name__ == "__main__":
     else:  # 3D
         domain = pym.DomainDefinition(nx, ny, nz)
 
-        boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny+1), range(ny+1))).flatten()
+        boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny+1), range(nz+1))).flatten()
         boundary_dofs = np.repeat(boundary_nodes * 3, 3, axis=-1) + np.tile(np.arange(3), len(boundary_nodes))
 
         nondesign_area = domain.get_elemnumber(*np.meshgrid(range((3*nx)//4, nx), range(ny//4, (ny*3)//4), range(nz//4, (nz*3)//4))).flatten()
