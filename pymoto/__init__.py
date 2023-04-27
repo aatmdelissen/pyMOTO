@@ -6,6 +6,7 @@ from .routines import finite_difference, minimize_oc, minimize_mma
 # Imports from common
 from .common.dyadcarrier import DyadCarrier
 from .common.domain import DomainDefinition
+from .common.mma import MMA
 from .common.solvers import matrix_is_complex, matrix_is_diagonal, matrix_is_symmetric, matrix_is_hermitian, \
     LinearSolver, LDAWrapper
 from .common.solvers_dense import SolverDiagonal, SolverDenseQR, SolverDenseLU, SolverDenseCholesky, SolverDenseLDL
@@ -24,6 +25,7 @@ __all__ = [
     'Signal', 'Module', 'Network', 'SignalConcat', 'make_signals',
     'finite_difference', 'minimize_oc', 'minimize_mma',
     # Common
+    'MMA',
     'DyadCarrier',
     'DomainDefinition',
     'matrix_is_complex', 'matrix_is_diagonal', 'matrix_is_symmetric', 'matrix_is_hermitian',

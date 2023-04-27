@@ -65,7 +65,6 @@ class MassInterpolation(pym.Module):
 
 
 
-
 if __name__ == "__main__":
     print(__doc__)
 
@@ -149,11 +148,8 @@ if __name__ == "__main__":
 
     func.append(pym.PlotIter([sg0, sg1]))  # Plot iteration history
 
-    # Do the optimization with MMA (requires nlopt package)
-    # pym.minimize_mma(func, [sx], [sg0, sg1])  # TODO does not work correctly for the thermal case
-
-    # Do the optimization with OC
-    pym.minimize_oc(func, [sx], sg0)
+    # Do the optimization with MMA
+    pym.minimize_mma(func, [sx], [sg0, sg1], verbosity=2)
 
     # Here you can do some post processing
     print("The optimization has finished!")

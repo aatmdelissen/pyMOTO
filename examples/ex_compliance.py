@@ -139,7 +139,7 @@ if __name__ == "__main__":
     # pym.minimize_mma(func, [sx], [sg0, sg1])  # TODO does not work correctly for the thermal case
 
     # Do the optimization with OC
-    pym.minimize_oc(func, [sx], sg0)
+    pym.minimize_oc(func, sx, sg0)
 
     # Here you can do some post processing
     print("The optimization has finished!")

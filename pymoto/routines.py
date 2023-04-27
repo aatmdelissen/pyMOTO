@@ -1,6 +1,7 @@
 import numpy as np
 from .utils import _parse_to_list, _concatenate_to_array
-from .core_objects import Signal, Module, Network
+from .core_objects import Signal, SignalConcat, Module, Network
+from .common.mma import MMA
 from typing import List, Iterable, Union, Callable
 
 
@@ -271,7 +272,7 @@ def obtain_sensitivities(signals: Iterable[Signal]) -> List:
 
 def minimize_oc(function, variables, objective: Signal,
                 tolx=1e-4, tolf=1e-4, maxit=100, xmin=0.0, xmax=1.0, move=0.2,
-                l1init=0, l2init=100000, l1l2tol=1e-4, maxvol=None):
+                l1init=0, l2init=100000, l1l2tol=1e-4, maxvol=None, verbosity=2):
     """ Execute minimization using the OC-method
 
     Args:
@@ -289,6 +290,8 @@ def minimize_oc(function, variables, objective: Signal,
         l1init: OC internal parameter
         l2init: OC internal parameter
         l1l2tol: OC internal parameter
+        verbosity: 0 - No prints, 1 - Only convergence message, 2 - Convergence and iteration info
+
     """
     variables = _parse_to_list(variables)
     xval, cumlens = _concatenate_to_array([s.state for s in variables])
@@ -303,10 +306,12 @@ def minimize_oc(function, variables, objective: Signal,
         fprev, f = f, objective.state
         rel_fchange = abs(f-fprev)/abs(f)
         if rel_fchange < tolf:
-            print(f"OC converged: Relative function change |Δf|/|f| ({rel_fchange}) below tolerance ({tolf})")
+            if verbosity >= 1:
+                print(f"OC converged: Relative function change |Δf|/|f| ({rel_fchange}) below tolerance ({tolf})")
             break
 
-        print("It. {0: 4d}, f0 = {1: .2e}, Δf = {2: .2e}".format(it, f, f-fprev))
+        if verbosity >= 2:
+            print("It. {0: 4d}, f0 = {1: .2e}, Δf = {2: .2e}".format(it, f, f-fprev))
 
         # Calculate sensitivity of the objective
         function.reset()
@@ -326,7 +331,8 @@ def minimize_oc(function, variables, objective: Signal,
         # Stopping criteria on step size
         rel_stepsize = np.linalg.norm(xval - xnew)/np.linalg.norm(xval)
         if rel_stepsize < tolx:
-            print(f"OC converged: Relative stepsize |Δx|/|x| ({rel_stepsize}) below tolerance ({tolx})")
+            if verbosity >= 1:
+                print(f"OC converged: Relative stepsize |Δx|/|x| ({rel_stepsize}) below tolerance ({tolx})")
             break
 
         xval = xnew
@@ -335,13 +341,9 @@ def minimize_oc(function, variables, objective: Signal,
             s.state = xnew[cumlens[i]:cumlens[i + 1]]
 
 
-def minimize_mma(function, variables, responses, tolx=1e-4, tolf=1e-4, maxit=1000, xmin=0.0, xmax=1.0):
+def minimize_mma(function, variables, responses, tolx=1e-4, tolf=1e-4, maxit=1000, move=0.1, xmin=0.0, xmax=1.0, verbosity=2):
     """ Execute minimization using the MMA-method
-
-    Uses the ``nlopt`` version of MMA.
-
-    Todo:
-        Improve the MMA implementation as the ``nlopt`` version is not very good
+    Svanberg (1987), The method of moving asymptotes - a new method for structural optimization
 
     Args:
         function: The Network defining the optimization problem
@@ -352,59 +354,12 @@ def minimize_mma(function, variables, responses, tolx=1e-4, tolf=1e-4, maxit=100
         tolx: Stopping criterium for relative design change
         tolf: Stopping criterium for relative objective change
         maxit: Maximum number of iteration
+        move: Move limit on relative variable change per iteration
         xmin: Minimum design variable (can be a vector)
         xmax: Maximum design variable (can be a vector)
+        verbosity: 0 - No prints, 1 - Only convergence message, 2 - Convergence and iteration info, 3 - Extended info
+
     """
     # Save initial state
-    xval, cumlens = _concatenate_to_array([s.state for s in variables])
-    n = len(xval)
-
-    def fi(_, grad, i):
-
-        if grad.size > 0:
-            # Calculate sensitivities
-            function.reset()
-
-            responses[i].sensitivity = 1.0
-
-            function.sensitivity()
-
-            grad[:], _ = _concatenate_to_array(obtain_sensitivities(variables))
-
-        return responses[i].state
-
-    global it
-    it = 0
-
-    # Objective function
-    def f0(x, grad):
-        global it
-        # Set the new states
-        for i, s in enumerate(variables):
-            s.state = x[cumlens[i]:cumlens[i + 1]]
-
-        # Calculate response
-        function.response()
-
-        print("It. {0: 4d}, f0 = {1: .2e}, f1 = {2: .2e}".format(it, responses[0].state, responses[1].state))
-        it += 1
-
-        return fi(x, grad, 0)
-
-    # Create optimization
-    import nlopt
-
-    opt = nlopt.opt(nlopt.LD_MMA, n)
-
-    opt.set_min_objective(f0)
-    for ri in range(1, len(responses)):
-        opt.add_inequality_constraint(lambda x, grad: fi(x, grad, ri))
-
-    opt.set_lower_bounds(np.ones_like(xval) * xmin)
-    opt.set_upper_bounds(np.ones_like(xval) * xmax)
-
-    opt.set_maxeval(maxit)
-    opt.set_xtol_rel(tolx)
-    opt.set_ftol_rel(tolf)
-
-    opt.optimize(xval)
+    mma = MMA(function, variables, responses, tolx=tolx, move=move, maxit=maxit, xmin=xmin, xmax=xmax, verbosity=verbosity)
+    mma.response()
