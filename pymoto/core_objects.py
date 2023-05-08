@@ -35,7 +35,7 @@ def get_init_loc():
             frame = fr
             break
     if frame is None:
-        return ""
+        return "N/A", "N/A", "N/A"
     _, filename, line, func, _, _ = frame
     return filename, line, func
 
