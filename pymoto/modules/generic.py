@@ -1,6 +1,7 @@
 """ Generic modules, valid for general mathematical operations """
 import numpy as np
 from pymoto.core_objects import Module
+from pymoto.utils import _concatenate_to_array, _split_from_array
 try:
     from opt_einsum import contract as einsum  # Faster einsum
 except ModuleNotFoundError:
@@ -200,3 +201,23 @@ class EinSum(Module):
             einsum(op, df_in, *arg_in, out=da_i)
             df_out.append(da_i)
         return df_out
+
+
+class ConcatSignal(Module):
+    """ Concatenates data of multiple signals into one big vector """
+    def _response(self, *args):
+        state, self.cumlens = _concatenate_to_array(list(args))
+        return state
+
+    def _sensitivity(self, dy):
+        dsens = [np.zeros_like(s.state) for s in self.sig_in]
+        dx = _split_from_array(dy, self.cumlens)
+        for i, s in enumerate(self.sig_in):
+            if not isinstance(dsens[i], type(s.state)):
+                dsens[i] = type(s.state)(dx[i])
+                continue
+            try:
+                dsens[i][...] = dx[i]
+            except TypeError:
+                dsens[i] = type(s.state)(dx[i])
+        return dsens

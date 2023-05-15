@@ -1,6 +1,6 @@
 import numpy as np
 from .utils import _parse_to_list, _concatenate_to_array
-from .core_objects import Signal, SignalConcat, Module, Network
+from .core_objects import Signal, Module, Network
 from .common.mma import MMA
 from typing import List, Iterable, Union, Callable
 

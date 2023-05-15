@@ -1,6 +1,6 @@
 __version__ = '1.0.1'
 
-from .core_objects import Signal, Module, Network, SignalConcat, make_signals
+from .core_objects import Signal, Module, Network, make_signals
 from .routines import finite_difference, minimize_oc, minimize_mma
 
 # Imports from common
@@ -13,7 +13,7 @@ from .common.solvers_dense import SolverDiagonal, SolverDenseQR, SolverDenseLU, 
 from .common.solvers_sparse import SolverSparsePardiso, SolverSparseLU, SolverSparseCholeskyScikit, SolverSparseCholeskyCVXOPT
 
 # Import from modules
-from .modules.generic import MathGeneral, EinSum
+from .modules.generic import MathGeneral, EinSum, ConcatSignal
 from .modules.linalg import Inverse, LinSolve, EigenSolve
 from .modules.assembly import AssembleGeneral, AssembleStiffness, AssembleMass
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
@@ -22,7 +22,7 @@ from .modules.complex import MakeComplex, RealPart, ImagPart, ComplexNorm
 from .modules.autodiff import AutoMod
 
 __all__ = [
-    'Signal', 'Module', 'Network', 'SignalConcat', 'make_signals',
+    'Signal', 'Module', 'Network', 'make_signals',
     'finite_difference', 'minimize_oc', 'minimize_mma',
     # Common
     'MMA',
@@ -33,7 +33,7 @@ __all__ = [
     'SolverDiagonal', 'SolverDenseQR', 'SolverDenseLU', 'SolverDenseCholesky', 'SolverDenseLDL',
     'SolverSparsePardiso', 'SolverSparseLU', 'SolverSparseCholeskyScikit', 'SolverSparseCholeskyCVXOPT',
     # Modules
-    "MathGeneral", "EinSum",
+    "MathGeneral", "EinSum", "ConcatSignal",
     "Inverse", "LinSolve", "EigenSolve",
     "AssembleGeneral", "AssembleStiffness", "AssembleMass",
     "FilterConv", "Filter", "DensityFilter", "OverhangFilter",
