@@ -150,8 +150,6 @@ class SignalSlice(Signal):
     This means that updating the values in this SignalSlice changes the data in its source Signal.
     """
     def __init__(self, orig_signal, sl, tag=None):
-        if isinstance(orig_signal, SignalConcat):
-            raise TypeError("SignalConcat cannot be sliced")
         self.orig_signal = orig_signal
         self.slice = sl
         self.keep_alloc = True  # This parameter probably doesn't matter

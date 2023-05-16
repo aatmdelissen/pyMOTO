@@ -4,6 +4,14 @@ import pymoto as pym
 
 
 class TestAutoMod(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        """ Skip test if no function is given """
+        import importlib.util
+        jax_spec = importlib.util.find_spec("jax")
+        if jax_spec is None:
+            raise unittest.SkipTest(f"Skipping test {cls}")
+
     def test_automod_scalar(self):
         class Mult(pym.AutoMod):
             def _response(self, x, y):
