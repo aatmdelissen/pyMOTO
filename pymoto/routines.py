@@ -342,7 +342,7 @@ def minimize_oc(function, variables, objective: Signal,
             s.state = xnew[cumlens[i]:cumlens[i + 1]]
 
 
-def minimize_mma(function, variables, responses, tolx=1e-4, tolf=1e-4, maxit=1000, move=0.1, xmin=0.0, xmax=1.0, verbosity=2):
+def minimize_mma(function, variables, responses, **kwargs):
     """ Execute minimization using the MMA-method
     Svanberg (1987), The method of moving asymptotes - a new method for structural optimization
 
@@ -362,5 +362,5 @@ def minimize_mma(function, variables, responses, tolx=1e-4, tolf=1e-4, maxit=100
 
     """
     # Save initial state
-    mma = MMA(function, variables, responses, tolx=tolx, move=move, maxit=maxit, xmin=xmin, xmax=xmax, verbosity=verbosity)
+    mma = MMA(function, variables, responses, **kwargs)
     mma.response()
