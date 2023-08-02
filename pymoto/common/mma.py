@@ -351,7 +351,7 @@ class MMA:
                 if self.cumlens[i+1]-self.cumlens[i] == 1:
                     try:
                         xval[self.cumlens[i]] = s.state[:]
-                    except TypeError:
+                    except (TypeError, IndexError):
                         xval[self.cumlens[i]] = s.state
                 else:
                     xval[self.cumlens[i]:self.cumlens[i+1]] = s.state[:]
