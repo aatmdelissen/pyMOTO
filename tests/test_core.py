@@ -116,6 +116,15 @@ class TestSignal(unittest.TestCase):
         b.add_sensitivity(MyObj(1.3)), self.assertWarns(RuntimeWarning, b.reset, True)
         # b.add_sensitivity(MyObj(1.3)), b.reset(True)  # Gives a warning, and just replaced by None
 
+    def test_reference_copy(self):
+        a = pym.Signal('original', 1.0)
+        b = a
+
+        a.state = 2.0
+        a.sensitivity = 3.0
+        self.assertEqual(a.state, b.state)
+        self.assertEqual(b.sensitivity, 3.0)
+
 
 class TestSignalSlice(unittest.TestCase):
     def test_slice_1d(self):
