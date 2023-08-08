@@ -143,20 +143,20 @@ class DyadCarrier(object):
         assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
         usub = [ui[subscript[0]] for ui in self.u]
         vsub = [vi[subscript[1]] for vi in self.v]
-        subdyad = DyadCarrier(usub, vsub)
-        if isscalarlike(usub[0]) or isscalarlike(vsub[0]):
-            mat = subdyad.todense()
-            if isscalarlike(usub[0]) and isscalarlike(vsub[0]):
-                return mat[0, 0]
-            else:
-                return mat.flatten()
-        elif isinstance(subscript[0], np.ndarray) and isinstance(subscript[1], np.ndarray):
-            if subscript[0].shape != subscript[1].shape:
-                raise IndexError(f"shape mismatch: indexing arrays could not be broadcast together "
-                                 f"with shapes {subscript[0].shape} {subscript[1].shape}")
-            return subdyad.diagonal()
+
+        is_uni_slice = isscalarlike(usub[0]) or isscalarlike(vsub[0])
+        is_np_slice = isinstance(subscript[0], np.ndarray) and isinstance(subscript[1], np.ndarray)
+        if is_np_slice and subscript[0].shape != subscript[1].shape:
+            raise IndexError(f"shape mismatch: indexing arrays could not be broadcast together "
+                             f"with shapes {subscript[0].shape} {subscript[1].shape}")
+        if is_uni_slice or is_np_slice:
+            res = 0
+            for (ui, vi) in zip(usub, vsub):
+                res += ui*vi
+
+            return res
         else:
-            return subdyad
+            return DyadCarrier(usub, vsub)
 
     def __setitem__(self, subscript, value):
         assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
