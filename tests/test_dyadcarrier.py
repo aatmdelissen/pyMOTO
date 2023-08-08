@@ -560,6 +560,10 @@ class TestDyadCarrier(unittest.TestCase):
 
             self.assertRaises(IndexError, lambda: d[np.array([1, 2]), np.array([1, 2, 3])])
 
+            indi = np.array([[1, 2, 3, 4], [1, 2, 3, 4]])
+            indj = np.array([[1, 1, 1, 1], [2, 2, 2, 2]])
+            self.assertTrue(np.allclose(A[indi, indj], d[indi, indj]))
+
     def test_slice_asignment(self):
         n = 10
         dyads = self.setup_dyads(n, complex=True, nonsquare=True, empty=False)
