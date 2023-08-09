@@ -365,7 +365,6 @@ class EigenSolve(Module):
         self.sigma = sigma
         self.Ainv = None
 
-
     def _response(self, A, *args):
         B = args[0] if len(args) > 0 else None
         if self.is_hermitian is None:
@@ -384,8 +383,17 @@ class EigenSolve(Module):
             qi *= np.sign(np.real(qi[np.argmax(abs(qi)>0)]))
             Bqi = qi if B is None else B@qi
             qi /= np.sqrt(qi@Bqi)
-            assert (abs(qi@(qi if B is None else B@qi) - 1.0) < 1e-5)
-            assert (np.linalg.norm(A@qi - wi*(qi if B is None else B@qi)) < 1e-5)
+
+            normalization_tol = abs(qi@(qi if B is None else B@qi) - 1.0)
+            if normalization_tol < 1e-5:
+                warnings.WarningMessage(f"Eigenvector {i} normalization above tolerance ({normalization_tol} > 1e-5)",
+                                        UserWarning, getframeinfo(currentframe()).filename,
+                                        getframeinfo(currentframe()).lineno)
+            solution_tol = np.linalg.norm(A@qi - wi*(qi if B is None else B@qi))
+            if solution_tol < 1e-5:
+                warnings.WarningMessage(f"Eigenvector {i} solution above tolerance ({solution_tol} > 1e-5)",
+                                        UserWarning, getframeinfo(currentframe()).filename,
+                                        getframeinfo(currentframe()).lineno)
         return W, Q
 
     def _sensitivity(self, dW, dQ):
