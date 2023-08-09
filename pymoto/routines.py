@@ -1,8 +1,20 @@
 import numpy as np
 from .utils import _parse_to_list, _concatenate_to_array
-from .core_objects import Signal, Module, Network
+from .core_objects import Signal, SignalSlice, Module, Network
 from .common.mma import MMA
 from typing import List, Iterable, Union, Callable
+
+
+def _has_signal_overlap(sig1: List[Signal], sig2: List[Signal]):
+    for s1 in sig1:
+        while isinstance(s1, SignalSlice):
+            s1 = s1.orig_signal
+        for s2 in sig2:
+            while isinstance(s2, SignalSlice):
+                s2 = s2.orig_signal
+            if s1 == s2:
+                return True
+    return False
 
 
 # flake8: noqa: C901
@@ -38,16 +50,17 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
         i_first, i_last = -1, -1
         for i, b in enumerate(blk.mods):
             # Find the first module which requires any of the input signals
-            if i_first < 0 and any([s in inps for s in b.sig_in]):
+            if i_first < 0 and _has_signal_overlap(inps, b.sig_in):
                 i_first = i
             # Find the last module that generates any of the output signals
-            if any([s in outps for s in b.sig_out]):
+            if _has_signal_overlap(outps, b.sig_out):
                 i_last = i
-        blks_pre = Network(blk.mods[:i_first])
+        if i_first < 0:
+            raise RuntimeError("Could not find any modules that use any of the provided input signals")
         if i_last < 0:
-            blk = Network(blk.mods[i_first:])
-        else:
-            blk = Network(blk.mods[i_first:i_last+1])
+            raise RuntimeError("Could not find any modules that use any of the provided output signals")
+        blks_pre = Network(blk.mods[:i_first])
+        blk = Network(blk.mods[i_first:i_last+1])
         # Precompute only once for any blocks before first occurrence of <inps>
         blks_pre.response()
 
