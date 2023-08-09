@@ -120,7 +120,7 @@ class Signal:
         :return: self
         """
         if self.sensitivity is None:
-            return
+            return self
         if keep_alloc is None:
             keep_alloc = self.keep_alloc
         if keep_alloc:
@@ -152,7 +152,7 @@ class SignalSlice(Signal):
     def __init__(self, orig_signal, sl, tag=None):
         self.orig_signal = orig_signal
         self.slice = sl
-        self.keep_alloc = True  # This parameter probably doesn't matter
+        self.keep_alloc = False  # Allocation must be False because sensitivity cannot be assigned with [] operator
 
         # for s in slice:
         if tag is None:
@@ -208,6 +208,16 @@ class SignalSlice(Signal):
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
             raise type(e)("SignalSlice.sensitivity (setter)" + self._err_str()) from e
+
+    def reset(self, keep_alloc: bool = None):
+        """ Reset the sensitivities to zero or None
+        This must be called to clear internal memory of subsequent sensitivity calculations.
+        :param keep_alloc: Keep the sensitivity allocation intact?
+        :return: self
+        """
+        if self.sensitivity is not None:
+            self.sensitivity = None
+        return self
 
 
 def make_signals(*args):

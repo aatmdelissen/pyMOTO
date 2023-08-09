@@ -182,6 +182,7 @@ class TestSignalSlice(unittest.TestCase):
         assert np.allclose(sx[9:12].sensitivity, np.array([4, 5, 6]))
         sx[9:11].reset()
         assert np.allclose(sx[9:11].sensitivity, 0)
+        assert np.allclose(sx.sensitivity[9:11], 0)
         assert sx[11].sensitivity == 6.0
 
     def test_slice_error(self):
@@ -268,6 +269,26 @@ class TestSignalSlice(unittest.TestCase):
         s[0, 2:8].add_sensitivity(add_arr)
         s[0, 2:8].add_sensitivity(None)
         self.assertTrue(np.alltrue(s.sensitivity[0, 2:8] == add_arr))
+
+    def test_numpy_slice(self):
+        # To test bug where sensitivities are not set correctly through the sliced signal
+        sx = pym.Signal('x', np.random.rand(15))
+
+        # Test state setter
+        sx[np.arange(9, 12)].state = 1.5
+        assert np.allclose(sx.state[np.arange(9, 12)], 1.5)
+
+        sx[np.arange(9, 12)].state[:] = 2.0
+
+        # Test with numpy slice
+        sx_sliced = sx[np.arange(9, 12)]
+        sx_sliced.add_sensitivity(np.array([4, 5, 6]))
+        self.assertRaises(ValueError, sx_sliced.add_sensitivity, np.array([4, 5, 6, 4]))
+        assert np.allclose(sx_sliced.sensitivity, np.array([4, 5, 6]))
+        sx[np.arange(9, 11)].reset(keep_alloc=True)
+        assert np.allclose(sx[np.arange(9, 11)].sensitivity, 0)
+        assert np.allclose(sx.sensitivity[np.arange(9, 11)], 0)
+        assert sx[11].sensitivity == 6.0
 
 
 class TestModule(unittest.TestCase):
