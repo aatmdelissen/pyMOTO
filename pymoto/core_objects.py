@@ -387,25 +387,33 @@ class Module(ABC, RegisteredClass):
             try:
                 _check_valid_signal(s)
             except Exception as e:
-                raise type(e)(f"Invalid input signal #{i+1} - " + str(e.args[0]) + self._err_str(), *e.args[1:]) from None
+                earg0 = e.args[0] if len(e.args) > 0 else ''
+                earg1 = e.args[1:] if len(e.args) > 1 else ()
+                raise type(e)(f"Invalid input signal #{i+1} - " + str(earg0) + self._err_str(), *earg1) from None
 
         for i, s in enumerate(self.sig_out):
             try:
                 _check_valid_signal(s)
             except Exception as e:
-                raise type(e)(f"Invalid output signal #{i+1} - " + str(e.args[0]) + self._err_str(), *e.args[1:]) from None
+                earg0 = e.args[0] if len(e.args) > 0 else ''
+                earg1 = e.args[1:] if len(e.args) > 1 else ()
+                raise type(e)(f"Invalid output signal #{i+1} - " + str(earg0) + self._err_str(), *earg1) from None
 
         try:
             # Call preparation of submodule with remaining arguments
             self._prepare(*args, **kwargs)
         except Exception as e:
-            raise type(e)("_prepare() - " + str(e.args[0]) + self._err_str(fn=self._prepare), *e.args[1:]) from e
+            earg0 = e.args[0] if len(e.args) > 0 else ''
+            earg1 = e.args[1:] if len(e.args) > 1 else ()
+            raise type(e)("_prepare() - " + str(earg0) + self._err_str(fn=self._prepare), *earg1) from e
 
         try:
             # Check if the signals match _response() signature
             _check_function_signature(self._response, self.sig_in)
         except Exception as e:
-            raise type(e)(str(e.args[0]) + self._err_str(fn=self._response), *e.args[1:]) from None
+            earg0 = e.args[0] if len(e.args) > 0 else ''
+            earg1 = e.args[1:] if len(e.args) > 1 else ()
+            raise type(e)(str(earg0) + self._err_str(fn=self._response), *earg1) from None
 
         try:
             # If no output signals are given, but are required, try to initialize them here
@@ -423,7 +431,9 @@ class Module(ABC, RegisteredClass):
             # Check if signals match _sensitivity() signature
             _check_function_signature(self._sensitivity, self.sig_out)
         except Exception as e:
-            raise type(e)(str(e.args[0]) + self._err_str(fn=self._sensitivity), *e.args[1:]) from None
+            earg0 = e.args[0] if len(e.args) > 0 else ''
+            earg1 = e.args[1:] if len(e.args) > 1 else ()
+            raise type(e)(str(earg0) + self._err_str(fn=self._sensitivity), *earg1) from None
 
     def response(self):
         """ Calculate the response from sig_in and output this to sig_out """
@@ -441,7 +451,9 @@ class Module(ABC, RegisteredClass):
                 self.sig_out[i].state = val
             return self
         except Exception as e:
-            raise type(e)("response() - " + str(e.args[0]) + self._err_str(fn=self._response), *e.args[1:]) from e
+            earg0 = e.args[0] if len(e.args) > 0 else ''
+            earg1 = e.args[1:] if len(e.args) > 1 else ()
+            raise type(e)("response() - " + str(earg0) + self._err_str(fn=self._response), *earg1) from e
 
     def __call__(self):
         return self.response()
@@ -472,7 +484,9 @@ class Module(ABC, RegisteredClass):
 
             return self
         except Exception as e:
-            raise type(e)("sensitivity() - " + str(e.args[0]) + self._err_str(fn=self._sensitivity), *e.args[1:]) from e
+            earg0 = e.args[0] if len(e.args) > 0 else ''
+            earg1 = e.args[1:] if len(e.args) > 1 else ()
+            raise type(e)("sensitivity() - " + str(earg0) + self._err_str(fn=self._sensitivity), *earg1) from e
 
     def reset(self):
         """ Reset the state of the sensitivities (they are set to zero or to None) """
@@ -482,7 +496,9 @@ class Module(ABC, RegisteredClass):
             self._reset()
             return self
         except Exception as e:
-            raise type(e)("reset() - " + str(e.args[0]) + self._err_str(fn=self._reset), *e.args[1:]) from e
+            earg0 = e.args[0] if len(e.args) > 0 else ''
+            earg1 = e.args[1:] if len(e.args) > 1 else ()
+            raise type(e)("reset() - " + str(earg0) + self._err_str(fn=self._reset), *earg1) from e
 
     # METHODS TO BE DEFINED BY USER
     def _prepare(self, *args, **kwargs):
@@ -542,7 +558,9 @@ class Network(Module):
 
             self.print_timing = print_timing
         except Exception as e:
-            raise type(e)(str(e.args[0]) + self._err_str(add_signal=False), *e.args[1:]) from None
+            earg0 = e.args[0] if len(e.args) > 0 else ''
+            earg1 = e.args[1:] if len(e.args) > 1 else ()
+            raise type(e)(str(earg0) + self._err_str(add_signal=False), *earg1) from None
 
     def timefn(self, fn):
         start_t = time.time()
@@ -604,13 +622,17 @@ class Network(Module):
         try:
             [_check_valid_signal(s) for s in self.sig_in]
         except Exception as e:
-            raise type(e)("append() - Invalid input signals " + str(e.args[0])
-                          + self._err_str(add_signal=False), *e.args[1:]) from None
+            earg0 = e.args[0] if len(e.args) > 0 else ''
+            earg1 = e.args[1:] if len(e.args) > 1 else ()
+            raise type(e)("append() - Invalid input signals " + str(earg0)
+                          + self._err_str(add_signal=False), *earg1) from None
         self.sig_out = _parse_to_list(all_out)
         try:
             [_check_valid_signal(s) for s in self.sig_out]
         except Exception as e:
-            raise type(e)("append() - Invalid output signals " + str(e.args[0])
-                          + self._err_str(add_signal=False), *e.args[1:]) from None
+            earg0 = e.args[0] if len(e.args) > 0 else ''
+            earg1 = e.args[1:] if len(e.args) > 1 else ()
+            raise type(e)("append() - Invalid output signals " + str(earg0)
+                          + self._err_str(add_signal=False), *earg1) from None
 
         return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out  # Returns the output signal
