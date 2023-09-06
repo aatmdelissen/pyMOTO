@@ -1,4 +1,4 @@
-__version__ = '1.0.2'
+__version__ = '1.0.3-rc1'
 
 from .core_objects import Signal, Module, Network, make_signals
 from .routines import finite_difference, minimize_oc, minimize_mma
