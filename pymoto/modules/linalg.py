@@ -156,13 +156,13 @@ class LinSolve(Module):
     Attributes:
         use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
     """
-    use_lda_solver = True
 
     def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None):
         self.dep_tol = dep_tol
         self.ishermitian = hermitian
         self.issymmetric = symmetric
         self.solver = solver
+        self.use_lda_solver = True
 
     def _response(self, mat, rhs):
         # Do some detections on the matrix type
@@ -198,7 +198,10 @@ class LinSolve(Module):
                 raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported")  # TODO
                 dmat = DyadCarrier([-np.real(lam), -np.imag(lam)], [np.real(self.u), np.imag(self.u)])
             else:
-                dmat = DyadCarrier(-lam, self.u)
+                if self.u.ndim > 1:
+                    dmat = np.einsum("iB,jB->ij", -lam, self.u, optimize=True)
+                else:
+                    dmat = DyadCarrier(-lam, self.u)
         else:
             if self.u.ndim > 1:
                 dmat = np.einsum("iB,jB->ij", -lam, self.u, optimize=True)
