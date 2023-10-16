@@ -199,7 +199,7 @@ class LinSolve(Module):
                 dmat = DyadCarrier([-np.real(lam), -np.imag(lam)], [np.real(self.u), np.imag(self.u)])
             else:
                 if self.u.ndim > 1:
-                    dmat = np.einsum("iB,jB->ij", -lam, self.u, optimize=True)
+                    dmat = DyadCarrier(list(-lam.T), list(self.u.T))
                 else:
                     dmat = DyadCarrier(-lam, self.u)
         else:
