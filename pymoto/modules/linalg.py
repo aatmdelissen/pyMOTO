@@ -6,7 +6,7 @@ import warnings
 import hashlib
 from inspect import currentframe, getframeinfo
 
-from pymoto import Module, DyadCarrier, LDAWrapper
+from pymoto import Signal, Module, DyadCarrier, LDAWrapper
 import numpy as np
 import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
@@ -39,10 +39,7 @@ class SystemOfEquations(Module):
     """
 
     def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None, free=None, prescribed=None):
-        self.dep_tol = dep_tol
-        self.ishermitian = hermitian
-        self.issymmetric = symmetric
-        self.solver = solver
+        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], dep_tol=dep_tol, hermitian=hermitian, symmetric=symmetric, solver=solver)
         self.f = free
         self.p = prescribed
 
@@ -55,19 +52,6 @@ class SystemOfEquations(Module):
            References:
                https://doi.org/10.1016/j.cma.2022.114829
            """
-
-        # region solver
-        self.issparse = sps.issparse(A)  # Check if it is a sparse matrix
-        self.iscomplex = np.iscomplexobj(A)  # Check if it is a complex-valued matrix
-        if not self.iscomplex and self.issymmetric is not None:
-            self.ishermitian = self.issymmetric
-        if self.ishermitian is None:
-            self.ishermitian = matrix_is_hermitian(A)
-        # Determine the solver we want to use
-        if self.solver is None:
-            self.solver = auto_determine_solver(A, ishermitian=self.ishermitian)
-        # endregion
-        #TODO make use of module LinSolve to do the solving
 
         self.dim = np.shape(bf)[1]
         self.n = np.shape(A)[0]
@@ -85,8 +69,10 @@ class SystemOfEquations(Module):
         self.App = A[self.p, :][:, self.p]
 
         # solve
-        self.solver.update(Aff)
-        xf = self.solver.solve(bf - self.Afp * xp)
+        self.module_LinSolve.sig_in[0].state = Aff
+        self.module_LinSolve.sig_in[1].state = bf - self.Afp * xp
+        self.module_LinSolve.response()
+        xf = self.module_LinSolve.sig_out[0].state
 
         # set output
         self.x[self.f, :] = xf
@@ -126,7 +112,7 @@ class SystemOfEquations(Module):
 
         # adjoint equation
         lam = np.zeros_like(self.x)
-        lamf = -1.0 * self.solver.adjoint(adjoint_load)
+        lamf = -1.0 * self.module_LinSolve.solver.adjoint(adjoint_load)
         lam[self.f, :] = lamf
         lam[self.p, :] = dgdfp
 
