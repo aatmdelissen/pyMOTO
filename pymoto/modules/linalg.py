@@ -17,6 +17,131 @@ from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
 from pymoto import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardiso, SolverSparseCholeskyScikit
 
 
+class SystemOfEquations(Module):
+    r"""
+    Solve linear system of equations:
+    `\mathbf{A}_ff \mathbf{x}_f = \mathbf{b}_f - \mathbf{A}_{fp} \mathbf{x}_p'
+    `\mathbf{b}_p = \mathbf{A}_{pf}\mathbf{x}_f + \mathbf{A}_{pp} \mathbf{x}_p'
+
+    Self (or mixed) adjointness is automatically detected using :class:`LDAWrapper`.
+
+    Input Signals:
+      - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
+      - ``b_f`` (`vector`): applied load vector of size ``(f)`` or block-vector of size ``(Nrhs, f)``
+      - ``x_p`` (`vector`): prescribed state vector of size ``(p)`` or block-vector of size ``(Nrhs, p)``
+
+    Output Signal:
+      - ``x`` (`vector`): state vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
+      - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
+
+    References:
+        https://doi.org/10.1016/j.cma.2022.114829
+    """
+
+    def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None, free=None, prescribed=None):
+        self.dep_tol = dep_tol
+        self.ishermitian = hermitian
+        self.issymmetric = symmetric
+        self.solver = solver
+        self.f = free
+        self.p = prescribed
+
+    def _response(self, A, bf, xp):
+        r"""
+           Solve linear system of equations:
+           `\mathbf{A}_ff \mathbf{x}_f = \mathbf{b}_f - \mathbf{A}_{fp} \mathbf{x}_p'
+           `\mathbf{b}_p = \mathbf{A}_{pf}\mathbf{x}_f + \mathbf{A}_{pp} \mathbf{x}_p'
+
+           References:
+               https://doi.org/10.1016/j.cma.2022.114829
+           """
+
+        # region solver
+        self.issparse = sps.issparse(A)  # Check if it is a sparse matrix
+        self.iscomplex = np.iscomplexobj(A)  # Check if it is a complex-valued matrix
+        if not self.iscomplex and self.issymmetric is not None:
+            self.ishermitian = self.issymmetric
+        if self.ishermitian is None:
+            self.ishermitian = matrix_is_hermitian(A)
+        # Determine the solver we want to use
+        if self.solver is None:
+            self.solver = auto_determine_solver(A, ishermitian=self.ishermitian)
+        # endregion
+        #TODO make use of module LinSolve to do the solving
+
+        self.dim = np.shape(bf)[1]
+        self.n = np.shape(A)[0]
+
+        # create empty output
+        self.x = np.zeros((self.n, self.dim), dtype=float)
+        self.x[self.p, :] = xp
+
+        b = np.zeros_like(self.x)
+        b[self.f, :] = bf
+
+        # partitioning
+        Aff = A[self.f, :][:, self.f]
+        self.Afp = A[self.f, :][:, self.p]
+        self.App = A[self.p, :][:, self.p]
+
+        # solve
+        self.solver.update(Aff)
+        xf = self.solver.solve(bf - self.Afp * xp)
+
+        # set output
+        self.x[self.f, :] = xf
+        b[self.p, :] = self.Afp.T * xf + self.App * xp
+
+        return [self.x, b]
+
+    def _sensitivity(self, dgdu, dgdf):
+
+        r"""
+        Full derivative:
+        \dv{g}{s} = \pdv{g}{\vb{u}_f} \pdv{\vb{u}_f}{s} + \pdv{g}{\vb{f}_p} \pdv{\vb{f}_p}{s} + \pdv{g}{\vb{f}_f} \pdv{\vb{f}_f}{s} + \pdv{g}{\vb{u}_p} \pdv{\vb{u}_p}{s}
+
+        Derivative of system of equations:
+        \vb{K}_ff \pdv{\vb{u}_f}{s} = \pdv{\vb{f}_f}{s} - \pdv{\vb{K}_{fp}}{s} \vb{u}_p - \vb{K}_{fp} \pdv{\vb{u}_p}{s} - \pdv{\vb{K}_{ff}}{s} \vb{u}_f
+        \pdv{\vb{f}_p}{s} = \vb{K}_{pf} \pdv{\vb{u}_f}{s} + \pdv{\vb{K}_{pf}}{s} \vb{u}_f + \vb{K}_{pp} \pdv{\vb{u}_p}{s} + \pdv{\vb{K}_{pp}}{s} \vb{u}_p
+
+        Define:
+        \vb{K}_ff \vb{\lambda}_f = \pdv{g}{\vb{u}_f} + \pdv{g}{\vb{f}_p} \vb{K}_{pf}
+
+        Substitution of the latter into the former yields:
+        \dv{g}{s} = \begin{bmatrix} -\vb{\lambda}_f \\ \pdv{g}{\vb{f}_p} \end{bmatrix} \otimes \begin{bmatrix} \vb{u}_f \\ \vb{u}_p \end{bmatrix} \right) : \pdv{\vb{K}}{s}
+        + \left(\pdv{g}{\vb{f}_f} + \vb{\lambda}_f \right) \vdot \pdv{\vb{f}_f}{s} + \left(\pdv{g}{\vb{u}_p} + \vb{K}_{pp} \pdv{g}{\vb{f}_p} -\vb{K}_{pf}\vb{\lambda}_f\right) \vdot \pdv{\vb{u}_p}{s}
+
+        Thus:
+
+        \pdv{g}{\vb{K}} = \begin{bmatrix} -\vb{\lambda}_f \\ \pdv{g}{\vb{f}_p} \end{bmatrix} \otimes \begin{bmatrix} \vb{u}_f \\ \vb{u}_p \end{bmatrix} \right)
+        \pdv{g}{\vb{f}_f} = \pdv{g}{\vb{f}_f} + \vb{\lambda}_f
+        \pdv{g}{\vb{u}_p} = \pdv{g}{\vb{u}_p} + \vb{K}_{pp} \pdv{g}{\vb{f}_p} -\vb{K}_{pf}\vb{\lambda}_f
+
+        References:
+        doi: 10.1016/j.cma.2022.114829
+        """
+
+        dgdfp = dgdf[self.p, :]
+        adjoint_load = dgdu[self.f, :] + self.Afp * dgdfp
+
+        # adjoint equation
+        lam = np.zeros_like(self.x)
+        lam[self.f, :] = self.solver.adjoint(-adjoint_load)
+        lam[self.p, :] = dgdfp
+
+        # sensitivities to system matrix
+        if self.x.ndim > 1:
+            dgdA = DyadCarrier(list(lam.T), list(self.x.T))
+        else:
+            dgdA = DyadCarrier(lam, self.x)
+
+        # sensitivities to applied load and prescribed state
+        dgdff = lam[self.f, :] + dgdf[self.f, :]
+        dgdup = dgdu[self.p, :] + self.App * dgdfp - self.Afp.T * lam[self.f, :]
+
+        return [dgdA, dgdff, dgdup]
+
+
 class Inverse(Module):
     r""" Calculate the inverse of a matrix :math:`\mathbf{B} = \mathbf{A}^{-1}`
 
