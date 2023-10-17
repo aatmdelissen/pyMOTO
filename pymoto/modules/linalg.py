@@ -254,10 +254,10 @@ class LinSolve(Module):
 
     Input Signals:
       - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
-      - ``b`` (`vector`): Right-hand-side vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
+      - ``b`` (`vector`): Right-hand-side vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
 
     Output Signal:
-      - ``x`` (`vector`): Solution vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
+      - ``x`` (`vector`): Solution vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
 
     Keyword Args:
         dep_tol: Tolerance for detecting linear dependence of solution vectors (default = ``1e-5``)
@@ -268,13 +268,13 @@ class LinSolve(Module):
     Attributes:
         use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
     """
+    use_lda_solver = True
 
     def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None):
         self.dep_tol = dep_tol
         self.ishermitian = hermitian
         self.issymmetric = symmetric
         self.solver = solver
-        self.use_lda_solver = True
 
     def _response(self, mat, rhs):
         # Do some detections on the matrix type
@@ -285,7 +285,9 @@ class LinSolve(Module):
         if self.ishermitian is None:
             self.ishermitian = matrix_is_hermitian(mat)
         if self.issparse and not self.iscomplex and np.iscomplexobj(rhs):
-            raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported")
+            raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported."
+                            "This case can simply be solved by running two rhs (one for the real part and "
+                            "one for the imaginary.")
 
         # Determine the solver we want to use
         if self.solver is None:
@@ -306,21 +308,17 @@ class LinSolve(Module):
         lam = self.solver.adjoint(dfdv.conj()).conj()
 
         if self.issparse:
-            if not self.iscomplex and (np.iscomplexobj(self.u) or np.iscomplexobj(lam)):
-                raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported")  # TODO
-                dmat = DyadCarrier([-np.real(lam), -np.imag(lam)], [np.real(self.u), np.imag(self.u)])
+            if self.u.ndim > 1:
+                dmat = DyadCarrier(list(-lam.T), list(self.u.T))
             else:
-                if self.u.ndim > 1:
-                    dmat = DyadCarrier(list(-lam.T), list(self.u.T))
-                else:
-                    dmat = DyadCarrier(-lam, self.u)
+                dmat = DyadCarrier(-lam, self.u)
         else:
             if self.u.ndim > 1:
                 dmat = np.einsum("iB,jB->ij", -lam, self.u, optimize=True)
             else:
                 dmat = np.outer(-lam, self.u)
-            if not self.iscomplex:
-                dmat = np.real(dmat)
+        if not self.iscomplex:
+            dmat = dmat.real
 
         db = np.real(lam) if np.isrealobj(rhs) else lam
 
