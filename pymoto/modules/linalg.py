@@ -126,7 +126,8 @@ class SystemOfEquations(Module):
 
         # adjoint equation
         lam = np.zeros_like(self.x)
-        lam[self.f, :] = self.solver.adjoint(-adjoint_load)
+        lamf = -1.0 * self.solver.adjoint(adjoint_load)
+        lam[self.f, :] = lamf
         lam[self.p, :] = dgdfp
 
         # sensitivities to system matrix
