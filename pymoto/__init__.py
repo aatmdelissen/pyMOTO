@@ -14,7 +14,7 @@ from .common.solvers_sparse import SolverSparsePardiso, SolverSparseLU, SolverSp
 
 # Import from modules
 from .modules.generic import MathGeneral, EinSum, ConcatSignal
-from .modules.linalg import Inverse, LinSolve, EigenSolve
+from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations
 from .modules.assembly import AssembleGeneral, AssembleStiffness, AssembleMass
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
 from .modules.io import PlotDomain, PlotGraph, PlotIter, WriteToVTI
