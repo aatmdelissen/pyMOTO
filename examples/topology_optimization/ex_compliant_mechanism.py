@@ -2,7 +2,24 @@
 # flake8: noqa
 import pymoto as pym
 import numpy as np
-from utils.scaling import Scaling
+from pymoto import Module
+
+
+class Scaling(Module):
+    """
+    Quick module that scales to a given value on the first iteration.
+    This is useful, for instance, for MMA where the objective must be scaled in a certain way for good convergence
+    """
+    def _prepare(self, value):
+        self.value = value
+
+    def _response(self, x):
+        if not hasattr(self, 'sf'):
+            self.sf = self.value/x
+        return x * self.sf
+
+    def _sensitivity(self, dy):
+        return dy * self.sf
 
 nx, ny = 50, 100
 xmin, filter_radius, volfrac = 1e-9, 1.5, 0.3
@@ -36,58 +53,62 @@ dof_output = dofs_left_vertical[-1]
 boundary_dofs = np.union1d(dofs_left_horizontal, dofs_right)
 # endregion
 
+if __name__ == "__main__":
+    print(__doc__)
 
-f = np.zeros((domain.nnodes*2, 2), dtype=float)
-f[dof_output, 0] = 1.0
-f[dof_input, 1] = 1.0
+    f = np.zeros((domain.nnodes*2, 2), dtype=float)
+    f[dof_output, 0] = 1.0
+    f[dof_input, 1] = 1.0
 
-network = pym.Network()
+    network = pym.Network()
 
-# initial design
-signal_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
+    # initial design
+    signal_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
 
-# filtering
-signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
+    # filtering
+    signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
 
-# penalization
-signal_penalized_variables = network.append(pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1-xmin}*inp0^3"))
+    # penalization
+    signal_penalized_variables = network.append(pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1-xmin}*inp0^3"))
 
-# assembly
-signal_stiffness = network.append(pym.AssembleGeneral(signal_penalized_variables, domain=domain, element_matrix=el, bc=boundary_dofs))
+    # assembly
+    signal_stiffness = network.append(pym.AssembleGeneral(signal_penalized_variables, domain=domain, element_matrix=el, bc=boundary_dofs))
 
-# solve
-signal_force = pym.Signal('f', state=f)
-signal_displacements = network.append(pym.LinSolve([signal_stiffness, signal_force]))
+    # solve
+    signal_force = pym.Signal('f', state=f)
+    signal_displacements = network.append(pym.LinSolve([signal_stiffness, signal_force]))
 
-# output displacement
-signal_output_displacement = network.append(pym.EinSum([signal_displacements[:, 1], signal_force[:, 0]], expression='i,i->'))
+    # output displacement
+    signal_output_displacement = network.append(pym.EinSum([signal_displacements[:, 1], signal_force[:, 0]], expression='i,i->'))
 
-# objective
-signal_objective = network.append(Scaling([signal_output_displacement], value=objective_scaling))
-signal_objective.tag = "objective"
+    # objective
+    signal_objective = network.append(Scaling([signal_output_displacement], value=objective_scaling))
+    signal_objective.tag = "OBJ"
 
-# compliances
-signal_compliance = network.append(pym.EinSum([signal_displacements, signal_force], expression='ij,ij->j'))
+    # compliances
+    signal_compliance = network.append(pym.EinSum([signal_displacements, signal_force], expression='ij,ij->j'))
 
-# compliance constraint input and output
-compliance_constraint_string = '{}*(inp0/{} - 1)'.format(compliance_constraint_scaling, compliance_constraint_value1, volfrac)
-signal_compliance_constraint_output = network.append(pym.MathGeneral(signal_compliance[0], expression=compliance_constraint_string))
-signal_compliance_constraint_input = network.append(pym.MathGeneral(signal_compliance[1], expression=compliance_constraint_string))
+    # compliance constraint input and output
+    compliance_constraint_string = '{}*(inp0/{} - 1)'.format(compliance_constraint_scaling, compliance_constraint_value1, volfrac)
+    signal_compliance_constraint_output = network.append(pym.MathGeneral(signal_compliance[0], expression=compliance_constraint_string))
+    signal_compliance_constraint_input = network.append(pym.MathGeneral(signal_compliance[1], expression=compliance_constraint_string))
+    signal_compliance_constraint_input.tag = "CCI"
+    signal_compliance_constraint_output.tag = "CCO"
 
-# volume
-signal_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
-signal_volume.tag = "volume"
+    # volume
+    signal_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
+    signal_volume.tag = "volume"
 
-# volume constraint
-volume_constraint_string = '{}*(inp0/{} - {})'.format(volume_constraint_scaling, domain.nel, volfrac)
-signal_volume_constraint = network.append(pym.MathGeneral(signal_volume, expression=volume_constraint_string))
-signal_volume_constraint.tag = "volume constraint"
+    # volume constraint
+    volume_constraint_string = '{}*(inp0/{} - {})'.format(volume_constraint_scaling, domain.nel, volfrac)
+    signal_volume_constraint = network.append(pym.MathGeneral(signal_volume, expression=volume_constraint_string))
+    signal_volume_constraint.tag = "VC"
 
-# plotting
-module_plotdomain = pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design")
-responses = [signal_objective, signal_compliance_constraint_output, signal_compliance_constraint_input, signal_volume_constraint]
-module_plotiter = pym.PlotIter(responses)
-network.append(module_plotdomain, module_plotiter)
+    # plotting
+    module_plotdomain = pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design")
+    responses = [signal_objective, signal_compliance_constraint_output, signal_compliance_constraint_input, signal_volume_constraint]
+    module_plotiter = pym.PlotIter(responses)
+    network.append(module_plotdomain, module_plotiter)
 
-# optimization
-pym.minimize_mma(network, [signal_variables], responses, verbosity=2)
+    # optimization
+    pym.minimize_mma(network, [signal_variables], responses, verbosity=2)
