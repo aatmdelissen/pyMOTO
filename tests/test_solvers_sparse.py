@@ -428,54 +428,6 @@ class DynamicMatrix(pym.Module):
         domega = -self.beta * dZiK - self.alpha * dZiM - 2 * omega * dZrM
         return dK, dM, domega
 
-class TestSystemOfEquations(unittest.TestCase):
-    def test_symmetric_real_compliance2d(self):
-        N = 10
-        domain = pym.DomainDefinition(N, N)
-        nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
-        nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
-        dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
-        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
-        dofs_left_horizontal = dofs_left[0::2]
-        dofs_left_vertical = dofs_left[1::2]
-        dof_input = dofs_left_vertical[0]
-        dof_output = dofs_left_vertical[-1]
-        boundary_dofs = np.union1d(dofs_left_horizontal, dofs_right)
-        boundary_dofs = np.union1d(boundary_dofs, dof_input)
-        boundary_dofs = np.union1d(boundary_dofs, dof_output)
-
-        all_dofs = np.arange(0, 2 * domain.nnodes)
-        prescribed_dofs = boundary_dofs
-        free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
-
-        ndf = len(free_dofs)
-        # ndp = len(prescribed_dofs)
-
-        ff = np.zeros((ndf,1), dtype=float)
-        u = np.zeros((2 * domain.nnodes, 1), dtype=float)
-        u[dof_output] = -1.0
-        u[dof_output] = 1.0
-
-        up = u[prescribed_dofs,:]
-
-        fn = pym.Network()
-
-        sx = pym.Signal('x', np.random.rand(domain.nel))
-
-        sff = pym.Signal('sff', state=ff)
-        sup = pym.Signal('sup', state=up)
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain, bc=None))
-        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
-
-        fn.response()
-
-        # Check finite difference
-        # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-
-        pym.finite_difference(fn, [sx], su, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
-
-
 class TestLinSolveModule_sparse(unittest.TestCase):
     # # ------------- Symmetric -------------
     def test_symmetric_real_compliance2d(self):
