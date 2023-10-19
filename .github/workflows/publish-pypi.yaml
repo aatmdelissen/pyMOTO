@@ -1,17 +1,14 @@
-name: PyPI release
+name: Publish on PyPI
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: [ "New release" ]
+    types:
+      - completed
 
 jobs:
-  tests:
-    uses: ./.github/workflows/commit_test.yaml
-
   build-and-publish:
     name: Build and publish to PyPI
-    needs: [tests]
     runs-on: ubuntu-latest
 
     steps:
