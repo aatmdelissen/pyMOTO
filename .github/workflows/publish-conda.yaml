@@ -83,7 +83,8 @@ jobs:
           path: ./conda_packages
 
   release:
-    if: github.event_name != 'pull_request'
+#    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_run'
     name: Release
     runs-on: ubuntu-latest
     needs: build
@@ -103,16 +104,16 @@ jobs:
         shell: bash -l {0}
         run: conda install anaconda-client
 
-      - name: Publish to Anaconda test label
-        if: github.event_name != 'workflow_run'
-        shell: bash -l {0}
-        run: |
-          anaconda \
-            --token ${{ secrets.ANACONDA_TOKEN }} \
-            upload \
-            --user $ANACONDA_USER \
-            --label test \
-            conda_packages/*/*
+#      - name: Publish to Anaconda test label
+#        if: github.event_name != 'workflow_run'
+#        shell: bash -l {0}
+#        run: |
+#          anaconda \
+#            --token ${{ secrets.ANACONDA_TOKEN }} \
+#            upload \
+#            --user $ANACONDA_USER \
+#            --label test \
+#            conda_packages/*/*
 
       - name: Publish to Anaconda main label
         shell: bash -l {0}
