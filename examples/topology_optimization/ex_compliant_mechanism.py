@@ -8,8 +8,8 @@ import pymoto as pym
 import numpy as np
 
 # Problem settings
-nx, ny = 40, 40  # Domain size
-xmin, filter_radius, volfrac = 1e-9, 2, 0.3  # Density settings
+nx, ny = 60, 60  # Domain size
+xmin, filter_radius, volfrac = 1e-6, 2, 0.3  # Density settings
 nu, E = 0.3, 1.0  # Material properties
 
 input_compliance = 1000
