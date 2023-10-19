@@ -27,7 +27,7 @@ jobs:
 #          - { os: ubuntu-latest,   python: '3.7',  arch: x64 }
 #
 #          - { os: macos-latest,    python: '3.11',  arch: x64 }
-          - { os: macos-latest,    python: '3.10',  arch: x64 }
+#          - { os: macos-latest,    python: '3.10',  arch: x64 }
 #          - { os: macos-latest,    python: '3.9',  arch: x64 }
 #          - { os: macos-latest,    python: '3.8',  arch: x64 }
 #          - { os: macos-latest,    python: '3.7',  arch: x64 }
@@ -39,7 +39,7 @@ jobs:
 #          - { os: windows-latest,  python: '3.7',  arch: x64 }
 
 #          - { os: windows-latest,  python: '3.11',  arch: x86 }
-          - { os: windows-latest,  python: '3.10',  arch: x86 }
+#          - { os: windows-latest,  python: '3.10',  arch: x86 }
 #          - { os: windows-latest,  python: '3.9',  arch: x86 }
 #          - { os: windows-latest,  python: '3.8',  arch: x86 }
 #          - { os: windows-latest,  python: '3.7',  arch: x86 }
@@ -113,16 +113,16 @@ jobs:
         if: github.event_name != 'workflow_run'
         shell: bash -l {0}
         run: |
-          anaconda \
+          anaconda upload \
             --token ${{ secrets.ANACONDA_API_TOKEN }} \
-            upload conda_packages/*/* \
             --user $ANACONDA_USER \
-            --label test
+            --label test \
+            conda_packages/*/*
       - name: Publish to Anaconda main label
         shell: bash -l {0}
         if: github.event_name == 'workflow_run'
         run: |
-          anaconda \
+          anaconda upload \
             --token ${{ secrets.ANACONDA_API_TOKEN }} \
-            upload conda_packages/*/* \
-            --user $ANACONDA_USER
+            --user $ANACONDA_USER \
+            conda_packages/*/*
