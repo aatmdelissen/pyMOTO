@@ -27,12 +27,12 @@ class SystemOfEquations(Module):
 
     Input Signals:
       - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
-      - ``b_f`` (`vector`): applied load vector of size ``(f)`` or block-vector of size ``(Nrhs, f)``
-      - ``x_p`` (`vector`): prescribed state vector of size ``(p)`` or block-vector of size ``(Nrhs, p)``
+      - ``b_f`` (`vector`): applied load vector of size ``(f)`` or block-vector of size ``(f, Nrhs)``
+      - ``x_p`` (`vector`): prescribed state vector of size ``(p)`` or block-vector of size ``(p, Nrhs)``
 
     Output Signal:
-      - ``x`` (`vector`): state vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
-      - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
+      - ``x`` (`vector`): state vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
+      - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
 
     References:
         https://doi.org/10.1016/j.cma.2022.114829
@@ -52,16 +52,16 @@ class SystemOfEquations(Module):
            References:
                https://doi.org/10.1016/j.cma.2022.114829
            """
-
-        self.dim = np.shape(bf)[1]
+        assert bf.shape[0] + xp.shape[0] == A.shape[0], "Dimensions of applied force and displacement must match matrix"
+        assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
         self.n = np.shape(A)[0]
 
         # create empty output
-        self.x = np.zeros((self.n, self.dim), dtype=float)
-        self.x[self.p, :] = xp
+        self.x = np.zeros((self.n, *bf.shape[1:]), dtype=float)
+        self.x[self.p, ...] = xp
 
         b = np.zeros_like(self.x)
-        b[self.f, :] = bf
+        b[self.f, ...] = bf
 
         # partitioning
         Aff = A[self.f, :][:, self.f]
@@ -75,12 +75,12 @@ class SystemOfEquations(Module):
         xf = self.module_LinSolve.sig_out[0].state
 
         # set output
-        self.x[self.f, :] = xf
-        b[self.p, :] = self.Afp.T * xf + self.App * xp
+        self.x[self.f, ...] = xf
+        b[self.p, ...] = self.Afp.T * xf + self.App * xp
 
-        return [self.x, b]
+        return self.x, b
 
-    def _sensitivity(self, dgdu, dgdf):
+    def _sensitivity(self, dgdx, dgdb):
 
         r"""
         Full derivative:
@@ -107,14 +107,13 @@ class SystemOfEquations(Module):
         doi: 10.1016/j.cma.2022.114829
         """
 
-        dgdfp = dgdf[self.p, :]
-        adjoint_load = dgdu[self.f, :] + self.Afp * dgdfp
+        adjoint_load = dgdx[self.f, ...] + self.Afp * dgdb[self.p, ...]
 
         # adjoint equation
         lam = np.zeros_like(self.x)
         lamf = -1.0 * self.module_LinSolve.solver.adjoint(adjoint_load)
-        lam[self.f, :] = lamf
-        lam[self.p, :] = dgdfp
+        lam[self.f, ...] = lamf
+        lam[self.p, ...] = dgdb[self.p, ...]
 
         # sensitivities to system matrix
         if self.x.ndim > 1:
@@ -123,10 +122,10 @@ class SystemOfEquations(Module):
             dgdA = DyadCarrier(lam, self.x)
 
         # sensitivities to applied load and prescribed state
-        dgdff = lam[self.f, :] + dgdf[self.f, :]
-        dgdup = dgdu[self.p, :] + self.App * dgdfp - self.Afp.T * lam[self.f, :]
+        dgdff = lam[self.f, ...] + dgdb[self.f, ...]
+        dgdup = dgdx[self.p, ...] + self.App * dgdb[self.p, ...] - self.Afp.T * lam[self.f, ...]
 
-        return [dgdA, dgdff, dgdup]
+        return dgdA, dgdff, dgdup
 
 
 class Inverse(Module):
