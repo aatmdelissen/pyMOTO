@@ -2,6 +2,13 @@
 Example of the design of a flexure using topology optimization with:
 (i) maximum shear stiffness
 (ii) constrainted maximum stiffness in axial stiffness
+
+Reference:
+
+Koppen, S., Langelaar, M., & van Keulen, F. (2022).
+A simple and versatile topology optimization formulation for flexure synthesis.
+Mechanism and Machine Theory, 172, 104743.
+DOI: http://dx.doi.org/10.1016/j.mechmachtheory.2022.104743
 """
 import numpy as np
 

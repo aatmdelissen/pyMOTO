@@ -3,6 +3,11 @@ Example of the design of a compliant mechanism using topology optimization with:
 (i) maximum stiffness of input and output ports, and
 (ii) desired geometric advantage of -1
 (iii) desired maximum stiffness of the compliant deformation pattern (inversion)
+
+References:
+Koppen, S. (2022).
+Topology optimization of compliant mechanisms with multiple degrees of freedom.
+DOI: http://dx.doi.org/10.4233/uuid:21994a92-e365-4679-b6ac-11a2b70572b7
 """
 import numpy as np
 

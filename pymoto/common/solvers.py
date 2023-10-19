@@ -140,8 +140,11 @@ class LDAWrapper(LinearSolver):
         A (optional): The matrix :math:`\mathbf{A}`
 
     References:
-        Koppen, van der Kolk, van den Boom, Langelaar (2022).
-        `doi: 10.1007/s00158-022-03378-8 <https://doi.org/10.1007/s00158-022-03378-8>`_
+
+    Koppen, S., van der Kolk, M., van den Boom, S., & Langelaar, M. (2022).
+    Efficient computation of states and sensitivities for compound structural optimisation problems using a Linear Dependency Aware Solver (LDAS).
+    Structural and Multidisciplinary Optimization, 65(9), 273.
+    DOI: 10.1007/s00158-022-03378-8
     """
     def __init__(self, solver: LinearSolver, tol=1e-8, A=None, hermitian=False, symmetric=False):
         self.solver = solver

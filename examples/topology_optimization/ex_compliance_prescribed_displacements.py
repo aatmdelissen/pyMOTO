@@ -3,10 +3,19 @@ Example of the design for stiffness of a structure subjected to prescribed displ
  using topology optimization with:
 (i) maximum stiffness between prescribed displacements and support, and
 (ii) constrained by maximum volume.
-"""# flake8: noqa
-import pymoto as pym
+
+Reference:
+
+Koppen, S., Langelaar, M., & van Keulen, F. (2022). 
+A simple and versatile topology optimization formulation for flexure synthesis. 
+Mechanism and Machine Theory, 172, 104743.
+DOI: http://dx.doi.org/10.1016/j.mechmachtheory.2022.104743
+"""
+
 import numpy as np
 
+# flake8: noqa
+import pymoto as pym
 
 # Problem settings
 nx, ny = 40, 40  # Domain size
