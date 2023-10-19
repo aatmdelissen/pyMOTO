@@ -43,6 +43,13 @@ jobs:
 #          - { os: windows-latest,  python: '3.9',  arch: x86 }
 #          - { os: windows-latest,  python: '3.8',  arch: x86 }
 #          - { os: windows-latest,  python: '3.7',  arch: x86 }
+    defaults:
+      - run:
+          if: runner.os != 'Windows'
+          shell: bash -el {0}
+      - run:
+          if: runner.os == 'Windows'
+          shell: cmd /C CALL {0}
 
     steps:
       - name: Checkout
@@ -62,14 +69,17 @@ jobs:
           architecture: ${{ matrix.arch }}
           miniconda-version: "latest"
 
-      - name: Conda package (Unix)
-        if: runner.os != 'Windows'
-        shell: bash -l {0}
-        run: python -m setuptools_conda build .
+      - name: Install setuptools
+        run: conda install -c labscript-suite setuptools-conda
+
+#      - name: Conda package (Unix)
+#        if: runner.os != 'Windows'
+#        shell: bash -l {0}
+#        run: python -m setuptools_conda build .
 
       - name: Conda Package (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd /C CALL {0}
+#        if: runner.os == 'Windows'
+#        shell: cmd /C CALL {0}
         run: python -m setuptools_conda build .
 
       - name: Upload Artifact
