@@ -10,7 +10,7 @@ xmin, filter_radius, volfrac = 1e-9, 2, 0.5  # Density settings
 nu, E = 0.3, 1.0  # Material properties
 
 if __name__ == "__main__":
-    # Setup the domain
+    # Set up the domain
     domain = pym.DomainDefinition(nx, ny)
 
     # Node and dof groups
@@ -21,11 +21,8 @@ if __name__ == "__main__":
     dofs_left_horizontal = dofs_left[0::2]
     dofs_left_vertical = dofs_left[1::2]
 
-    boundary_dofs = np.union1d(dofs_left_horizontal, dofs_right)
-    boundary_dofs = np.union1d(dofs_left_vertical, boundary_dofs)
-
     all_dofs = np.arange(0, 2 * domain.nnodes)
-    prescribed_dofs = boundary_dofs
+    prescribed_dofs = np.unique(np.hstack([dofs_left_horizontal, dofs_right, dofs_left_vertical]))
     free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
 
     # Setup solution vectors and rhs
