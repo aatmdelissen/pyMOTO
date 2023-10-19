@@ -1,4 +1,9 @@
-""" Minimal example for a structural compliance topology optimization """
+"""
+Example of the design of a compliant mechanism using topology optimization with:
+(i) maximum stiffness of input and output ports, and
+(ii) desired geometric advantage of -1
+(iii) desired maximum stiffness of the compliant deformation pattern (inversion)
+"""
 # flake8: noqa
 import pymoto as pym
 import numpy as np

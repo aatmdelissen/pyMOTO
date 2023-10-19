@@ -1,5 +1,9 @@
-""" Minimal example for a structural compliance topology optimization based on applied displacements """
-# flake8: noqa
+"""
+Example of the design for stiffness of a structure subjected to prescribed displacements
+ using topology optimization with:
+(i) maximum stiffness between prescribed displacements and support, and
+(ii) constrained by maximum volume.
+"""# flake8: noqa
 import pymoto as pym
 import numpy as np
 

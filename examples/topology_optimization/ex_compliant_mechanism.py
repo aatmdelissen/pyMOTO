@@ -1,4 +1,8 @@
-""" Minimal example for a structural compliance topology optimization """
+"""
+Example of the design of a compliant mechanism using topology optimization with:
+(i) maximum output displacement due to input load
+(ii) constrained minimum input and output stiffness
+"""
 # flake8: noqa
 import pymoto as pym
 import numpy as np
