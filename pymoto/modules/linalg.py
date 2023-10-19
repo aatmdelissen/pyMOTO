@@ -122,8 +122,8 @@ class SystemOfEquations(Module):
             dgdA = DyadCarrier(lam, self.x)
 
         # sensitivities to applied load and prescribed state
-        dgdff = lam[self.f, ...] + dgdb[self.f, ...]
-        dgdup = dgdx[self.p, ...] + self.App * dgdb[self.p, ...] - self.Afp.T * lam[self.f, ...]
+        dgdff = dgdb[self.f, ...] - lam[self.f, ...]
+        dgdup = dgdx[self.p, ...] + self.App * dgdb[self.p, ...] + self.Afp.T * lam[self.f, ...]
 
         return dgdA, dgdff, dgdup
 
