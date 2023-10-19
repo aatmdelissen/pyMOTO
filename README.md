@@ -1,4 +1,6 @@
-[![10.5281/zenodo.7708738](https://zenodo.org/badge/DOI/10.5281/zenodo.7708738.svg)](https://doi.org/10.5281/zenodo.7708738)
+[![10.5281/zenodo.7708738](https://zenodo.org/badge/DOI/10.5281/zenodo.7708738.svg)](https://doi.org/10.5281/zenodo.7708738) 
+[![anaconda.org/aatmdelissen/pymoto](https://anaconda.org/aatmdelissen/pymoto/badges/version.svg)](https://anaconda.org/aatmdelissen/pymoto)
+[![pypi.org/project/pyMOTO](https://badge.fury.io/py/pyMOTO.svg)](https://pypi.org/project/pyMOTO/)
 
 # pyMOTO
 
@@ -24,7 +26,9 @@ automatically calculated.
 1. Make sure you have Python running in some kind of virtual environment (e.g. 
 [conda](https://docs.conda.io/projects/conda/en/stable/), [miniconda](https://docs.conda.io/en/latest/miniconda.html),
 [venv](https://realpython.com/python-virtual-environments-a-primer/))
-2. Type `pip install pymoto` into your console to install
+2. Install the pymoto Python package (and its dependencies)
+   - Option A (conda): If you are working with Conda, install by `conda install -c aatmdelissen pymoto`
+   - Option B (pip): Type `pip install pymoto` into your console to install
 3. Download one of the examples found in the repository's example folder 
 ([here](https://github.com/aatmdelissen/pyMOTO/tree/master/examples))
 4. Run the example by typing `python ex_....py` in the console
