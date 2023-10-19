@@ -67,7 +67,7 @@ if __name__ == "__main__":
     signal_output_displacement = network.append(pym.EinSum([signal_state[0][:, 0], signal_state[1][:, 0]], expression='i,i->'))
 
     # Objective function
-    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=-10.0))
+    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=-1.0))
     signal_objective.tag = "Objective"
 
     # compliances
