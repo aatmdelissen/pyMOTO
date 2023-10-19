@@ -2,6 +2,7 @@
 Example of the design of a flexure using topology optimization with:
 (i) maximum shear stiffness
 (ii) constrainted maximum stiffness in axial stiffness
+(iii) (optional) constrained maximum use of material (volume constraint)
 
 Reference:
 
@@ -16,13 +17,17 @@ import numpy as np
 import pymoto as pym
 
 # Problem settings
-nx, ny = 40, 60  # Domain size
-xmin, filter_radius, volfrac = 1e-9, 2, 0.5  # Density settings
+nx, ny = 60, 100  # Domain size
+xmin, filter_radius, volfrac = 1e-6, 2, 0.3  # Density settings
 nu, E = 0.3, 100.0  # Material properties
+
+scaling_objective = 10.0
+
 compliance_constraint_value = 1.0
-scaling_volume_constraint = 10.0
 scaling_compliance_constraint = 1.0
-scaling_objective = -10.0
+
+use_volume_constraint = False
+scaling_volume_constraint = 10.0
 
 if __name__ == "__main__":
     # Set up the domain
@@ -77,7 +82,7 @@ if __name__ == "__main__":
         pym.EinSum([signal_state[0][:, 0], signal_state[1][:, 0]], expression='i,i->'))
 
     # Objective function
-    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=scaling_objective))
+    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=-1.0 * scaling_objective))
     signal_objective.tag = "Objective"
 
     # compliancess
@@ -100,7 +105,9 @@ if __name__ == "__main__":
     # Plotting
     network.append(pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design"))
 
-    opt_responses = [signal_objective, signal_compliance_constraint, signal_volume_constraint]
+    opt_responses = [signal_objective, signal_compliance_constraint]
+    if use_volume_constraint:
+        opt_responses.append(signal_volume_constraint)
     network.append(pym.PlotIter(opt_responses))
 
     # Optimization

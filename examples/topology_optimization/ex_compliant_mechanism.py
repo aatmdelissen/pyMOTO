@@ -17,10 +17,16 @@ import pymoto as pym
 # Problem settings
 nx, ny = 60, 60  # Domain size
 xmin, filter_radius, volfrac = 1e-6, 2, 0.3  # Density settings
-nu, E = 0.3, 1.0  # Material properties
+nu, E = 0.3, 100  # Material properties
 
-input_compliance = 1000
-output_compliance = 1000
+scaling_objective = 10.0
+
+input_compliance = 10
+output_compliance = 10
+scaling_compliance_constraint = 10.0
+
+use_volume_constraint = False
+scaling_volume_constraint = 10.0
 
 if __name__ == "__main__":
     # Set up the domain
@@ -67,7 +73,7 @@ if __name__ == "__main__":
     signal_output_displacement = network.append(pym.EinSum([signal_displacements[:, 1], signal_force[:, 0]], expression='i,i->'))
 
     # Objective
-    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=1))
+    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=scaling_objective))
     signal_objective.tag = "Objective"
 
     # Compliances
@@ -89,7 +95,9 @@ if __name__ == "__main__":
 
     # Plotting
     module_plotdomain = pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design")
-    responses = [signal_objective, signal_compliance_constraint_output, signal_compliance_constraint_input, signal_volume_constraint]
+    responses = [signal_objective, signal_compliance_constraint_output, signal_compliance_constraint_input]
+    if use_volume_constraint:
+        responses.append(signal_volume_constraint)
     module_plotiter = pym.PlotIter(responses)
     network.append(module_plotdomain, module_plotiter)
 

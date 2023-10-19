@@ -16,9 +16,16 @@ import pymoto as pym
 
 # Problem settings
 nx, ny = 40, 40  # Domain size
-xmin, filter_radius, volfrac = 1e-9, 2, 0.3  # Density settings
-nu, E = 0.3, 1.0  # Material properties
-compliance_constraint_value = 0.001
+xmin, filter_radius, volfrac = 1e-6, 2, 0.3  # Density settings
+nu, E = 0.3, 100  # Material properties
+
+scaling_objective = 10.0
+
+compliance_constraint_value = 1.0
+scaling_compliance_constraint = 10.0
+
+use_volume_constraint = False
+scaling_volume_constraint = 10.0
 
 if __name__ == "__main__":
     # Set up the domain
@@ -72,14 +79,15 @@ if __name__ == "__main__":
     signal_output_displacement = network.append(pym.EinSum([signal_state[0][:, 0], signal_state[1][:, 0]], expression='i,i->'))
 
     # Objective function
-    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=-1.0))
+    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=-1.0 * scaling_objective))
     signal_objective.tag = "Objective"
 
     # compliancess
     signal_compliance = network.append(pym.EinSum([signal_state[0][:, 1], signal_state[1][:, 1]], expression='i,i->'))
 
     # compliance constraint input and output
-    signal_compliance_constraint = network.append(pym.Scaling(signal_compliance, scaling=10.0, maxval=compliance_constraint_value))
+    signal_compliance_constraint = network.append(
+        pym.Scaling(signal_compliance, scaling=scaling_compliance_constraint, maxval=compliance_constraint_value))
     signal_compliance_constraint.tag = "Compliance constraint"
 
     # Volume
@@ -87,13 +95,16 @@ if __name__ == "__main__":
     signal_volume.tag = "Volume"
 
     # Volume constraint
-    signal_volume_constraint = network.append(pym.Scaling(signal_volume, scaling=10.0, maxval=volfrac*domain.nel))
+    signal_volume_constraint = network.append(
+        pym.Scaling(signal_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
     signal_volume_constraint.tag = "Volume constraint"
 
     # Plotting
     network.append(pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design"))
 
-    opt_responses = [signal_objective, signal_compliance_constraint, signal_volume_constraint]
+    opt_responses = [signal_objective, signal_compliance_constraint]
+    if use_volume_constraint:
+        opt_responses.append(signal_volume_constraint)
     network.append(pym.PlotIter(opt_responses))
 
     # Optimization
