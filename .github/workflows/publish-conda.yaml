@@ -2,8 +2,8 @@ name: Publish on Conda
 
 on:
   push:
-#    branches:
-#      - master
+    branches:
+      - master
   pull_request:
   workflow_run:
     workflows: [ "New release" ]
@@ -113,6 +113,7 @@ jobs:
             --user $ANACONDA_USER \
             --label test \
             conda_packages/*/*
+
       - name: Publish to Anaconda main label
         shell: bash -l {0}
         if: github.event_name == 'workflow_run'
