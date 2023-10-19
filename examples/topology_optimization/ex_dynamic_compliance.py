@@ -1,29 +1,43 @@
 """
 Example of the design of cantilever for minimum dynamic compliance.
 """
+from math import pi
+
 import numpy as np
 
 # flake8: noqa
 import pymoto as pym
 
 # Problem settings
-nx, ny = 80, 40  # Domain size
-xmin, filter_radius, volfrac = 1e-6, 2, 0.5  # Density settings
+lx, ly = 1, 0.5
+nx, ny = int(lx * 100), int(ly * 100)  # Domain size
+unitx, unity = lx / nx, ly / ny
+unitz = 1.0  # ?
+
+xmin, filter_radius, volfrac = 1e-6, 2, 0.49  # Density settings
 nu = 0.3  # Material properties
 
-E = 1e6
-rho = 1e-3
+E = 210e9  # 210 GPa (Silva, 2018)
+rho = 7860  # kg/m3 (Silva, 2018)
 
-omega = 60.0  # just underneath first eigenfreq
-# omega = 70.0  # just above first eigenfreq
+# fundamental eigenfreq should be around 175 Hz (Silva, 2018)
+omega = 180 * (2 * pi)
+
+# force
+force_magnitude = -9000  # (Silva, 2018)
+
+# damping parameters
+alpha = 1e-3
+beta = 1e-8
 
 scaling_objective = 10.0
 scaling_volume_constraint = 10.0
 
 
 class DynamicMatrix(pym.Module):
-    alpha = 0.5
-    beta = 0.5
+    def _prepare(self, alpha=0.5, beta=0.5):
+        self.alpha = alpha
+        self.beta = beta
 
     def _response(self, K, M, omega):
         return K + 1j * omega * (self.alpha * M + self.beta * K) - omega ** 2 * M
@@ -50,7 +64,7 @@ class ComplexVecDot(pym.Module):
 
 if __name__ == "__main__":
     # Set up the domain
-    domain = pym.DomainDefinition(nx, ny)
+    domain = pym.DomainDefinition(nx, ny, unitx=unitx, unity=unity, unitz=unitz)
 
     # Node and dof groups
     nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
@@ -58,7 +72,7 @@ if __name__ == "__main__":
 
     # Setup rhs for loadcase
     f = np.zeros(domain.nnodes * 2)  # Generate a force vector
-    f[2 * domain.get_nodenumber(nx, ny // 2) + 1] = 1.0
+    f[2 * domain.get_nodenumber(nx, ny // 2) + 1] = force_magnitude
 
     # Initial design
     signal_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
@@ -82,7 +96,8 @@ if __name__ == "__main__":
 
     # Build dynamic stiffness matrix
     signal_omega = pym.Signal('omega', omega)
-    signal_dynamic_stiffness = network.append(DynamicMatrix([signal_stiffness, signal_mass, signal_omega]))
+    signal_dynamic_stiffness = network.append(
+        DynamicMatrix([signal_stiffness, signal_mass, signal_omega], alpha=alpha, beta=beta))
 
     # Solve
     signal_force = pym.Signal('f', state=f)
