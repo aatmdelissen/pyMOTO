@@ -115,16 +115,14 @@ jobs:
         run: |
           anaconda \
             --token ${{ secrets.ANACONDA_API_TOKEN }} \
-            upload \
+            upload conda_packages/*/* \
             --user $ANACONDA_USER \
-            --label test \
-            conda_packages/*/*
+            --label test
       - name: Publish to Anaconda main label
         shell: bash -l {0}
         if: github.event_name == 'workflow_run'
         run: |
           anaconda \
             --token ${{ secrets.ANACONDA_API_TOKEN }} \
-            upload \
-            --user $ANACONDA_USER \
-            conda_packages/*/*
+            upload conda_packages/*/* \
+            --user $ANACONDA_USER
