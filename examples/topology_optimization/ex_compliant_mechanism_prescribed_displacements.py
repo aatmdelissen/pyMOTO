@@ -4,10 +4,10 @@ Example of the design of a compliant mechanism using topology optimization with:
 (ii) desired geometric advantage of -1
 (iii) desired maximum stiffness of the compliant deformation pattern (inversion)
 """
-# flake8: noqa
-import pymoto as pym
 import numpy as np
 
+# flake8: noqa
+import pymoto as pym
 
 # Problem settings
 nx, ny = 40, 40  # Domain size
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=-1.0))
     signal_objective.tag = "Objective"
 
-    # compliances
+    # compliancess
     signal_compliance = network.append(pym.EinSum([signal_state[0][:, 1], signal_state[1][:, 1]], expression='i,i->'))
 
     # compliance constraint input and output
