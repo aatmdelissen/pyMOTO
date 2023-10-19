@@ -113,8 +113,9 @@ jobs:
         if: github.event_name != 'workflow_run'
         shell: bash -l {0}
         run: |
-          anaconda upload \
-            --token ${{ secrets.ANACONDA_API_TOKEN }} \
+          anaconda \
+            --token ${{ secrets.ANACONDA_TOKEN }} \
+            upload \
             --user $ANACONDA_USER \
             --label test \
             conda_packages/*/*
@@ -122,7 +123,8 @@ jobs:
         shell: bash -l {0}
         if: github.event_name == 'workflow_run'
         run: |
-          anaconda upload \
-            --token ${{ secrets.ANACONDA_API_TOKEN }} \
+          anaconda \
+            --token ${{ secrets.ANACONDA_TOKEN }} \
+            upload \
             --user $ANACONDA_USER \
             conda_packages/*/*
