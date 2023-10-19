@@ -1,20 +1,16 @@
 """ Specialized linear algebra modules """
-import os
-import sys
-import glob
 import warnings
-import hashlib
 from inspect import currentframe, getframeinfo
 
-from pymoto import Signal, Module, DyadCarrier, LDAWrapper
 import numpy as np
+import scipy.linalg as spla  # Dense matrix solvers
 import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
-import scipy.linalg as spla  # Dense matrix solvers
 
+from pymoto import Signal, Module, DyadCarrier, LDAWrapper
 from pymoto import SolverDenseLU, SolverDenseLDL, SolverDenseCholesky, SolverDiagonal, SolverDenseQR
-from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
 from pymoto import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardiso, SolverSparseCholeskyScikit
+from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
 
 
 class SystemOfEquations(Module):
@@ -35,7 +31,10 @@ class SystemOfEquations(Module):
       - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
 
     References:
-        https://doi.org/10.1016/j.cma.2022.114829
+    Koppen, S., Langelaar, M., & van Keulen, F. (2022).
+    Efficient multi-partition topology optimization.
+    Computer Methods in Applied Mechanics and Engineering, 393, 114829.
+    DOI: https://doi.org/10.1016/j.cma.2022.114829
     """
 
     def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None, free=None, prescribed=None):
