@@ -1,0 +1,12 @@
+name: New release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+    branches:
+      - master
+
+jobs:
+  tests:
+    uses: ./.github/workflows/commit_test.yaml

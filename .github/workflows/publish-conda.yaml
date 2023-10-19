@@ -1,0 +1,120 @@
+name: Publish on Conda
+
+on:
+  push:
+#    branches:
+#      - master
+  pull_request:
+  workflow_run:
+    workflows: [ "New release" ]
+    types:
+      - completed
+
+env:
+  ANACONDA_USER: aatmdelissen
+
+jobs:
+  build:
+    name: Build for Conda
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+#          - { os: ubuntu-latest,   python: '3.11',  arch: x64 }
+          - { os: ubuntu-latest,   python: '3.10',  arch: x64 }
+#          - { os: ubuntu-latest,   python: '3.9',  arch: x64 }
+#          - { os: ubuntu-latest,   python: '3.8',  arch: x64 }
+#          - { os: ubuntu-latest,   python: '3.7',  arch: x64 }
+#
+#          - { os: macos-10.15,    python: '3.11',  arch: x64 }
+          - { os: macos-10.15,    python: '3.10',  arch: x64 }
+#          - { os: macos-10.15,    python: '3.9',  arch: x64 }
+#          - { os: macos-10.15,    python: '3.8',  arch: x64 }
+#          - { os: macos-10.15,    python: '3.7',  arch: x64 }
+#
+#          - { os: windows-latest,  python: '3.11',  arch: x64 }
+#          - { os: windows-latest,  python: '3.10',  arch: x64 }
+#          - { os: windows-latest,  python: '3.9',  arch: x64 }
+#          - { os: windows-latest,  python: '3.8',  arch: x64 }
+#          - { os: windows-latest,  python: '3.7',  arch: x64 }
+
+#          - { os: windows-latest,  python: '3.11',  arch: x86 }
+          - { os: windows-latest,  python: '3.10',  arch: x86 }
+#          - { os: windows-latest,  python: '3.9',  arch: x86 }
+#          - { os: windows-latest,  python: '3.8',  arch: x86 }
+#          - { os: windows-latest,  python: '3.7',  arch: x86 }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      #- name: Ignore Tags
+      #  if: github.event.ref_type != 'tag'
+      #  run: git tag -d $(git tag --points-at HEAD)
+
+      - name: Install Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python }}
+          architecture: ${{ matrix.arch }}
+          miniconda-version: "latest"
+
+      - name: Conda package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash -l {0}
+        run: python -m setuptools_conda build .
+
+      - name: Conda Package (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd /C CALL {0}
+        run: python -m setuptools_conda build .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: conda_packages
+          path: ./conda_packages
+
+  release:
+    if: github.event_name != 'pull_request'
+    name: Release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: conda_packages
+          path: ./conda_packages
+
+      - name: Install Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+
+      - name: Install Anaconda cloud client
+        shell: bash -l {0}
+        run: conda install anaconda-client
+
+      - name: Publish to Anaconda test label
+        if: github.event_name != 'workflow_run'
+        shell: bash -l {0}
+        run: |
+          anaconda \
+            --token ${{ secrets.ANACONDA_API_TOKEN }} \
+            upload \
+            --user $ANACONDA_USER \
+            --label test \
+            conda_packages/*/*
+      - name: Publish to Anaconda main label
+        shell: bash -l {0}
+        if: github.event_name == 'workflow_run'
+        run: |
+          anaconda \
+            --token ${{ secrets.ANACONDA_API_TOKEN }} \
+            upload \
+            --user $ANACONDA_USER \
+            conda_packages/*/*

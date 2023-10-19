@@ -3,7 +3,7 @@ dist/
 *.egg-info
 *.swp
 build/
-_build/
+*_build/
 .idea/
 out/
 *.log
