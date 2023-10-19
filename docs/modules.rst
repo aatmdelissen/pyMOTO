@@ -22,6 +22,7 @@ Mathematical Modules
    pymoto.Inverse
    pymoto.LinSolve
    pymoto.EigenSolve
+   pymoto.Scaling
 
 Finite Element Modules
 ----------------------
