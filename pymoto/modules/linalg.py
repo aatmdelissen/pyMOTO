@@ -48,24 +48,29 @@ class SystemOfEquations(Module):
       - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
 
     Keyword Args:
-        dep_tol: See `pymoto.LinSolve`
-        hermitian: See `pymoto.LinSolve`
-        symmetric: See `pymoto.LinSolve`
-        solver: See `pymoto.LinSolve`
-        prescribed: The indices corresponding to the prescibed degrees of freedom at which :math:`x_p` is located
+        free: The indices corresponding to the free degrees of freedom at which :math:`f_\text{f}` is given
+        prescribed: The indices corresponding to the prescibed degrees of freedom at which :math:`x_\text{p}` is given
+        **kwargs: See `pymoto.LinSolve`, as they are directly passed into the `LinSolve` module
     """
 
-    def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None, prescribed=None):
-        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], dep_tol=dep_tol, hermitian=hermitian, symmetric=symmetric, solver=solver)
+    def _prepare(self, free=None, prescribed=None, **kwargs):
+        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
+        self.f = free
         self.p = prescribed
+        assert self.p is not None or self.f is not None, "Either prescribed or free indices must be provided"
 
     def _response(self, A, bf, xp):
         assert bf.shape[0] + xp.shape[0] == A.shape[0], "Dimensions of applied force and displacement must match matrix"
         assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
         self.n = np.shape(A)[0]
-        if not hasattr(self, 'f'):
+
+        if self.f is None:
             all_dofs = np.arange(self.n)
             self.f = np.setdiff1d(all_dofs, self.p)
+        if self.p is None:
+            all_dofs = np.arange(self.n)
+            self.p = np.setdiff1d(all_dofs, self.f)
+        assert self.f.size + self.p.size == self.n, "Size of free and prescribed indices must match the matrix size"
 
         # create empty output
         self.x = np.zeros((self.n, *bf.shape[1:]), dtype=float)

@@ -602,7 +602,7 @@ class TestSystemOfEquations(unittest.TestCase):
         fn = pym.Network()
         sx = pym.Signal('x', np.random.rand(domain.nel))
         sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
-        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
+        su = fn.append(pym.SystemOfEquations([sK, sff, sup], prescribed=prescribed_dofs))
         sc1 = fn.append(pym.EinSum([su[0][:, 0], su[1][:, 0]], expression='i,i->'))
         sc2 = fn.append(pym.EinSum([su[0][:, 1], su[1][:, 1]], expression='i,i->'))
         sc = fn.append(pym.MathGeneral([sc1, sc2], expression='inp0 + inp1'))
