@@ -24,7 +24,7 @@ scaling_objective = 10.0
 compliance_constraint_value = 1.0
 scaling_compliance_constraint = 10.0
 
-use_volume_constraint = False
+use_volume_constraint = True
 scaling_volume_constraint = 10.0
 
 if __name__ == "__main__":
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     # Solve system of equations for the two loadcases
     up = pym.Signal('up', state=up)
     ff = pym.Signal('ff', state=ff)
-    signal_state = network.append(pym.SystemOfEquations([signal_stiffness, ff, up], free=free_dofs, prescribed=prescribed_dofs))
+    signal_state = network.append(pym.SystemOfEquations([signal_stiffness, ff, up], prescribed=prescribed_dofs))
 
     # Output displacement
     signal_output_displacement = network.append(pym.EinSum([signal_state[0][:, 0], signal_state[1][:, 0]], expression='i,i->'))

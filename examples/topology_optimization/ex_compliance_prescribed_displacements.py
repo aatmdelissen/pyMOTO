@@ -63,7 +63,7 @@ if __name__ == "__main__":
     # Solve system of equations
     up = pym.Signal('up', state=up)
     ff = pym.Signal('ff', state=ff)
-    signal_state = network.append(pym.SystemOfEquations([signal_stiffness, ff, up], free=free_dofs, prescribed=prescribed_dofs))
+    signal_state = network.append(pym.SystemOfEquations([signal_stiffness, ff, up], prescribed=prescribed_dofs))
 
     # Calculate compliance value
     signal_compliance = network.append(pym.EinSum([signal_state[0], signal_state[1]], expression='i,i->'))

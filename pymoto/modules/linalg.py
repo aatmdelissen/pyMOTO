@@ -14,12 +14,29 @@ from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
 
 
 class SystemOfEquations(Module):
-    r"""
-    Solve linear system of equations:
-    :math: `\mathbf{A}_ff \mathbf{x}_f = \mathbf{b}_f - \mathbf{A}_{fp} \mathbf{x}_p`
-    :math: `\mathbf{b}_p = \mathbf{A}_{pf}\mathbf{x}_f + \mathbf{A}_{pp} \mathbf{x}_p`
+    r""" Solve a partitioned linear system of equations
 
-    Self (or mixed) adjointness is automatically detected using :class:`LDAWrapper`.
+    The partitioned system of equations
+
+    :math:`\begin{bmatrix} \mathbf{A}_\text{ff} & \mathbf{A}_\text{fp} \\ \mathbf{A}_\text{pf} & \mathbf{A}_\text{pp}
+    \end{bmatrix}
+    \begin{bmatrix} \mathbf{x}_\text{f} \\ \mathbf{x}_\text{p} \end{bmatrix} =
+    \begin{bmatrix} \mathbf{b}_\text{f} \\ \mathbf{b}_\text{p} \end{bmatrix}
+    ,`
+
+    which is solved in two steps. First solving for the free unknowns (e.g. displacements or temperatures)
+    :math:`\mathbf{x}_f` and then calculating the rhs for the prescribed unknowns (e.g. reaction forces or heat flux):
+
+    :math:`\begin{aligned}
+    \mathbf{A}_\text{ff} \mathbf{x}_\text{f} &= \mathbf{b}_\text{f} - \mathbf{A}_\text{fp} \mathbf{x}_\text{p} \\
+    \mathbf{b}_\text{p} &= \mathbf{A}_\text{pf}\mathbf{x}_\text{f} + \mathbf{A}_\text{pp} \mathbf{x}_\text{p}.
+    \end{aligned}`
+
+    References:
+        Koppen, S., Langelaar, M., & van Keulen, F. (2022).
+        Efficient multi-partition topology optimization.
+        Computer Methods in Applied Mechanics and Engineering, 393, 114829.
+        DOI: https://doi.org/10.1016/j.cma.2022.114829
 
     Input Signals:
       - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
@@ -30,22 +47,25 @@ class SystemOfEquations(Module):
       - ``x`` (`vector`): state vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
       - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
 
-    References:
-    Koppen, S., Langelaar, M., & van Keulen, F. (2022).
-    Efficient multi-partition topology optimization.
-    Computer Methods in Applied Mechanics and Engineering, 393, 114829.
-    DOI: https://doi.org/10.1016/j.cma.2022.114829
+    Keyword Args:
+        dep_tol: See `pymoto.LinSolve`
+        hermitian: See `pymoto.LinSolve`
+        symmetric: See `pymoto.LinSolve`
+        solver: See `pymoto.LinSolve`
+        prescribed: The indices corresponding to the prescibed degrees of freedom at which :math:`x_p` is located
     """
 
-    def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None, free=None, prescribed=None):
+    def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None, prescribed=None):
         self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], dep_tol=dep_tol, hermitian=hermitian, symmetric=symmetric, solver=solver)
-        self.f = free
         self.p = prescribed
 
     def _response(self, A, bf, xp):
         assert bf.shape[0] + xp.shape[0] == A.shape[0], "Dimensions of applied force and displacement must match matrix"
         assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
         self.n = np.shape(A)[0]
+        if not hasattr(self, 'f'):
+            all_dofs = np.arange(self.n)
+            self.f = np.setdiff1d(all_dofs, self.p)
 
         # create empty output
         self.x = np.zeros((self.n, *bf.shape[1:]), dtype=float)
@@ -72,7 +92,6 @@ class SystemOfEquations(Module):
         return self.x, b
 
     def _sensitivity(self, dgdx, dgdb):
-
         adjoint_load = dgdx[self.f, ...] + self.Afp * dgdb[self.p, ...]
 
         # adjoint equation
