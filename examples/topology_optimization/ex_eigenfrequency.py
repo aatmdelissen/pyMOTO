@@ -1,6 +1,7 @@
 """ Minimal example for an eigenfrequency topology optimization """
-import pymoto as pym
 import numpy as np
+
+import pymoto as pym
 
 nx, ny, nz = 50, 30, 0  # Set nz to zero for the 2D problem
 xmin = 1e-9
@@ -14,12 +15,13 @@ class Scaling(pym.Module):
     Quick module that scales to a given value on the first iteration.
     This is useful, for instance, for MMA where the objective must be scaled in a certain way for good convergence
     """
+
     def _prepare(self, value):
         self.value = value
 
     def _response(self, x):
         if not hasattr(self, 'sf'):
-            self.sf = self.value/x
+            self.sf = self.value / x
         return x * self.sf
 
     def _sensitivity(self, dy):
@@ -49,21 +51,23 @@ class MassInterpolation(pym.Module):
     For x < threshold:
         y = rho * x^p0 / (t^(p0-p1))
     """
+
     def _prepare(self, rhoval=1.0, threshold=0.1, p0=6.0, p1=1.0):
         self.rhoval = rhoval
         self.threshold = threshold
         self.p0, self.p1 = p0, p1
 
     def _response(self, x):
-        xx = x**self.p1
-        xx[x < self.threshold] = x[x < self.threshold]**self.p0 / (self.threshold**(self.p0-self.p1))
+        xx = x ** self.p1
+        xx[x < self.threshold] = x[x < self.threshold] ** self.p0 / (self.threshold ** (self.p0 - self.p1))
         return self.rhoval * xx
 
     def _sensitivity(self, drho):
         x = self.sig_in[0].state
-        dx = self.p1*x**(self.p1-1)
-        dx[x < self.threshold] = self.p0*x[x < self.threshold]**(self.p0-1) / (self.threshold**(self.p0-self.p1))
-        return self.rhoval*dx*drho
+        dx = self.p1 * x ** (self.p1 - 1)
+        dx[x < self.threshold] = self.p0 * x[x < self.threshold] ** (self.p0 - 1) / (
+                self.threshold ** (self.p0 - self.p1))
+        return self.rhoval * dx * drho
 
 
 if __name__ == "__main__":
@@ -75,20 +79,21 @@ if __name__ == "__main__":
         domain = pym.DomainDefinition(nx, ny)
 
         # Calculate boundary dof indices
-        boundary_nodes = domain.get_nodenumber(0, np.arange(ny+1))
+        boundary_nodes = domain.get_nodenumber(0, np.arange(ny + 1))
         boundary_dofs = np.repeat(boundary_nodes * 2, 2, axis=-1) + np.tile(np.arange(2), len(boundary_nodes))
 
         # Generate a non-design area that has mass
-        nondesign_area = domain.get_elemnumber(*np.meshgrid(range((3*nx)//4, nx), range(ny//4, (ny*3)//4)))
+        nondesign_area = domain.get_elemnumber(*np.meshgrid(range((3 * nx) // 4, nx), range(ny // 4, (ny * 3) // 4)))
         ndof = 2
 
     else:  # 3D
         domain = pym.DomainDefinition(nx, ny, nz)
 
-        boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny+1), range(nz+1))).flatten()
+        boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(nz + 1))).flatten()
         boundary_dofs = np.repeat(boundary_nodes * 3, 3, axis=-1) + np.tile(np.arange(3), len(boundary_nodes))
 
-        nondesign_area = domain.get_elemnumber(*np.meshgrid(range((3*nx)//4, nx), range(ny//4, (ny*3)//4), range(nz//4, (nz*3)//4))).flatten()
+        nondesign_area = domain.get_elemnumber(*np.meshgrid(range((3 * nx) // 4, nx), range(ny // 4, (ny * 3) // 4),
+                                                            range(nz // 4, (nz * 3) // 4))).flatten()
         ndof = 3
 
     if domain.nnodes > 1e+6:
@@ -96,7 +101,7 @@ if __name__ == "__main__":
         exit()
 
     # Make force and design vector, and fill with initial values
-    sx = pym.Signal('x', state=np.ones(domain.nel)*volfrac)
+    sx = pym.Signal('x', state=np.ones(domain.nel) * volfrac)
 
     # Start building the modular network
     func = pym.Network(print_timing=False)
@@ -113,7 +118,7 @@ if __name__ == "__main__":
     func.append(pym.PlotDomain(sx_analysis, domain=domain, saveto="out/design", clim=[0, 1]))
 
     # SIMP material interpolation
-    sSIMP = func.append(pym.MathGeneral(sx_analysis, expression=f"{xmin} + {1.0-xmin}*inp0^3"))
+    sSIMP = func.append(pym.MathGeneral(sx_analysis, expression=f"{xmin} + {1.0 - xmin}*inp0^3"))
     sDENS = func.append(MassInterpolation(sx_analysis))
 
     # System matrix assembly module

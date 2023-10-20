@@ -46,7 +46,7 @@ if __name__ == "__main__":
     prescribed_dofs = np.union1d(dofs_left_x, dofs_right)
 
     # Setup rhs for two loadcases
-    f = np.zeros((domain.nnodes*2, 2), dtype=float)
+    f = np.zeros((domain.nnodes * 2, 2), dtype=float)
     f[dof_output, 0] = 1.0
     f[dof_input, 1] = 1.0
 
@@ -60,17 +60,21 @@ if __name__ == "__main__":
     signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
 
     # Penalization
-    signal_penalized_variables = network.append(pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1-xmin}*inp0^3"))
+    signal_penalized_variables = network.append(
+        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
 
     # Assembly
-    signal_stiffness = network.append(pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu, bc=prescribed_dofs))
+    signal_stiffness = network.append(
+        pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu,
+                              bc=prescribed_dofs))
 
     # Solve
     signal_force = pym.Signal('f', state=f)
     signal_displacements = network.append(pym.LinSolve([signal_stiffness, signal_force]))
 
     # Output displacement
-    signal_output_displacement = network.append(pym.EinSum([signal_displacements[:, 1], signal_force[:, 0]], expression='i,i->'))
+    signal_output_displacement = network.append(
+        pym.EinSum([signal_displacements[:, 1], signal_force[:, 0]], expression='i,i->'))
 
     # Objective
     signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=scaling_objective))
@@ -80,8 +84,10 @@ if __name__ == "__main__":
     signal_compliance = network.append(pym.EinSum([signal_displacements, signal_force], expression='ij,ij->j'))
 
     # Compliance constraint input and output
-    signal_compliance_constraint_output = network.append(pym.Scaling(signal_compliance[0], scaling=10.0, maxval=output_compliance))
-    signal_compliance_constraint_input = network.append(pym.Scaling(signal_compliance[1], scaling=10.0, maxval=input_compliance))
+    signal_compliance_constraint_output = network.append(
+        pym.Scaling(signal_compliance[0], scaling=10.0, maxval=output_compliance))
+    signal_compliance_constraint_input = network.append(
+        pym.Scaling(signal_compliance[1], scaling=10.0, maxval=input_compliance))
     signal_compliance_constraint_output.tag = "Output compliance constraint"
     signal_compliance_constraint_input.tag = "Input compliance constraint"
 
@@ -90,7 +96,7 @@ if __name__ == "__main__":
     signal_volume.tag = "volume"
 
     # Volume constraint
-    signal_volume_constraint = network.append(pym.Scaling(signal_volume, scaling=10.0, maxval=volfrac*domain.nel))
+    signal_volume_constraint = network.append(pym.Scaling(signal_volume, scaling=10.0, maxval=volfrac * domain.nel))
     signal_volume_constraint.tag = "Volume constraint"
 
     # Plotting

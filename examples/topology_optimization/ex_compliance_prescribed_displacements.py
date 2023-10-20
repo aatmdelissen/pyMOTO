@@ -55,10 +55,12 @@ if __name__ == "__main__":
     signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
 
     # SIMP penalization
-    signal_penalized_variables = network.append(pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1-xmin}*inp0^3"))
+    signal_penalized_variables = network.append(
+        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
 
     # Assembly
-    signal_stiffness = network.append(pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu))
+    signal_stiffness = network.append(
+        pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu))
 
     # Solve system of equations
     up = pym.Signal('up', state=up)
@@ -77,7 +79,7 @@ if __name__ == "__main__":
     signal_volume.tag = "volume"
 
     # Volume constraint
-    signal_volume_constraint = network.append(pym.Scaling(signal_volume, scaling=10.0, maxval=volfrac*domain.nel))
+    signal_volume_constraint = network.append(pym.Scaling(signal_volume, scaling=10.0, maxval=volfrac * domain.nel))
     signal_volume_constraint.tag = "Volume constraint"
 
     # Plotting
