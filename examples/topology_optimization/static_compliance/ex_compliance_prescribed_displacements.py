@@ -22,6 +22,8 @@ nx, ny = 40, 40  # Domain size
 xmin, filter_radius, volfrac = 1e-9, 2, 0.5  # Density settings
 nu, E = 0.3, 1.0  # Material properties
 
+scaling_volume_constraint = 10.0
+
 if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny)
@@ -79,7 +81,8 @@ if __name__ == "__main__":
     signal_volume.tag = "volume"
 
     # Volume constraint
-    signal_volume_constraint = network.append(pym.Scaling(signal_volume, scaling=10.0, maxval=volfrac * domain.nel))
+    signal_volume_constraint = network.append(
+        pym.Scaling(signal_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
     signal_volume_constraint.tag = "Volume constraint"
 
     # Plotting
