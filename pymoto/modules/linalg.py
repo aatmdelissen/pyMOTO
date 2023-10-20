@@ -370,30 +370,31 @@ class EigenSolve(Module):
         if self.is_hermitian is None:
             self.is_hermitian = (matrix_is_hermitian(A) and (B is None or matrix_is_hermitian(B)))
         self.is_sparse = sps.issparse(A) and (B is None or sps.issparse(B))
+
+        # Solve the eigenvalue problem
         if self.is_sparse:
             W, Q = self._sparse_eigs(A, B=B)
         else:
             W, Q = spla.eigh(A, b=B) if self.is_hermitian else spla.eig(A, b=B)
 
+        # Sort the eigenvalues
         isort = self.sorting_fn(W, Q)
         W = W[isort]
         Q = Q[:, isort]
+
+        # Normalize the eigenvectors
         for i in range(W.size):
             qi, wi = Q[:, i], W[i]
-            qi *= np.sign(np.real(qi[np.argmax(abs(qi)>0)]))
+            qi *= np.sign(np.real(qi[np.argmax(abs(qi) > 0)]))  # Set first value positive for orientation
             Bqi = qi if B is None else B@qi
-            qi /= np.sqrt(qi@Bqi)
+            qi /= np.sqrt(qi@Bqi)  # Normalize
 
-            normalization_tol = abs(qi@(qi if B is None else B@qi) - 1.0)
-            if normalization_tol < 1e-5:
-                warnings.WarningMessage(f"Eigenvector {i} normalization above tolerance ({normalization_tol} > 1e-5)",
-                                        UserWarning, getframeinfo(currentframe()).filename,
-                                        getframeinfo(currentframe()).lineno)
-            solution_tol = np.linalg.norm(A@qi - wi*(qi if B is None else B@qi))
-            if solution_tol < 1e-5:
-                warnings.WarningMessage(f"Eigenvector {i} solution above tolerance ({solution_tol} > 1e-5)",
-                                        UserWarning, getframeinfo(currentframe()).filename,
-                                        getframeinfo(currentframe()).lineno)
+            eigvec_nrm = abs(qi@(qi if B is None else B@qi) - 1.0)
+            if eigvec_nrm > 1e-5:
+                warnings.warn(f"Eigenvector {i} normalization error large: |v^T{'B'if len(args)>0 else ''}v|-1 = {eigvec_nrm}")
+            resi_nrm = np.linalg.norm(A@qi - wi*(qi if B is None else B@qi)) / np.linalg.norm(A@qi)
+            if resi_nrm > 1e-5:
+                warnings.warn(f"Eigenvalue {i} residual large: |Av - λ{'B'if len(args)>0 else ''}v|/|Av| = {resi_nrm}")
         return W, Q
 
     def _sensitivity(self, dW, dQ):
