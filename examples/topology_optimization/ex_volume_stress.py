@@ -40,6 +40,11 @@ class ConstraintAggregation(pym.Module):
         self.P = P
 
     def _response(self, x):
+        """
+        a = x + 1
+        b = aggregation(a)
+        c = b - 1
+        """
         self.n = len(x)
         self.x = x
         self.y = self.x + 1
@@ -135,9 +140,9 @@ if __name__ == "__main__":
     s_stress_vm = fn.append(VonMises([s_stress]))
     s_stress_constraints = fn.append(pym.Scaling([s_stress_vm], maxval=maximum_vm_stress, scaling=1.0))
 
-    # s_stress_constraints = fn.append(StressConstraints([s_stress_vm], max_stress=maximum_vm_stress))
     s_stress_constraints_scaled = fn.append(
         pym.EinSum([s_filtered_variables, s_stress_constraints], expression='i,i->i'))
+
     s_stress_constraint = fn.append(ConstraintAggregation([s_stress_constraints_scaled], P=10))
     s_stress_constraint.tag = "Stress constraint"
 
