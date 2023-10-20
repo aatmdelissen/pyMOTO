@@ -16,8 +16,8 @@ from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
 class SystemOfEquations(Module):
     r"""
     Solve linear system of equations:
-    `\mathbf{A}_ff \mathbf{x}_f = \mathbf{b}_f - \mathbf{A}_{fp} \mathbf{x}_p'
-    `\mathbf{b}_p = \mathbf{A}_{pf}\mathbf{x}_f + \mathbf{A}_{pp} \mathbf{x}_p'
+    :math: `\mathbf{A}_ff \mathbf{x}_f = \mathbf{b}_f - \mathbf{A}_{fp} \mathbf{x}_p`
+    :math: `\mathbf{b}_p = \mathbf{A}_{pf}\mathbf{x}_f + \mathbf{A}_{pp} \mathbf{x}_p`
 
     Self (or mixed) adjointness is automatically detected using :class:`LDAWrapper`.
 
@@ -43,14 +43,6 @@ class SystemOfEquations(Module):
         self.p = prescribed
 
     def _response(self, A, bf, xp):
-        r"""
-           Solve linear system of equations:
-           `\mathbf{A}_ff \mathbf{x}_f = \mathbf{b}_f - \mathbf{A}_{fp} \mathbf{x}_p'
-           `\mathbf{b}_p = \mathbf{A}_{pf}\mathbf{x}_f + \mathbf{A}_{pp} \mathbf{x}_p'
-
-           References:
-               https://doi.org/10.1016/j.cma.2022.114829
-           """
         assert bf.shape[0] + xp.shape[0] == A.shape[0], "Dimensions of applied force and displacement must match matrix"
         assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
         self.n = np.shape(A)[0]
@@ -80,31 +72,6 @@ class SystemOfEquations(Module):
         return self.x, b
 
     def _sensitivity(self, dgdx, dgdb):
-
-        r"""
-        Full derivative:
-        \dv{g}{s} = \pdv{g}{\vb{u}_f} \pdv{\vb{u}_f}{s} + \pdv{g}{\vb{f}_p} \pdv{\vb{f}_p}{s} + \pdv{g}{\vb{f}_f} \pdv{\vb{f}_f}{s} + \pdv{g}{\vb{u}_p} \pdv{\vb{u}_p}{s}
-
-        Derivative of system of equations:
-        \vb{K}_ff \pdv{\vb{u}_f}{s} = \pdv{\vb{f}_f}{s} - \pdv{\vb{K}_{fp}}{s} \vb{u}_p - \vb{K}_{fp} \pdv{\vb{u}_p}{s} - \pdv{\vb{K}_{ff}}{s} \vb{u}_f
-        \pdv{\vb{f}_p}{s} = \vb{K}_{pf} \pdv{\vb{u}_f}{s} + \pdv{\vb{K}_{pf}}{s} \vb{u}_f + \vb{K}_{pp} \pdv{\vb{u}_p}{s} + \pdv{\vb{K}_{pp}}{s} \vb{u}_p
-
-        Define:
-        \vb{K}_ff \vb{\lambda}_f = \pdv{g}{\vb{u}_f} + \pdv{g}{\vb{f}_p} \vb{K}_{pf}
-
-        Substitution of the latter into the former yields:
-        \dv{g}{s} = \begin{bmatrix} -\vb{\lambda}_f \\ \pdv{g}{\vb{f}_p} \end{bmatrix} \otimes \begin{bmatrix} \vb{u}_f \\ \vb{u}_p \end{bmatrix} \right) : \pdv{\vb{K}}{s}
-        + \left(\pdv{g}{\vb{f}_f} + \vb{\lambda}_f \right) \vdot \pdv{\vb{f}_f}{s} + \left(\pdv{g}{\vb{u}_p} + \vb{K}_{pp} \pdv{g}{\vb{f}_p} -\vb{K}_{pf}\vb{\lambda}_f\right) \vdot \pdv{\vb{u}_p}{s}
-
-        Thus:
-
-        \pdv{g}{\vb{K}} = \begin{bmatrix} -\vb{\lambda}_f \\ \pdv{g}{\vb{f}_p} \end{bmatrix} \otimes \begin{bmatrix} \vb{u}_f \\ \vb{u}_p \end{bmatrix} \right)
-        \pdv{g}{\vb{f}_f} = \pdv{g}{\vb{f}_f} + \vb{\lambda}_f
-        \pdv{g}{\vb{u}_p} = \pdv{g}{\vb{u}_p} + \vb{K}_{pp} \pdv{g}{\vb{f}_p} -\vb{K}_{pf}\vb{\lambda}_f
-
-        References:
-        doi: 10.1016/j.cma.2022.114829
-        """
 
         adjoint_load = dgdx[self.f, ...] + self.Afp * dgdb[self.p, ...]
 
