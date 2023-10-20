@@ -27,8 +27,8 @@ class TestEinSum(unittest.TestCase):
     def test_vec_dot(self):
         n = 4
 
-        a_list = [np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n)]
-        b_list = [np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n)]
+        a_list = [np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n), np.random.rand(n)]
+        b_list = [np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n)]
         for a, b in zip(a_list, b_list):
             out_chk = a@b
 
@@ -45,8 +45,8 @@ class TestEinSum(unittest.TestCase):
     def test_vec_outer(self):
         n = 4
 
-        a_list = [np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n)]
-        b_list = [np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n)]
+        a_list = [np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n)]
+        b_list = [np.random.rand(n), np.random.rand(n)+1j*np.random.rand(n), np.random.rand(n)]
         for a, b in zip(a_list, b_list):
             out_chk = np.outer(a, b)
 
@@ -113,8 +113,8 @@ class TestEinSum(unittest.TestCase):
     def test_matmat(self):
         n = 3
 
-        a_list = [np.random.rand(n, n), np.random.rand(n, n)+1j*np.random.rand(n, n)]
-        b_list = [np.random.rand(n, n), np.random.rand(n, n)+1j*np.random.rand(n, n)]
+        a_list = [np.random.rand(n, n), np.random.rand(n, n)+1j*np.random.rand(n, n), np.random.rand(n, n)]
+        b_list = [np.random.rand(n, n), np.random.rand(n, n)+1j*np.random.rand(n, n), np.random.rand(n, n)+1j*np.random.rand(n, n)]
         for a, b in zip(a_list, b_list):
             out_chk = a.dot(b)
 
@@ -131,12 +131,24 @@ class TestEinSum(unittest.TestCase):
     def test_matmatvec(self):
         N = 5
         p = 2
+        Areal = np.random.rand(N, p)
+        Aimag = 1j*np.random.rand(N, p)
+        Acplx = np.random.rand(N, p) + 1j*np.random.rand(N, p)
 
-        A_list = [np.random.rand(N, p), 1j*np.random.rand(N, p), np.random.rand(N, p) + 1j*np.random.rand(N, p)]
-        B_list = [np.random.rand(p, p), 1j*np.random.rand(p, p), np.random.rand(p, p) + 1j*np.random.rand(p, p)]
-        v_list = [np.random.rand(p), 1j*np.random.rand(p), np.random.rand(p)+1j*np.random.rand(p)]
+        Breal = np.random.rand(p, p)
+        Bimag = 1j * np.random.rand(p, p)
+        Bcplx = np.random.rand(p, p) + 1j * np.random.rand(p, p)
 
-        for A, B, v in zip(A_list, B_list, v_list):
+        vreal = np.random.rand(p)
+        vimag = 1j * np.random.rand(p)
+        vcplx = np.random.rand(p) + 1j * np.random.rand(p)
+        ABv = [(Areal, Breal, vreal),
+               (Aimag, Bimag, vimag),
+               (Acplx, Bcplx, vcplx),
+               (Areal, Bcplx, vimag),
+               (Acplx, Breal, vreal)]
+
+        for A, B, v in ABv:
             out_chk = (A.dot(B)).dot(np.diag(v))
 
             s_A = pym.Signal("A", A)

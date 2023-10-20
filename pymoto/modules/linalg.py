@@ -1,20 +1,121 @@
 """ Specialized linear algebra modules """
-import os
-import sys
-import glob
 import warnings
-import hashlib
 from inspect import currentframe, getframeinfo
 
-from pymoto import Module, DyadCarrier, LDAWrapper
 import numpy as np
+import scipy.linalg as spla  # Dense matrix solvers
 import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
-import scipy.linalg as spla  # Dense matrix solvers
 
+from pymoto import Signal, Module, DyadCarrier, LDAWrapper
 from pymoto import SolverDenseLU, SolverDenseLDL, SolverDenseCholesky, SolverDiagonal, SolverDenseQR
-from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
 from pymoto import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardiso, SolverSparseCholeskyScikit
+from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
+
+
+class SystemOfEquations(Module):
+    r""" Solve a partitioned linear system of equations
+
+    The partitioned system of equations
+
+    :math:`\begin{bmatrix} \mathbf{A}_\text{ff} & \mathbf{A}_\text{fp} \\ \mathbf{A}_\text{pf} & \mathbf{A}_\text{pp}
+    \end{bmatrix}
+    \begin{bmatrix} \mathbf{x}_\text{f} \\ \mathbf{x}_\text{p} \end{bmatrix} =
+    \begin{bmatrix} \mathbf{b}_\text{f} \\ \mathbf{b}_\text{p} \end{bmatrix}
+    ,`
+
+    which is solved in two steps. First solving for the free unknowns (e.g. displacements or temperatures)
+    :math:`\mathbf{x}_f` and then calculating the rhs for the prescribed unknowns (e.g. reaction forces or heat flux):
+
+    :math:`\begin{aligned}
+    \mathbf{A}_\text{ff} \mathbf{x}_\text{f} &= \mathbf{b}_\text{f} - \mathbf{A}_\text{fp} \mathbf{x}_\text{p} \\
+    \mathbf{b}_\text{p} &= \mathbf{A}_\text{pf}\mathbf{x}_\text{f} + \mathbf{A}_\text{pp} \mathbf{x}_\text{p}.
+    \end{aligned}`
+
+    References:
+        Koppen, S., Langelaar, M., & van Keulen, F. (2022).
+        Efficient multi-partition topology optimization.
+        Computer Methods in Applied Mechanics and Engineering, 393, 114829.
+        DOI: https://doi.org/10.1016/j.cma.2022.114829
+
+    Input Signals:
+      - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
+      - ``b_f`` (`vector`): applied load vector of size ``(f)`` or block-vector of size ``(f, Nrhs)``
+      - ``x_p`` (`vector`): prescribed state vector of size ``(p)`` or block-vector of size ``(p, Nrhs)``
+
+    Output Signal:
+      - ``x`` (`vector`): state vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
+      - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
+
+    Keyword Args:
+        free: The indices corresponding to the free degrees of freedom at which :math:`f_\text{f}` is given
+        prescribed: The indices corresponding to the prescibed degrees of freedom at which :math:`x_\text{p}` is given
+        **kwargs: See `pymoto.LinSolve`, as they are directly passed into the `LinSolve` module
+    """
+
+    def _prepare(self, free=None, prescribed=None, **kwargs):
+        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
+        self.f = free
+        self.p = prescribed
+        assert self.p is not None or self.f is not None, "Either prescribed or free indices must be provided"
+
+    def _response(self, A, bf, xp):
+        assert bf.shape[0] + xp.shape[0] == A.shape[0], "Dimensions of applied force and displacement must match matrix"
+        assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
+        self.n = np.shape(A)[0]
+
+        if self.f is None:
+            all_dofs = np.arange(self.n)
+            self.f = np.setdiff1d(all_dofs, self.p)
+        if self.p is None:
+            all_dofs = np.arange(self.n)
+            self.p = np.setdiff1d(all_dofs, self.f)
+        assert self.f.size + self.p.size == self.n, "Size of free and prescribed indices must match the matrix size"
+
+        # create empty output
+        self.x = np.zeros((self.n, *bf.shape[1:]), dtype=float)
+        self.x[self.p, ...] = xp
+
+        b = np.zeros_like(self.x)
+        b[self.f, ...] = bf
+
+        # partitioning
+        Aff = A[self.f, :][:, self.f]
+        self.Afp = A[self.f, :][:, self.p]
+        self.App = A[self.p, :][:, self.p]
+
+        # solve
+        self.module_LinSolve.sig_in[0].state = Aff
+        self.module_LinSolve.sig_in[1].state = bf - self.Afp * xp
+        self.module_LinSolve.response()
+        xf = self.module_LinSolve.sig_out[0].state
+
+        # set output
+        self.x[self.f, ...] = xf
+        b[self.p, ...] = self.Afp.T * xf + self.App * xp
+
+        return self.x, b
+
+    def _sensitivity(self, dgdx, dgdb):
+        adjoint_load = dgdx[self.f, ...] + self.Afp * dgdb[self.p, ...]
+
+        # adjoint equation
+        lam = np.zeros_like(self.x)
+        lamf = -1.0 * self.module_LinSolve.solver.adjoint(adjoint_load)
+        lam[self.f, ...] = lamf
+        lam[self.p, ...] = dgdb[self.p, ...]
+
+        # sensitivities to system matrix
+        if self.x.ndim > 1:
+            dgdA = DyadCarrier(list(lam.T), list(self.x.T))
+        else:
+            dgdA = DyadCarrier(lam, self.x)
+
+        # sensitivities to applied load and prescribed state
+        dgdff = dgdb[self.f, ...] - lam[self.f, ...]
+        dgdup = dgdx[self.p, ...] + self.App * dgdb[self.p, ...] + self.Afp.T * lam[self.f, ...]
+
+        return dgdA, dgdff, dgdup
 
 
 class Inverse(Module):
@@ -108,12 +209,12 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
     if issparse:
         # Prefer Intel Pardiso solver as it can solve any matrix TODO: Check for complex matrix
         if SolverSparsePardiso.defined and not iscomplex:
-            # TODO check for positive definiteness?  np.alltrue(A.diagonal() > 0) or np.alltrue(A.diagonal() < 0)
+            # TODO check for positive definiteness?  np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0)
             return SolverSparsePardiso(symmetric=issymmetric, hermitian=ishermitian, positive_definite=ispositivedefinite)
 
         if ishermitian:
             # Check if diagonal is all positive or all negative -> Cholesky
-            if np.alltrue(A.diagonal() > 0) or np.alltrue(A.diagonal() < 0):  # TODO what about the complex case?
+            if np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0):  # TODO what about the complex case?
                 if SolverSparseCholeskyScikit.defined:
                     return SolverSparseCholeskyScikit()
                 if SolverSparseCholeskyCVXOPT.defined:
@@ -124,7 +225,7 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
     else:  # Dense branch
         if ishermitian:
             # Check if diagonal is all positive or all negative
-            if np.alltrue(A.diagonal() > 0) or np.alltrue(A.diagonal() < 0):
+            if np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0):
                 return SolverDenseCholesky()
             else:
                 return SolverDenseLDL(hermitian=ishermitian)
@@ -142,10 +243,10 @@ class LinSolve(Module):
 
     Input Signals:
       - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
-      - ``b`` (`vector`): Right-hand-side vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
+      - ``b`` (`vector`): Right-hand-side vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
 
     Output Signal:
-      - ``x`` (`vector`): Solution vector of size ``(n)`` or block-vector of size ``(Nrhs, n)``
+      - ``x`` (`vector`): Solution vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
 
     Keyword Args:
         dep_tol: Tolerance for detecting linear dependence of solution vectors (default = ``1e-5``)
@@ -173,7 +274,9 @@ class LinSolve(Module):
         if self.ishermitian is None:
             self.ishermitian = matrix_is_hermitian(mat)
         if self.issparse and not self.iscomplex and np.iscomplexobj(rhs):
-            raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported")
+            raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported."
+                            "This case can simply be solved by running two rhs (one for the real part and "
+                            "one for the imaginary.")
 
         # Determine the solver we want to use
         if self.solver is None:
@@ -194,9 +297,8 @@ class LinSolve(Module):
         lam = self.solver.adjoint(dfdv.conj()).conj()
 
         if self.issparse:
-            if not self.iscomplex and (np.iscomplexobj(self.u) or np.iscomplexobj(lam)):
-                raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported")  # TODO
-                dmat = DyadCarrier([-np.real(lam), -np.imag(lam)], [np.real(self.u), np.imag(self.u)])
+            if self.u.ndim > 1:
+                dmat = DyadCarrier(list(-lam.T), list(self.u.T))
             else:
                 dmat = DyadCarrier(-lam, self.u)
         else:
@@ -204,8 +306,8 @@ class LinSolve(Module):
                 dmat = np.einsum("iB,jB->ij", -lam, self.u, optimize=True)
             else:
                 dmat = np.outer(-lam, self.u)
-            if not self.iscomplex:
-                dmat = np.real(dmat)
+        if not self.iscomplex:
+            dmat = dmat.real
 
         db = np.real(lam) if np.isrealobj(rhs) else lam
 
@@ -259,30 +361,31 @@ class EigenSolve(Module):
         if self.is_hermitian is None:
             self.is_hermitian = (matrix_is_hermitian(A) and (B is None or matrix_is_hermitian(B)))
         self.is_sparse = sps.issparse(A) and (B is None or sps.issparse(B))
+
+        # Solve the eigenvalue problem
         if self.is_sparse:
             W, Q = self._sparse_eigs(A, B=B)
         else:
             W, Q = spla.eigh(A, b=B) if self.is_hermitian else spla.eig(A, b=B)
 
+        # Sort the eigenvalues
         isort = self.sorting_fn(W, Q)
         W = W[isort]
         Q = Q[:, isort]
+
+        # Normalize the eigenvectors
         for i in range(W.size):
             qi, wi = Q[:, i], W[i]
-            qi *= np.sign(np.real(qi[np.argmax(abs(qi)>0)]))
+            qi *= np.sign(np.real(qi[np.argmax(abs(qi) > 0)]))  # Set first value positive for orientation
             Bqi = qi if B is None else B@qi
-            qi /= np.sqrt(qi@Bqi)
+            qi /= np.sqrt(qi@Bqi)  # Normalize
 
-            normalization_tol = abs(qi@(qi if B is None else B@qi) - 1.0)
-            if normalization_tol < 1e-5:
-                warnings.WarningMessage(f"Eigenvector {i} normalization above tolerance ({normalization_tol} > 1e-5)",
-                                        UserWarning, getframeinfo(currentframe()).filename,
-                                        getframeinfo(currentframe()).lineno)
-            solution_tol = np.linalg.norm(A@qi - wi*(qi if B is None else B@qi))
-            if solution_tol < 1e-5:
-                warnings.WarningMessage(f"Eigenvector {i} solution above tolerance ({solution_tol} > 1e-5)",
-                                        UserWarning, getframeinfo(currentframe()).filename,
-                                        getframeinfo(currentframe()).lineno)
+            eigvec_nrm = abs(qi@(qi if B is None else B@qi) - 1.0)
+            if eigvec_nrm > 1e-5:
+                warnings.warn(f"Eigenvector {i} normalization error large: |v^T{'B'if len(args)>0 else ''}v|-1 = {eigvec_nrm}")
+            resi_nrm = np.linalg.norm(A@qi - wi*(qi if B is None else B@qi)) / np.linalg.norm(A@qi)
+            if resi_nrm > 1e-5:
+                warnings.warn(f"Eigenvalue {i} residual large: |Av - λ{'B'if len(args)>0 else ''}v|/|Av| = {resi_nrm}")
         return W, Q
 
     def _sensitivity(self, dW, dQ):

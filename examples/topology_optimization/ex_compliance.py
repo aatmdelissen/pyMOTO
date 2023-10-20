@@ -2,6 +2,7 @@
 import pymoto as pym
 import numpy as np
 
+
 nx, ny, nz = 10, 10, 0  # Set nz to zero for the 2D problem
 xmin = 1e-9
 filter_radius = 2.0

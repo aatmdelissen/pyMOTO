@@ -14,12 +14,13 @@ from .common.solvers_sparse import SolverSparsePardiso, SolverSparseLU, SolverSp
 
 # Import from modules
 from .modules.generic import MathGeneral, EinSum, ConcatSignal
-from .modules.linalg import Inverse, LinSolve, EigenSolve
+from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations
 from .modules.assembly import AssembleGeneral, AssembleStiffness, AssembleMass
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
 from .modules.io import PlotDomain, PlotGraph, PlotIter, WriteToVTI
 from .modules.complex import MakeComplex, RealPart, ImagPart, ComplexNorm
 from .modules.autodiff import AutoMod
+from .modules.scaling import Scaling
 
 __all__ = [
     'Signal', 'Module', 'Network', 'make_signals',
@@ -34,10 +35,11 @@ __all__ = [
     'SolverSparsePardiso', 'SolverSparseLU', 'SolverSparseCholeskyScikit', 'SolverSparseCholeskyCVXOPT',
     # Modules
     "MathGeneral", "EinSum", "ConcatSignal",
-    "Inverse", "LinSolve", "EigenSolve",
+    "Inverse", "LinSolve", "EigenSolve", "SystemOfEquations",
     "AssembleGeneral", "AssembleStiffness", "AssembleMass",
     "FilterConv", "Filter", "DensityFilter", "OverhangFilter",
     "PlotDomain", "PlotGraph", "PlotIter", "WriteToVTI",
     "MakeComplex", "RealPart", "ImagPart", "ComplexNorm",
-    "AutoMod"
+    "AutoMod",
+    "Scaling"
 ]
