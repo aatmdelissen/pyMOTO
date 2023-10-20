@@ -171,7 +171,7 @@ class EinSum(Module):
 
         if (self.indices_out == '') and n_in == 1:
             # In case expression has only one input and scalar output, e.g. "i->", "ij->", the output size cannot
-            # be deducted. Therefore we add these exceptions
+            # be deducted. Therefore, we add these exceptions
             if len(set(self.indices_in[0])) < len(self.indices_in[0]):
                 # exception for repeated indices (e.g. trace, diagonal summing)
                 if self.sig_in[0].state.ndim > 2:
@@ -182,7 +182,7 @@ class EinSum(Module):
                 np.fill_diagonal(mat, 1.0)
             else:
                 mat = np.ones_like(self.sig_in[0].state)
-            return np.conj(np.conj(df_in) * mat)
+            return df_in * mat
 
         for ind_in in self.indices_in:
             if len(set(ind_in)) < len(ind_in):
@@ -194,11 +194,17 @@ class EinSum(Module):
             ind_in = [self.indices_out]
             ind_in += [elem for i, elem in enumerate(self.indices_in) if i != ar]
             arg_in = [s.state for i, s in enumerate(self.sig_in) if i != ar]
+            arg_complex = [np.iscomplexobj(s.state) for i, s in enumerate(self.sig_in) if i != ar]
             ind_out = self.indices_in[ar]
 
-            da_i = np.zeros_like(self.sig_in[ar].state)
             op = ",".join(ind_in)+"->"+ind_out
-            einsum(op, df_in, *arg_in, out=da_i)
+            if not np.iscomplexobj(self.sig_in[ar].state) and np.any(arg_complex) and np.iscomplexobj(df_in):
+                da_i = np.zeros_like(self.sig_in[ar].state)+0j
+                einsum(op, df_in, *arg_in, out=da_i, optimize=True)
+                da_i = da_i.real
+            else:
+                da_i = np.zeros_like(self.sig_in[ar].state)
+                einsum(op, df_in, *arg_in, out=da_i, optimize=True)
             df_out.append(da_i)
         return df_out
 
