@@ -1,9 +1,12 @@
 """ Assembly modules for finite element analysis """
 import sys
-from pymoto import Module, DyadCarrier, DomainDefinition
+from typing import Union
+
 import numpy as np
 from scipy.sparse import csc_matrix
-from typing import Union
+
+from pymoto import Module, DyadCarrier, DomainDefinition
+
 try:
     from opt_einsum import contract as einsum
 except ModuleNotFoundError:
@@ -34,7 +37,9 @@ class AssembleGeneral(Module):
         matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments
           ``matrix_type((vals, (row_idx, col_idx)), shape=(n, n))``
     """
-    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None, matrix_type=csc_matrix):
+
+    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None,
+                 matrix_type=csc_matrix, add_values=None):
         self.elmat = element_matrix
         self.ndof = self.elmat.shape[-1] // domain.elemnodes  # Number of dofs per node
         self.n = self.ndof * domain.nnodes  # Matrix size
@@ -59,6 +64,11 @@ class AssembleGeneral(Module):
         else:
             self.bcselect = None
 
+        if add_values:
+            self.add_values = add_values
+            self.rows = np.append(self.rows, add_values[0])
+            self.cols = np.append(self.cols, add_values[1])
+
     def _response(self, xscale: np.ndarray):
         scaled_el = ((self.elmat.flatten()[np.newaxis]).T * xscale).flatten(order='F')
 
@@ -68,6 +78,9 @@ class AssembleGeneral(Module):
             mat_values = np.concatenate((scaled_el[self.bcselect], self.bcdiagval*np.ones(len(self.bc))))
         else:
             mat_values = scaled_el
+
+        if self.add_values is not None:
+            mat_values = np.append(mat_values, self.add_values[2])
 
         try:
             mat = self.matrix_type((mat_values, (self.rows, self.cols)), shape=(self.n, self.n))
@@ -187,7 +200,7 @@ class AssembleStiffness(AssembleGeneral):
         kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
     def _prepare(self, domain: DomainDefinition, *args,
-                 e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane='strain', **kwargs):
+                 e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane='strain', add_stiffness=None, **kwargs):
         self.E, self.nu = e_modulus, poisson_ratio
 
         # Get material relation
@@ -210,7 +223,7 @@ class AssembleStiffness(AssembleGeneral):
             B = get_B(dN_dx)
             self.KE += w * B.T @ D @ B  # Add contribution
 
-        super()._prepare(domain, self.KE, *args, **kwargs)
+        super()._prepare(domain, self.KE, add_values=add_stiffness, *args, **kwargs)
 
 
 class AssembleMass(AssembleGeneral):
@@ -232,7 +245,8 @@ class AssembleMass(AssembleGeneral):
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
         **kwargs : Other keyword-arguments are passed to AssembleGeneral
     """
-    def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, **kwargs):
+
+    def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, add_mass=None, **kwargs):
         # Element mass matrix
         # 1/36 Mass of one element
         mel = rho * np.prod(domain.element_size)
@@ -258,5 +272,4 @@ class AssembleMass(AssembleGeneral):
             ME *= mel / 216
         else:
             raise RuntimeError("Only for 2D and 3D")
-        super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, **kwargs)
-
+        super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, add_values=add_mass, **kwargs)
