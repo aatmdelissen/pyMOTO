@@ -209,12 +209,12 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
     if issparse:
         # Prefer Intel Pardiso solver as it can solve any matrix TODO: Check for complex matrix
         if SolverSparsePardiso.defined and not iscomplex:
-            # TODO check for positive definiteness?  np.alltrue(A.diagonal() > 0) or np.alltrue(A.diagonal() < 0)
+            # TODO check for positive definiteness?  np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0)
             return SolverSparsePardiso(symmetric=issymmetric, hermitian=ishermitian, positive_definite=ispositivedefinite)
 
         if ishermitian:
             # Check if diagonal is all positive or all negative -> Cholesky
-            if np.alltrue(A.diagonal() > 0) or np.alltrue(A.diagonal() < 0):  # TODO what about the complex case?
+            if np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0):  # TODO what about the complex case?
                 if SolverSparseCholeskyScikit.defined:
                     return SolverSparseCholeskyScikit()
                 if SolverSparseCholeskyCVXOPT.defined:
@@ -225,7 +225,7 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
     else:  # Dense branch
         if ishermitian:
             # Check if diagonal is all positive or all negative
-            if np.alltrue(A.diagonal() > 0) or np.alltrue(A.diagonal() < 0):
+            if np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0):
                 return SolverDenseCholesky()
             else:
                 return SolverDenseLDL(hermitian=ishermitian)
