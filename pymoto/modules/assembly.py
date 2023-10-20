@@ -68,6 +68,8 @@ class AssembleGeneral(Module):
             self.add_values = add_values
             self.rows = np.append(self.rows, add_values[0])
             self.cols = np.append(self.cols, add_values[1])
+        else:
+            self.add_values = None
 
     def _response(self, xscale: np.ndarray):
         scaled_el = ((self.elmat.flatten()[np.newaxis]).T * xscale).flatten(order='F')
