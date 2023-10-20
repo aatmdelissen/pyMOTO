@@ -21,6 +21,7 @@ Mathematical Modules
    pymoto.MathGeneral
    pymoto.Inverse
    pymoto.LinSolve
+   pymoto.SystemOfEquations
    pymoto.EigenSolve
    pymoto.Scaling
 
