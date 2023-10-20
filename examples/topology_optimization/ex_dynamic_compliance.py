@@ -21,7 +21,7 @@ E = 210e9  # 210 GPa (Silva, 2018)
 rho = 7860  # kg/m3 (Silva, 2018)
 
 # fundamental eigenfreq should be around 175 Hz (Silva, 2018)
-omega = 180 * (2 * pi)
+omega = 370 * (2 * pi)
 
 # force
 force_magnitude = -9000  # (Silva, 2018)
@@ -92,7 +92,15 @@ if __name__ == "__main__":
         pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu, bc=dofs_left))
 
     # Assemble mass matrix
-    signal_mass = network.append(pym.AssembleMass(signal_penalized_variables, domain=domain, bc=dofs_left))
+    signal_mass = network.append(pym.AssembleMass(signal_penalized_variables, domain=domain, bc=dofs_left, rho=rho))
+
+    calculate_eigenfrequencies = True
+    if calculate_eigenfrequencies:
+        network.response()
+        m_eig = pym.EigenSolve([signal_stiffness, signal_mass], hermitian=True, nmodes=3)
+        m_eig.response()
+        eigfreq = np.sqrt(m_eig.sig_out[0].state)
+        print(f"Eigenvalues are {eigfreq} rad/s or {eigfreq/(2*pi)} Hz")
 
     # Build dynamic stiffness matrix
     signal_omega = pym.Signal('omega', omega)
@@ -104,10 +112,13 @@ if __name__ == "__main__":
     signal_displacement = network.append(pym.LinSolve([signal_dynamic_stiffness, signal_force], pym.Signal('u')))
 
     # Output displacement
-    signal_dynamic_compliance = network.append(ComplexVecDot([signal_displacement, signal_force]))
+    signal_dynamic_compliance = network.append(pym.EinSum([signal_displacement, signal_force], expression='i,i->'))
+
+    # Absolute value (amplitude of response)
+    signal_dynamic_norm = network.append(pym.ComplexNorm(signal_dynamic_compliance))
 
     # Objective
-    signal_objective = network.append(pym.Scaling([signal_dynamic_compliance], scaling=scaling_objective))
+    signal_objective = network.append(pym.Scaling([signal_dynamic_norm], scaling=scaling_objective))
     signal_objective.tag = "Objective"
 
     # Volume
