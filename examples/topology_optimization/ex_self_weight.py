@@ -1,8 +1,14 @@
 """
-Example of the design of cantilever for minimum volume subjected to displacement constraint.
+Example of the design of an arch; compliance minimization under self-weight.
 
-References:
-    None? s.koppen@tudelft.nl
+Implemented by @artofscience (s.koppen@tudelft.nl) based on:
+
+Bruyneel, M., & Duysinx, P. (2005).
+Note on topology optimization of continuum structures including self-weight.
+Structural and Multidisciplinary Optimization, 29, 245-256.
+
+With modifications on:
+(i) interpolation of Young's modulus (SIMPLIN)
 """
 
 import numpy as np
@@ -10,39 +16,43 @@ import numpy as np
 import pymoto as pym
 
 # Problem settings
-nx, ny = 40, 40  # Domain size
-xmin, filter_radius, volfrac = 1e-9, 2, 1.0  # Density settings
+nx, ny = 80, 40  # Domain size
+xmin, filter_radius = 1e-9, 2
+initial_volfrac = 1.0
+
+load = 0.0  # point load
+gravity = np.array([0.0, -1.0]) / (nx * ny)  # Gravity force
+
+bc = 'bridge'  # choose arch or bridge
 
 scaling_objective = 10.0
 
+use_volume_constraint = False
+volfrac = 0.2
 scaling_volume_constraint = 10.0
-
-load = -0.01  # point load
-# gravity = -100.0 / (nx * ny)  # Gravity force
-gravity = 0
 
 
 class SelfWeight(pym.Module):
-    def _prepare(self, gravity=1.0, domain=pym.DomainDefinition):
-        self.gravity = gravity
-        self.n = domain.nnodes * 2
-        self.nel = domain.nel
+    def _prepare(self, gravity=np.array([0.0, -1.0], dtype=float), domain=pym.DomainDefinition):
+        self.load_x = gravity[0] / 4
+        self.load_y = gravity[1] / 4
         self.dofconn = domain.get_dofconnectivity(2)
-        self.dfdx = np.zeros(self.nel, dtype=float)
+        self.f = np.zeros(domain.nnodes * 2, dtype=float)
+        self.dfdx = np.zeros(domain.nel, dtype=float)
 
     def _response(self, x, *args):
-        f = np.zeros(self.n, dtype=float)
-        np.add.at(f, self.dofconn[:, [0, 1, 3, 6]].flatten(), np.kron(x, -self.gravity * np.ones(4) / 4))
-        np.add.at(f, self.dofconn[:, [2, 4, 5, 7]].flatten(), np.kron(x, self.gravity * np.ones(4) / 4))
-        return f
+        self.f[:] = 0.0
+        load_x = np.kron(x, self.load_x * np.ones(4))
+        load_y = np.kron(x, self.load_y * np.ones(4))
+        np.add.at(self.f, self.dofconn[:, 0::2].flatten(), load_x)
+        np.add.at(self.f, self.dofconn[:, 1::2].flatten(), load_y)
+        return self.f
 
     def _sensitivity(self, dfdv):
-        dfdx = np.zeros(self.nel, dtype=float)
-        for i in [0, 1, 3, 6]:
-            dfdx[:] -= dfdv[self.dofconn[:, i]] * self.gravity * 2
-        for i in [2, 4, 5, 7]:
-            dfdx[:] += dfdv[self.dofconn[:, i]] * self.gravity * 2
-        return dfdx
+        self.dfdx[:] = 0.0
+        self.dfdx[:] += dfdv[self.dofconn[:, 0::2]].sum(1) * self.load_x
+        self.dfdx[:] += dfdv[self.dofconn[:, 1::2]].sum(1) * self.load_y
+        return self.dfdx
 
 
 if __name__ == "__main__":
@@ -51,11 +61,17 @@ if __name__ == "__main__":
 
     # Node and dof groups
     nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
-    nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
+    nodes_right = domain.get_nodenumber(nx, np.arange(1))
 
     dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
     dofs_left_x = dofs_left[0::2]
-    dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
+
+    if bc == 'arch':
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)
+    elif bc == 'bridge':
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)[1]
+    else:
+        raise Exception("Sorry, case not implemented; choose 'arch' or 'bridge'.")
 
     all_dofs = np.arange(0, 2 * domain.nnodes)
     prescribed_dofs = np.unique(np.hstack([dofs_left_x, dofs_right]))
@@ -66,7 +82,7 @@ if __name__ == "__main__":
     f[2 * domain.get_nodenumber(1, ny) + 1] = load
 
     # Initial design
-    s_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
+    s_variables = pym.Signal('x', state=initial_volfrac * np.ones(domain.nel))
 
     # Setup optimization problem
     fn = pym.Network()
@@ -75,6 +91,17 @@ if __name__ == "__main__":
     s_filtered_variables = fn.append(pym.DensityFilter(s_variables, domain=domain, radius=filter_radius))
 
     # SIMP penalization
+    """
+    Note the use of SIMPLIN: y = xmin + (1-xmin) * (alpha * x + (alpha - 1) * x^p)
+    
+    References:
+    
+    Koppen, S., Van Der Kolk, M., Van Kempen, F. C. M., De Vreugd, J., & Langelaar, M. (2018). 
+    Topology optimization of multicomponent optomechanical systems for improved optical performance. 
+    Structural and Multidisciplinary Optimization, 58, 885-901.
+    DOI: https://doi.org/10.1007/s00158-018-1932-4
+    """
+
     s_penalized_variables = fn.append(
         pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(0.01*inp0 + 0.99*inp0^3)"))
 
@@ -101,7 +128,10 @@ if __name__ == "__main__":
     # Volume
     s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
 
-    # Displacement constraint
+    if not use_volume_constraint:
+        volfrac = 1.0
+
+    # Volume constraint
     s_volume_constraint = fn.append(
         pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
     s_volume_constraint.tag = "Volume constraint"
@@ -109,8 +139,9 @@ if __name__ == "__main__":
     # Plotting
     module_plotdomain = pym.PlotDomain(s_filtered_variables, domain=domain, saveto="out/design")
     responses = [s_objective, s_volume_constraint]
-    module_plotiter = pym.PlotIter(responses)
+    plot_signals = responses if use_volume_constraint else [s_objective]
+    module_plotiter = pym.PlotIter(plot_signals)
     fn.append(module_plotdomain, module_plotiter)
 
     # Optimization
-    pym.finite_difference(fn, [s_variables], responses)
+    pym.minimize_mma(fn, [s_variables], responses, verbosity=3)
