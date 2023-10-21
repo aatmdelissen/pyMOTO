@@ -16,16 +16,23 @@ import numpy as np
 import pymoto as pym
 
 # Problem settings
-nx, ny = 80, 40  # Domain size
+nx, ny = 100, 50  # Domain size
 xmin, filter_radius = 1e-9, 2
 initial_volfrac = 1.0
 
 load = 0.0  # point load
 gravity = np.array([0.0, -1.0]) / (nx * ny)  # Gravity force
 
-bc = 'bridge'  # choose arch or bridge
+bc = 2
 
-scaling_objective = 10.0
+"""
+1: arch
+2: mbb-beam
+3: fully-clamped
+4: double-arch
+"""
+
+scaling_objective = 100.0
 
 use_volume_constraint = False
 volfrac = 0.2
@@ -59,19 +66,29 @@ if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny)
 
+    match bc:
+        case 1:
+            nodes_right = domain.get_nodenumber(nx, np.arange(1))
+            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)
+        case 2:
+            nodes_right = domain.get_nodenumber(nx, np.arange(1))
+            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)[1]
+        case 3:
+            nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
+            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
+        case 4:
+            nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
+            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
+            dofs_right = dofs_right[1::2]
+        case _:
+            nodes_right = domain.get_nodenumber(nx, np.arange(1))
+            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)
+
     # Node and dof groups
     nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
-    nodes_right = domain.get_nodenumber(nx, np.arange(1))
 
     dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
     dofs_left_x = dofs_left[0::2]
-
-    if bc == 'arch':
-        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)
-    elif bc == 'bridge':
-        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)[1]
-    else:
-        raise Exception("Sorry, case not implemented; choose 'arch' or 'bridge'.")
 
     all_dofs = np.arange(0, 2 * domain.nnodes)
     prescribed_dofs = np.unique(np.hstack([dofs_left_x, dofs_right]))
@@ -144,4 +161,4 @@ if __name__ == "__main__":
     fn.append(module_plotdomain, module_plotiter)
 
     # Optimization
-    pym.minimize_mma(fn, [s_variables], responses, verbosity=3)
+    pym.minimize_mma(fn, [s_variables], responses, verbosity=2, maxit=100, move=0.1)
