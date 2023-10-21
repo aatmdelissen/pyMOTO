@@ -32,7 +32,8 @@ jobs:
       #     password: ${{ secrets.TEST_PYPI_TOKEN }}
       #     repository_url: https://test.pypi.org/legacy/
       - name: Upload to PyPI
-        if: startsWith(github.ref, 'refs/tags')
+#        if: startsWith(github.ref, 'refs/tags')
+        if: github.event_name == 'workflow_run'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           verbose: true
