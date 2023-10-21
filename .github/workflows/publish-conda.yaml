@@ -1,10 +1,6 @@
 name: Publish on Conda
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
   workflow_run:
     workflows: [ "New release" ]
     types:
@@ -84,7 +80,7 @@ jobs:
 
   release:
 #    if: github.event_name != 'pull_request'
-    if: github.event_name == 'workflow_run'
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Release
     runs-on: ubuntu-latest
     needs: build
