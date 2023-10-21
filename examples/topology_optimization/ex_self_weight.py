@@ -113,10 +113,8 @@ if __name__ == "__main__":
     
     References:
     
-    Koppen, S., Van Der Kolk, M., Van Kempen, F. C. M., De Vreugd, J., & Langelaar, M. (2018). 
-    Topology optimization of multicomponent optomechanical systems for improved optical performance. 
-    Structural and Multidisciplinary Optimization, 58, 885-901.
-    DOI: https://doi.org/10.1007/s00158-018-1932-4
+    Zhu, J., Zhang, W., & Beckers, P. (2009). Integrated layout design of multi-component system. 
+    International Journal for Numerical Methods in Engineering, 78(6), 631–651. https://doi.org/10.1002/nme.2499
     """
 
     s_penalized_variables = fn.append(
