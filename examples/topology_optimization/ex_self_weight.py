@@ -67,21 +67,21 @@ if __name__ == "__main__":
     domain = pym.DomainDefinition(nx, ny)
 
     if bc == 1:
-            nodes_right = domain.get_nodenumber(nx, np.arange(1))
-            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)
+        nodes_right = domain.get_nodenumber(nx, np.arange(1))
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)
     elif bc == 2:
-            nodes_right = domain.get_nodenumber(nx, np.arange(1))
-            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)[1]
+        nodes_right = domain.get_nodenumber(nx, np.arange(1))
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)[1]
     elif bc == 3:
-            nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
-            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
+        nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
     elif bc == 4:
-            nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
-            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-            dofs_right = dofs_right[1::2]
+        nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
+        dofs_right = dofs_right[1::2]
     else:
-            nodes_right = domain.get_nodenumber(nx, np.arange(1))
-            dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)
+        nodes_right = domain.get_nodenumber(nx, np.arange(1))
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), 1)
 
     # Node and dof groups
     nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
@@ -112,10 +112,8 @@ if __name__ == "__main__":
     
     References:
     
-    Koppen, S., Van Der Kolk, M., Van Kempen, F. C. M., De Vreugd, J., & Langelaar, M. (2018). 
-    Topology optimization of multicomponent optomechanical systems for improved optical performance. 
-    Structural and Multidisciplinary Optimization, 58, 885-901.
-    DOI: https://doi.org/10.1007/s00158-018-1932-4
+    Zhu, J., Zhang, W., & Beckers, P. (2009). Integrated layout design of multi-component system. 
+    International Journal for Numerical Methods in Engineering, 78(6), 631–651. https://doi.org/10.1002/nme.2499
     """
 
     s_penalized_variables = fn.append(
