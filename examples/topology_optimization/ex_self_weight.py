@@ -9,6 +9,9 @@ Structural and Multidisciplinary Optimization, 29, 245-256.
 
 With modifications on:
 (i) interpolation of Young's modulus (SIMPLIN)
+
+Consequencly, in contrast to Bruyneel et al. (2005),
+no special treatment of the sequential approximate optimization algorithm is required.
 """
 
 import numpy as np
