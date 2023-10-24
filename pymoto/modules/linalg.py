@@ -58,7 +58,7 @@ class StaticCondensation(Module):
         C = np.zeros((self.n, len(self.m)), dtype=float)
         C[self.m, ...] = np.eye(len(self.m))
         C[self.f, ...] = -self.X
-        return C @ dfdB @ C.T
+        return C @ dfdB @ C.T if isinstance(dfdB, DyadCarrier) else DyadCarrier(list(C.T), list(np.asarray(dfdB @ C.T)))
 
 
 class SystemOfEquations(Module):
