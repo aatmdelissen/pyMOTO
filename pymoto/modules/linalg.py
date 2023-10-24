@@ -41,7 +41,8 @@ class StaticCondensation(Module):
     """
 
     def _prepare(self, free, main, **kwargs):
-        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], use_lda_solver=False, **kwargs)
+        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
+        self.module_LinSolve.use_lda_solver = False
         self.m = main
         self.f = free
 
@@ -305,12 +306,13 @@ class LinSolve(Module):
         use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
     """
 
-    def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None, use_lda_solver=True):
+    use_lda_solver = True
+
+    def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None):
         self.dep_tol = dep_tol
         self.ishermitian = hermitian
         self.issymmetric = symmetric
         self.solver = solver
-        self.use_lda_solver = use_lda_solver
 
     def _response(self, mat, rhs):
         # Do some detections on the matrix type
