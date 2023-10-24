@@ -1,14 +1,15 @@
+import inspect
+import pathlib  # For importing files
+import sys
 import unittest
+
 import numpy as np
 import scipy as sp
-from scipy.io import mmread  # For importing files
-import pathlib  # For importing files
 import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
-import scipy
+from scipy.io import mmread  # For importing files
+
 import pymoto as pym
-import sys
-import inspect
 
 try:
     import cvxopt
@@ -609,6 +610,40 @@ class TestSystemOfEquations(unittest.TestCase):
         fn.response()
         def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
         pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+
+
+class TestStaticCondensation(unittest.TestCase):
+
+    def test_sparse_to_dense(self):
+        """ Test symmetric real sparse matrix (compliance in 2D)"""
+        N = 20
+        # Set up the domain
+        domain = pym.DomainDefinition(N, N)
+
+        # node groups
+        nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
+        nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
+
+        # dof groups
+        dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+
+        # free and prescribed dofs
+        all_dofs = np.arange(0, 2 * domain.nnodes)
+        prescribed_dofs = dofs_right
+        main_dofs = dofs_left[0::2]
+        free_dofs = np.setdiff1d(all_dofs, np.unique(np.hstack([main_dofs, prescribed_dofs])))
+
+        fn = pym.Network()
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
+        su = fn.append(pym.StaticCondensation([sK], free=free_dofs, main=main_dofs))
+        sc = fn.append(pym.EinSum([su], expression='ij->'))
+        fn.response()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+
+        pym.finite_difference(fn, [sx], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
 
 
 if __name__ == '__main__':

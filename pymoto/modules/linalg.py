@@ -13,6 +13,53 @@ from pymoto import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardi
 from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
 
 
+class StaticCondensation(Module):
+    r"""Static condensation of a linear system of equations
+
+    The partitioned system of equations
+
+    :math:`\begin{bmatrix} \mathbf{A}_\text{mm} & \mathbf{A}_\text{ms} \\ \mathbf{A}_\text{sm} & \mathbf{A}_\text{ss}
+    \end{bmatrix}
+    \begin{bmatrix} \mathbf{x}_\text{m} \\ \mathbf{x}_\text{s} \end{bmatrix} =
+    \begin{bmatrix} \mathbf{b}_\text{m} \\ \mathbf{b}_\text{s} \end{bmatrix}
+    ,`
+    with subscripts ``(m)`` and ``(s)`` referring to the main and secondary dofs, respectively.
+
+    The system is solved in two steps:
+
+    :math:`\begin{aligned}
+    \mathbf{A}_\text{ss} \mathbf{x}_\text{sm} &= \mathbf{A}_\text{sm} \\
+    \tilde{\mathbf{A}} &= \mathbf{A}_\text{mm} - \mathbf{A}_\text{ms} \mathbf{x}_\text{sm}.
+    \end{aligned}`
+
+    Implemented by @artofscience (s.koppen@tudelft.nl) based on:
+
+    Koppen, S., Langelaar, M., & van Keulen, F. (2022).
+    Efficient multi-partition topology optimization.
+    Computer Methods in Applied Mechanics and Engineering, 393, 114829.
+    DOI: https://doi.org/10.1016/j.cma.2022.114829
+    """
+
+    def _prepare(self, free, main, **kwargs):
+        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], use_lda_solver=False, **kwargs)
+        self.m = main
+        self.f = free
+
+    def _response(self, A):
+        self.n = np.shape(A)[0]
+        self.module_LinSolve.sig_in[0].state = A[self.f, ...][..., self.f]
+        self.module_LinSolve.sig_in[1].state = A[self.f, ...][..., self.m].todense()
+        self.module_LinSolve.response()
+        self.X = self.module_LinSolve.sig_out[0].state
+        return A[self.m, ...][..., self.m] - A[self.m, ...][..., self.f] @ self.X
+
+    def _sensitivity(self, dfdB):
+        C = np.zeros((self.n, len(self.m)), dtype=float)
+        C[self.m, ...] = np.eye(len(self.m))
+        C[self.f, ...] = -self.X
+        return C @ dfdB @ C.T
+
+
 class SystemOfEquations(Module):
     r""" Solve a partitioned linear system of equations
 
@@ -257,13 +304,13 @@ class LinSolve(Module):
     Attributes:
         use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
     """
-    use_lda_solver = True
 
-    def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None):
+    def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None, use_lda_solver=True):
         self.dep_tol = dep_tol
         self.ishermitian = hermitian
         self.issymmetric = symmetric
         self.solver = solver
+        self.use_lda_solver = use_lda_solver
 
     def _response(self, mat, rhs):
         # Do some detections on the matrix type
