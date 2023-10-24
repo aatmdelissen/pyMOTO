@@ -4,7 +4,7 @@ Example of the design of a flexure using topology optimization with:
 (ii) constrainted maximum stiffness in axial stiffness
 (iii) (optional) constrained maximum use of material (volume constraint)
 
-Reference:
+Implemented by @artofscience (s.koppen@tudelft.nl) based on:
 
 Koppen, S., Langelaar, M., & van Keulen, F. (2022).
 A simple and versatile topology optimization formulation for flexure synthesis.
@@ -17,9 +17,28 @@ import numpy as np
 import pymoto as pym
 
 
+class Symmetry(pym.Module):
+    def _prepare(self, domain=pym.DomainDefinition):
+        self.domain = domain
+
+    def _response(self, x):
+        x = np.reshape(x, (self.domain.nely, self.domain.nelx))
+        x = (x + np.flip(x, 0)) / 2
+        x = (x + np.flip(x, 1)) / 2
+        return x.flatten()
+
+    def _sensitivity(self, dfdv):
+        dfdv = np.reshape(dfdv, (self.domain.nely, self.domain.nelx))
+        dfdv = (dfdv + np.flip(dfdv, 1)) / 2
+        dfdv = (dfdv + np.flip(dfdv, 0)) / 2
+        return dfdv
+
+
 def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: float = 1.0,
-            filter_radius: float = 2.0, E: float = 100.0, nu: float = 0.3, xmin: float = 1e-6,
-            use_volume_constraint: bool = True, initial_volfrac: float = 0.1, volfrac: float = 0.3):
+            filter_radius: float = 2.0, E: float = 100.0, nu: float = 0.3, xmin: float = 1e-9,
+            use_volume_constraint: bool = True, initial_volfrac: float = 0.2, volfrac: float = 0.4,
+            use_symmetry=False):
+
     scaling_objective = 10.0
     scaling_compliance_constraint = 10.0
     scaling_volume_constraint = 10.0
@@ -47,7 +66,8 @@ def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: 
     # endregion
 
     v = np.zeros((2 * domain.nnodes, 3), dtype=float)
-    v[dofs_top_x, 0::2] = 1.0  # tx and rz
+    v[dofs_top_x, 0] = 1.0  # tx and rz
+    v[dofs_top_x, 2] = 1.0 * ny / nx
     v[dofs_top_y, 1] = 1.0  # ty
     v[dofs_top_y, 2] = np.linspace(1, -1, nx + 1)  # rz
     u = v[:, deg]
@@ -58,8 +78,14 @@ def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: 
     # Setup optimization problem
     network = pym.Network()
 
-    # Density filtering
-    signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
+    # Force symmetry
+    if use_symmetry:
+        signal_variables_symmetric = network.append(Symmetry(signal_variables, domain=domain))
+        signal_filtered_variables = network.append(
+            pym.DensityFilter(signal_variables_symmetric, domain=domain, radius=filter_radius))
+    else:
+        signal_filtered_variables = network.append(
+            pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
 
     # SIMP penalization
     signal_penalized_variables = network.append(
@@ -109,9 +135,9 @@ def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: 
 
 
 if __name__ == "__main__":
-    flexure(100, 100, 'rz', 'ty', 0.1)  # axial spring, no rotation
-    # flexure(100, 100, 'tx', 'ty', 1)  # axial spring, no shear
+    flexure(100, 120, 'rz', 'ty', 0.1, use_symmetry=True)  # axial spring, no rotation
+    # flexure(100, 50, 'tx', 'ty', 1, use_symmetry=True)  # axial spring, no shear
     # flexure(100, 100, 'ty', 'tx', 0.01)  # parallel guiding system
     # flexure(100, 100, 'rz', 'tx', 0.01)  # parallel guiding system 2
-    # flexure(100, 100, 'ty', 'rz', 0.01)  # notch hinge
-    # flexure(100, 100, 'tx', 'rz', 0.01)  # notch hinge 2
+    # flexure(100, 100, 'ty', 'rz', 0.01, use_volume_constraint=False)  # notch hinge
+    # flexure(100, 50, 'tx', 'rz', 0.01, use_symmetry=True)  # notch hinge 2
