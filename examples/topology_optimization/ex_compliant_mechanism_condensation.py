@@ -15,17 +15,20 @@ import numpy as np
 import pymoto as pym
 
 # Problem settings
-nx, ny = 40, 40  # Domain size
-xmin, filter_radius, volfrac = 1e-6, 2, 0.3  # Density settings
+nx, ny = 100, 100  # Domain size
+xmin, filter_radius, volfrac = 1e-6, 2, 0.35  # Density settings
 nu, E = 0.3, 100  # Material properties
 
-scaling_objective = 10.0
+scaling_objective = 100.0
 
-compliance_constraint_value = 1.0
+compliance_constraint_value = 0.1
 scaling_compliance_constraint = 10.0
 
-use_volume_constraint = False
+use_volume_constraint = True
 scaling_volume_constraint = 10.0
+
+v = np.ones(2, dtype=float)
+v[1] *= -1.1  # intended geometric advantage
 
 if __name__ == "__main__":
     # Set up the domain
@@ -46,13 +49,6 @@ if __name__ == "__main__":
     prescribed_dofs = np.unique(np.hstack([dofs_left_x, dofs_right]))
     gdi = np.unique(np.hstack([dof_input, dof_output]))
     free_dofs = np.setdiff1d(all_dofs, np.unique(np.hstack([gdi, prescribed_dofs])))
-
-    # Solve system of equations for the two loadcases
-    u = np.zeros((2, 2), dtype=float)
-    u[0, :] = 1.0
-    u[1, 0] = 1.0
-    u[1, 1] = -1.0
-    s_u = pym.Signal('u', state=u)
 
     # Initial design
     signal_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
@@ -75,16 +71,24 @@ if __name__ == "__main__":
     signal_condensed_stiffness = network.append(pym.StaticCondensation(signal_stiffness, main=gdi, free=free_dofs))
 
     # Compliances
-    signal_state = network.append(pym.EinSum([s_u, signal_condensed_stiffness, s_u], expression='ji,jk,ki->i'))
-
-    # Objective function
-    signal_objective = network.append(pym.Scaling([signal_state[0]], scaling=-1.0 * scaling_objective))
-    signal_objective.tag = "Objective"
+    s_v = pym.Signal('u', state=v)
+    signal_state = network.append(pym.EinSum([s_v, signal_condensed_stiffness, s_v], expression='i,ik,k->'))
 
     # compliance constraint
     signal_compliance_constraint = network.append(
-        pym.Scaling(signal_state[1], scaling=scaling_compliance_constraint, maxval=compliance_constraint_value))
+        pym.Scaling(signal_state, scaling=scaling_compliance_constraint, maxval=compliance_constraint_value))
     signal_compliance_constraint.tag = "Compliance constraint"
+
+    # Compliances
+    f = np.eye(2, dtype=float)
+    s_f = pym.Signal('f', state=f)
+    s_u = network.append(pym.LinSolve([signal_condensed_stiffness, s_f]))
+
+    s_compliance = network.append(pym.EinSum([s_u, s_f], expression='ij,ij->'))
+
+    # Objective function
+    signal_objective = network.append(pym.Scaling([s_compliance], scaling=1.0 * scaling_objective))
+    signal_objective.tag = "Objective"
 
     # Volume
     signal_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
