@@ -145,13 +145,19 @@ class SystemOfEquations(Module):
         return self.x, b
 
     def _sensitivity(self, dgdx, dgdb):
-        adjoint_load = dgdx[self.f, ...] + self.Afp * dgdb[self.p, ...]
+        adjoint_load = np.zeros_like(self.x)
 
-        # adjoint equation
+        if dgdx is not None:
+            adjoint_load += dgdx[self.f, ...]
+        if dgdb is not None:
+            adjoint_load += self.Afp * dgdb[self.p, ...]
+
         lam = np.zeros_like(self.x)
         lamf = -1.0 * self.module_LinSolve.solver.adjoint(adjoint_load)
         lam[self.f, ...] = lamf
-        lam[self.p, ...] = dgdb[self.p, ...]
+
+        if dgdb is not None:
+            lam[self.p, ...] = dgdb[self.p, ...]
 
         # sensitivities to system matrix
         if self.x.ndim > 1:
@@ -160,10 +166,18 @@ class SystemOfEquations(Module):
             dgdA = DyadCarrier(lam, self.x)
 
         # sensitivities to applied load and prescribed state
-        dgdff = dgdb[self.f, ...] - lam[self.f, ...]
-        dgdup = dgdx[self.p, ...] + self.App * dgdb[self.p, ...] + self.Afp.T * lam[self.f, ...]
+        dgdbf, dgdup = np.zeros_like(len(self.f)), np.zeros_like(len(self.p))
+        dgdbf -= lam[self.f, ...]
+        dgdup += self.Afp.T * lam[self.f, ...]
 
-        return dgdA, dgdff, dgdup
+        if dgdx is not None:
+            dgdup += dgdx[self.p, ...]
+
+        if dgdb is not None:
+            dgdbf += dgdb[self.f, ...]
+            dgdup += self.App * dgdb[self.p, ...]
+
+        return dgdA, dgdbf, dgdup
 
 
 class Inverse(Module):
