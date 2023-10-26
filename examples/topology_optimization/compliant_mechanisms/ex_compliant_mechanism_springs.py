@@ -11,7 +11,7 @@ Note: this problem formulation only works with
 (iii) active volume constraint
 (iv) input spring stiffness not equal to output spring stiffness
 
-References:
+Implemented by @artofscience (s.koppen@tudelft.nl) based on:
 
 Bendsoe, M. P., & Sigmund, O. (2003).
 Topology optimization: theory, methods, and applications.

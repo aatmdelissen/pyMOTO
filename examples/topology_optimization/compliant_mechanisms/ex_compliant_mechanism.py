@@ -3,7 +3,7 @@ Example of the design of a compliant mechanism using topology optimization with:
 (i) maximum output displacement due to input load
 (ii) constrained minimum input and output stiffness
 
-References:
+Implemented by @artofscience (s.koppen@tudelft.nl) based on:
 
 Koppen, S. (2022).
 Topology optimization of compliant mechanisms with multiple degrees of freedom.
