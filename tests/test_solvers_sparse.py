@@ -1,14 +1,15 @@
+import inspect
+import pathlib  # For importing files
+import sys
 import unittest
+
 import numpy as np
 import scipy as sp
-from scipy.io import mmread  # For importing files
-import pathlib  # For importing files
 import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
-import scipy
+from scipy.io import mmread  # For importing files
+
 import pymoto as pym
-import sys
-import inspect
 
 try:
     import cvxopt
@@ -428,6 +429,7 @@ class DynamicMatrix(pym.Module):
         domega = -self.beta * dZiK - self.alpha * dZiM - 2 * omega * dZrM
         return dK, dM, domega
 
+
 class TestLinSolveModule_sparse(unittest.TestCase):
     # # ------------- Symmetric -------------
     def test_symmetric_real_compliance2d(self):
@@ -566,6 +568,92 @@ class TestSystemOfEquations(unittest.TestCase):
         def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
         pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
 
+    def test_sparse_symmetric_real_compliance2d_single_load_u(self):
+        """ Test symmetric real sparse matrix (compliance in 2D)"""
+        N = 10
+        # Set up the domain
+        domain = pym.DomainDefinition(N, N)
+
+        # node groups
+        nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
+        nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
+
+        # dof groups
+        dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_left_horizontal = dofs_left[0::2]
+        dofs_left_vertical = dofs_left[1::2]
+
+        # free and prescribed dofs
+        all_dofs = np.arange(0, 2 * domain.nnodes)
+        prescribed_dofs = np.unique(np.hstack([dofs_left_horizontal, dofs_right, dofs_left_vertical]))
+        free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
+
+        # Setup solution vectors and rhs
+        ff = np.zeros_like(free_dofs, dtype=float)
+        ff[:] = np.random.rand(len(free_dofs))
+        u = np.zeros_like(all_dofs, dtype=float)
+
+        u[dofs_left_vertical] = np.random.rand(len(dofs_left_vertical))
+        up = u[prescribed_dofs]
+
+        sff = pym.Signal('ff', ff)
+        sup = pym.Signal('up', up)
+
+        fn = pym.Network()
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
+        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
+        sc = fn.append(pym.EinSum([su[0]], expression='i->'))
+        fn.response()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+
+        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+
+    def test_sparse_symmetric_real_compliance2d_single_load_f(self):
+        """ Test symmetric real sparse matrix (compliance in 2D)"""
+        N = 10
+        # Set up the domain
+        domain = pym.DomainDefinition(N, N)
+
+        # node groups
+        nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
+        nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
+
+        # dof groups
+        dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_left_horizontal = dofs_left[0::2]
+        dofs_left_vertical = dofs_left[1::2]
+
+        # free and prescribed dofs
+        all_dofs = np.arange(0, 2 * domain.nnodes)
+        prescribed_dofs = np.unique(np.hstack([dofs_left_horizontal, dofs_right, dofs_left_vertical]))
+        free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
+
+        # Setup solution vectors and rhs
+        ff = np.zeros_like(free_dofs, dtype=float)
+        ff[:] = np.random.rand(len(free_dofs))
+        u = np.zeros_like(all_dofs, dtype=float)
+
+        u[dofs_left_vertical] = np.random.rand(len(dofs_left_vertical))
+        up = u[prescribed_dofs]
+
+        sff = pym.Signal('ff', ff)
+        sup = pym.Signal('up', up)
+
+        fn = pym.Network()
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
+        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
+        sc = fn.append(pym.EinSum([su[1]], expression='i->'))
+        fn.response()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+
+        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+
     def test_sparse_symmetric_real_compliance2d_single_multi_load(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
         N=10
@@ -602,13 +690,135 @@ class TestSystemOfEquations(unittest.TestCase):
         fn = pym.Network()
         sx = pym.Signal('x', np.random.rand(domain.nel))
         sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
-        su = fn.append(pym.SystemOfEquations([sK, sff, sup], prescribed=prescribed_dofs))
+        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
         sc1 = fn.append(pym.EinSum([su[0][:, 0], su[1][:, 0]], expression='i,i->'))
         sc2 = fn.append(pym.EinSum([su[0][:, 1], su[1][:, 1]], expression='i,i->'))
         sc = fn.append(pym.MathGeneral([sc1, sc2], expression='inp0 + inp1'))
         fn.response()
         def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
         pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+
+    def test_sparse_symmetric_real_compliance2d_single_multi_load_u(self):
+        """ Test symmetric real sparse matrix (compliance in 2D)"""
+        N = 10
+        # Set up the domain
+        domain = pym.DomainDefinition(N, N)
+
+        # node groups
+        nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
+        nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
+
+        # dof groups
+        dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_left_horizontal = dofs_left[0::2]
+        dofs_left_vertical = dofs_left[1::2]
+
+        # free and prescribed dofs
+        all_dofs = np.arange(0, 2 * domain.nnodes)
+        prescribed_dofs = np.unique(np.hstack([dofs_left_horizontal, dofs_right, dofs_left_vertical]))
+        free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
+
+        # Setup solution vectors and rhs
+        ff = np.zeros((len(free_dofs), 2), dtype=float)
+        ff[:, :] = np.random.rand(np.shape(ff)[0], np.shape(ff)[1])
+        u = np.zeros((len(all_dofs), 2), dtype=float)
+
+        u[dofs_left_vertical, 0] = np.random.rand(len(dofs_left_vertical))
+        u[dofs_left_horizontal, 1] = np.random.rand(len(dofs_left_vertical))
+        up = u[prescribed_dofs, :]
+
+        sff = pym.Signal('ff', ff)
+        sup = pym.Signal('up', up)
+
+        fn = pym.Network()
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
+        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
+        sc = fn.append(pym.EinSum(su[0], expression='ij->'))
+        fn.response()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+
+        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+
+    def test_sparse_symmetric_real_compliance2d_single_multi_load_f(self):
+        """ Test symmetric real sparse matrix (compliance in 2D)"""
+        N = 10
+        # Set up the domain
+        domain = pym.DomainDefinition(N, N)
+
+        # node groups
+        nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
+        nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
+
+        # dof groups
+        dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_left_horizontal = dofs_left[0::2]
+        dofs_left_vertical = dofs_left[1::2]
+
+        # free and prescribed dofs
+        all_dofs = np.arange(0, 2 * domain.nnodes)
+        prescribed_dofs = np.unique(np.hstack([dofs_left_horizontal, dofs_right, dofs_left_vertical]))
+        free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
+
+        # Setup solution vectors and rhs
+        ff = np.zeros((len(free_dofs), 2), dtype=float)
+        ff[:, :] = np.random.rand(np.shape(ff)[0], np.shape(ff)[1])
+        u = np.zeros((len(all_dofs), 2), dtype=float)
+
+        u[dofs_left_vertical, 0] = np.random.rand(len(dofs_left_vertical))
+        u[dofs_left_horizontal, 1] = np.random.rand(len(dofs_left_vertical))
+        up = u[prescribed_dofs, :]
+
+        sff = pym.Signal('ff', ff)
+        sup = pym.Signal('up', up)
+
+        fn = pym.Network()
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
+        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
+        sc = fn.append(pym.EinSum(su[1], expression='ij->'))
+        fn.response()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+
+        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+
+
+class TestStaticCondensation(unittest.TestCase):
+
+    def test_sparse_to_dense(self):
+        """ Test symmetric real sparse matrix (compliance in 2D)"""
+        N = 20
+        # Set up the domain
+        domain = pym.DomainDefinition(N, N)
+
+        # node groups
+        nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
+        nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
+
+        # dof groups
+        dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+
+        # free and prescribed dofs
+        all_dofs = np.arange(0, 2 * domain.nnodes)
+        prescribed_dofs = dofs_right
+        main_dofs = dofs_left[0::2]
+        free_dofs = np.setdiff1d(all_dofs, np.unique(np.hstack([main_dofs, prescribed_dofs])))
+
+        fn = pym.Network()
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
+        su = fn.append(pym.StaticCondensation([sK], free=free_dofs, main=main_dofs))
+        sc = fn.append(pym.EinSum([su], expression='ij->'))
+        fn.response()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+
+        pym.finite_difference(fn, [sx], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
 
 
 if __name__ == '__main__':
