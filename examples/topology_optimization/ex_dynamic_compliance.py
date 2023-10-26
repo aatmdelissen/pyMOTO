@@ -3,12 +3,15 @@ Example of the design of cantilever for minimum dynamic compliance.
 From (Silva, 2018)
 """
 from math import pi
+
 import numpy as np
+
 import pymoto as pym
 
 
 class DynamicMatrix(pym.Module):
     """ Constructs dynamic stiffness matrix with Rayleigh damping """
+
     def _prepare(self, alpha=0.5, beta=0.5):
         self.alpha = alpha
         self.beta = beta
@@ -49,7 +52,6 @@ force_magnitude = -9000
 # Rayleigh damping parameters
 alpha, beta = 1e-3, 1e-8
 
-
 if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny, unitx=unitx, unity=unity, unitz=unitz)
@@ -88,7 +90,7 @@ if __name__ == "__main__":
         m_eig = pym.EigenSolve([s_K, s_M], hermitian=True, nmodes=3)
         m_eig.response()
         eigfreq = np.sqrt(m_eig.sig_out[0].state)
-        print(f"Eigenvalues are {eigfreq} rad/s or {eigfreq/(2*pi)} Hz")
+        print(f"Eigenvalues are {eigfreq} rad/s or {eigfreq / (2 * pi)} Hz")
 
     # Build dynamic stiffness matrix Z
     s_omega = pym.Signal('omega', omega)
@@ -112,7 +114,7 @@ if __name__ == "__main__":
     s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
 
     # Volume constraint
-    s_volume_constraint = fn.append(pym.Scaling(s_volume, scaling=10.0, maxval=volfrac*domain.nel))
+    s_volume_constraint = fn.append(pym.Scaling(s_volume, scaling=10.0, maxval=volfrac * domain.nel))
     s_volume_constraint.tag = "Volume constraint"
 
     # Plotting

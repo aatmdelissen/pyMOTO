@@ -1,7 +1,7 @@
 """ Minimal example for a compliance topology optimization """
-import pymoto as pym
 import numpy as np
 
+import pymoto as pym
 
 nx, ny, nz = 10, 10, 0  # Set nz to zero for the 2D problem
 xmin = 1e-9
@@ -15,12 +15,13 @@ class Scaling(pym.Module):
     Quick module that scales to a given value on the first iteration.
     This is useful, for instance, for MMA where the objective must be scaled in a certain way for good convergence
     """
+
     def _prepare(self, value):
         self.value = value
 
     def _response(self, x):
         if not hasattr(self, 'sf'):
-            self.sf = self.value/x
+            self.sf = self.value / x
         return x * self.sf
 
     def _sensitivity(self, dy):
@@ -36,7 +37,7 @@ if __name__ == "__main__":
 
         if thermal:
             # Get dof numbers at the boundary
-            boundary_dofs = domain.get_nodenumber(0, np.arange(ny // 4, (ny+1) - ny//4))
+            boundary_dofs = domain.get_nodenumber(0, np.arange(ny // 4, (ny + 1) - ny // 4))
 
             # Make a force vector
             force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx + 1), np.arange(ny + 1)))
@@ -52,11 +53,11 @@ if __name__ == "__main__":
 
         else:  # Mechanical
             # Calculate boundary dof indices
-            boundary_nodes = domain.get_nodenumber(0, np.arange(ny+1))
+            boundary_nodes = domain.get_nodenumber(0, np.arange(ny + 1))
             boundary_dofs = np.repeat(boundary_nodes * 2, 2, axis=-1) + np.tile(np.arange(2), len(boundary_nodes))
 
             # Which dofs to put a force on? The 1 is added for a force in y-direction (x-direction would be zero)
-            force_dofs = domain.dim*domain.get_nodenumber(nx, ny//2) + 1
+            force_dofs = domain.dim * domain.get_nodenumber(nx, ny // 2) + 1
             ndof = 2
 
     else:
@@ -65,10 +66,10 @@ if __name__ == "__main__":
         if thermal:
             raise RuntimeError("Thermal only defined in 2D!")  # TODO
         else:
-            boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny+1), range(ny+1))).flatten()
+            boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(ny + 1))).flatten()
             boundary_dofs = np.repeat(boundary_nodes * 3, 3, axis=-1) + np.tile(np.arange(3), len(boundary_nodes))
 
-            force_dofs = domain.dim*domain.get_nodenumber(nx, ny//2, ny//2)+2  # Z-direction
+            force_dofs = domain.dim * domain.get_nodenumber(nx, ny // 2, ny // 2) + 2  # Z-direction
             ndof = 3
 
     if domain.nnodes > 1e+6:
@@ -76,12 +77,12 @@ if __name__ == "__main__":
         exit()
 
     # Generate a force vector
-    f = np.zeros(domain.nnodes*ndof)
+    f = np.zeros(domain.nnodes * ndof)
     f[force_dofs] = 1.0  # Uniform force of 1.0 at all selected dofs
 
     # Make force and design vector, and fill with initial values
     sf = pym.Signal('f', state=f)
-    sx = pym.Signal('x', state=np.ones(domain.nel)*volfrac)
+    sx = pym.Signal('x', state=np.ones(domain.nel) * volfrac)
 
     # Start building the modular network
     func = pym.Network(print_timing=False)
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     func.append(pym.PlotDomain(sx_analysis, domain=domain, saveto="out/design", clim=[0, 1]))
 
     # SIMP material interpolation
-    sSIMP = func.append(pym.MathGeneral(sx_analysis, expression=f"{xmin} + {1.0-xmin}*inp0^3"))
+    sSIMP = func.append(pym.MathGeneral(sx_analysis, expression=f"{xmin} + {1.0 - xmin}*inp0^3"))
 
     # System matrix assembly module
     if thermal:

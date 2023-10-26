@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     # Setup solution vectors and rhs for two loadcases
     ff = np.zeros((free_dofs.size, 2), dtype=float)
-    u = np.zeros((2*domain.nnodes, 2), dtype=float)
+    u = np.zeros((2 * domain.nnodes, 2), dtype=float)
     u[dof_input, :] = 1.0
     u[dof_output, 0] = 1.0
     u[dof_output, 1] = -1.0
@@ -65,10 +65,12 @@ if __name__ == "__main__":
     signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
 
     # SIMP penalization
-    signal_penalized_variables = network.append(pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1-xmin}*inp0^3"))
+    signal_penalized_variables = network.append(
+        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
 
     # Assembly
-    signal_stiffness = network.append(pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu))
+    signal_stiffness = network.append(
+        pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu))
 
     # Solve system of equations for the two loadcases
     up = pym.Signal('up', state=up)
@@ -76,7 +78,8 @@ if __name__ == "__main__":
     signal_state = network.append(pym.SystemOfEquations([signal_stiffness, ff, up], prescribed=prescribed_dofs))
 
     # Output displacement
-    signal_output_displacement = network.append(pym.EinSum([signal_state[0][:, 0], signal_state[1][:, 0]], expression='i,i->'))
+    signal_output_displacement = network.append(
+        pym.EinSum([signal_state[0][:, 0], signal_state[1][:, 0]], expression='i,i->'))
 
     # Objective function
     signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=-1.0 * scaling_objective))
