@@ -105,12 +105,15 @@ class SystemOfEquations(Module):
         self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
         self.f = free
         self.p = prescribed
+        self.nf = len(free)
+        self.np = len(prescribed)
         assert self.p is not None or self.f is not None, "Either prescribed or free indices must be provided"
 
     def _response(self, A, bf, xp):
         assert bf.shape[0] + xp.shape[0] == A.shape[0], "Dimensions of applied force and displacement must match matrix"
         assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
         self.n = np.shape(A)[0]
+        self.dim = xp.ndim
 
         if self.f is None:
             all_dofs = np.arange(self.n)
@@ -145,7 +148,7 @@ class SystemOfEquations(Module):
         return self.x, b
 
     def _sensitivity(self, dgdx, dgdb):
-        adjoint_load = np.zeros_like(self.x)
+        adjoint_load = np.zeros_like(self.x[self.f, ...])
 
         if dgdx is not None:
             adjoint_load += dgdx[self.f, ...]
@@ -166,7 +169,8 @@ class SystemOfEquations(Module):
             dgdA = DyadCarrier(lam, self.x)
 
         # sensitivities to applied load and prescribed state
-        dgdbf, dgdup = np.zeros_like(len(self.f)), np.zeros_like(len(self.p))
+        dgdbf = np.zeros_like(adjoint_load)
+        dgdup = np.zeros_like(self.x[self.p, ...])
         dgdbf -= lam[self.f, ...]
         dgdup += self.Afp.T * lam[self.f, ...]
 
