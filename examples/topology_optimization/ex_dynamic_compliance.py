@@ -1,6 +1,14 @@
 """
 Example of the design of cantilever for minimum dynamic compliance.
-From (Silva, 2018)
+
+Implemented by @artofscience (s.koppen@tudelft.nl) based on:
+
+Silva, O. M., Neves, M. M., & Lenzi, A. (2019).
+A critical analysis of using the dynamic compliance as objective function
+in topology optimization of one-material structures
+considering steady-state forced vibration problems.
+Journal of Sound and Vibration, 444, 1-20.
+DOI: https://doi.org/10.1016/j.jsv.2018.12.030
 """
 from math import pi
 
