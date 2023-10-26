@@ -17,10 +17,11 @@ no special treatment of the sequential approximate optimization algorithm is req
 import numpy as np
 
 import pymoto as pym
+from ex_volume_stress import Stress, ConstraintAggregation, VonMises
 
 # Problem settings
 nx, ny = 100, 50  # Domain size
-xmin, filter_radius = 1e-9, 2
+xmin, filter_radius = 1e-6, 2
 initial_volfrac = 1.0
 
 load = 0.0  # point load
@@ -40,6 +41,9 @@ scaling_objective = 100.0
 use_volume_constraint = False
 volfrac = 0.2
 scaling_volume_constraint = 10.0
+
+use_stress_constraint = True
+maximum_vm_stress = 0.5
 
 
 class SelfWeight(pym.Module):
@@ -112,9 +116,9 @@ if __name__ == "__main__":
     # SIMP penalization
     """
     Note the use of SIMPLIN: y = xmin + (1-xmin) * (alpha * x + (alpha - 1) * x^p)
-    
+
     References:
-    
+
     Zhu, J., Zhang, W., & Beckers, P. (2009). Integrated layout design of multi-component system. 
     International Journal for Numerical Methods in Engineering, 78(6), 631–651. https://doi.org/10.1002/nme.2499
     """
@@ -142,23 +146,53 @@ if __name__ == "__main__":
     s_objective = fn.append(pym.Scaling([s_compliance], scaling=scaling_objective))
     s_objective.tag = "Objective"
 
-    # Volume
-    s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
-
-    if not use_volume_constraint:
-        volfrac = 1.0
-
-    # Volume constraint
-    s_volume_constraint = fn.append(
-        pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
-    s_volume_constraint.tag = "Volume constraint"
-
     # Plotting
-    module_plotdomain = pym.PlotDomain(s_filtered_variables, domain=domain, saveto="out/design")
-    responses = [s_objective, s_volume_constraint]
-    plot_signals = responses if use_volume_constraint else [s_objective]
-    module_plotiter = pym.PlotIter(plot_signals)
-    fn.append(module_plotdomain, module_plotiter)
+    fn.append(pym.PlotDomain(s_filtered_variables, domain=domain, saveto="out/design"))
+    responses = [s_objective]
+    plot_signals = responses.copy()
+
+    if use_stress_constraint:
+        # Calculate stress
+        s_stress = fn.append(Stress([s_state[0]], domain=domain))
+        s_stress_vm = fn.append(VonMises([s_stress]))
+        s_stress_constraints = fn.append(pym.Scaling([s_stress_vm], maxval=maximum_vm_stress, scaling=1.0))
+
+        s_stress_constraints_scaled = fn.append(
+            pym.EinSum([s_filtered_variables, s_stress_constraints], expression='i,i->i'))
+
+        s_stress_constraint = fn.append(ConstraintAggregation([s_stress_constraints_scaled], P=10))
+        s_stress_constraint.tag = "Stress constraint"
+
+        # Plotting
+        s_stress_scaled = fn.append(pym.EinSum([s_filtered_variables, s_stress_vm], expression='i,i->i'))
+        module_plotstress = pym.PlotDomain(s_stress_scaled, domain=domain, cmap='jet')
+        fn.append(module_plotstress)
+        plot_signals.append(s_stress_constraint)
+
+        responses.append(s_stress_constraint)
+
+    if use_volume_constraint:
+        # Volume
+        s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
+
+        # Volume constraint
+        s_volume_constraint = fn.append(
+            pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
+        s_volume_constraint.tag = "Volume constraint"
+        responses.append(s_volume_constraint)
+        plot_signals.append(s_volume_constraint)
+
+    if len(responses) < 2:
+        # Volume
+        s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
+
+        # Volume constraint
+        s_volume_constraint = fn.append(
+            pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=1.0 * domain.nel))
+        s_volume_constraint.tag = "Volume constraint"
+        responses.append(s_volume_constraint)
+
+    fn.append(pym.PlotIter(plot_signals))
 
     # Optimization
-    pym.minimize_mma(fn, [s_variables], responses, verbosity=2, maxit=100, move=0.1)
+    pym.minimize_mma(fn, [s_variables], responses, verbosity=2, maxit=300)
