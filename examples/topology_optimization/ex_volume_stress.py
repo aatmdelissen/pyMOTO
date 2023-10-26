@@ -71,7 +71,7 @@ class VonMises(pym.Module):
 
 
 class Stress(pym.Module):
-    def _prepare(self, E=1, nu=0.3, plane='strain', *args, **kwargs):
+    def _prepare(self, E=1, nu=0.3, plane='strain', domain=pym.DomainDefinition, *args, **kwargs):
         siz = domain.element_size
         self.domain = domain
 

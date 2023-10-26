@@ -12,6 +12,7 @@ Mechanism and Machine Theory, 172, 104743.
 DOI: http://dx.doi.org/10.1016/j.mechmachtheory.2022.104743
 """
 import numpy as np
+from examples.topology_optimization.ex_volume_stress import Stress, VonMises, ConstraintAggregation
 
 # flake8: noqa
 import pymoto as pym
@@ -36,8 +37,7 @@ class Symmetry(pym.Module):
 
 def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: float = 1.0,
             filter_radius: float = 2.0, E: float = 100.0, nu: float = 0.3, xmin: float = 1e-9,
-            use_volume_constraint: bool = True, initial_volfrac: float = 0.2, volfrac: float = 0.4,
-            use_symmetry=False):
+            volume_constraint = 0.3, initial_volfrac: float = 0.2, use_symmetry=False, stress_constraint=None):
 
     scaling_objective = 10.0
     scaling_compliance_constraint = 10.0
@@ -89,7 +89,7 @@ def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: 
 
     # SIMP penalization
     signal_penalized_variables = network.append(
-        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
+        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*(0.01*inp0 + 0.99*inp0^3)"))
 
     # Assembly
     signal_stiffness = network.append(
@@ -113,31 +113,53 @@ def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: 
         pym.Scaling(signal_compliances[1], scaling=scaling_compliance_constraint, maxval=emax))
     signal_compliance_constraint.tag = "Compliance constraint"
 
-    # Volume
-    signal_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
-    signal_volume.tag = "Volume"
-
-    # Volume constraint
-    signal_volume_constraint = network.append(
-        pym.Scaling(signal_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
-    signal_volume_constraint.tag = "Volume constraint"
-
     # Plotting
     network.append(pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design"))
+    responses = [signal_objective, signal_compliance_constraint]
+    plot_signals = responses.copy()
 
-    opt_responses = [signal_objective, signal_compliance_constraint]
-    if use_volume_constraint:
-        opt_responses.append(signal_volume_constraint)
-    network.append(pym.PlotIter(opt_responses))
+    # Calculate stress
+    s_stress = network.append(Stress([signal_state[0][:, 1]], domain=domain))
+    s_stress_vm = network.append(VonMises([s_stress]))
+
+    if stress_constraint:
+        s_stress_constraints = network.append(pym.Scaling([s_stress_vm], maxval=stress_constraint, scaling=1.0))
+
+        s_stress_constraints_scaled = network.append(
+            pym.EinSum([signal_filtered_variables, s_stress_constraints], expression='i,i->i'))
+
+        s_stress_constraint = network.append(ConstraintAggregation([s_stress_constraints_scaled], P=10))
+        s_stress_constraint.tag = "Stress constraint"
+
+        responses.append(s_stress_constraint)
+        plot_signals.append(s_stress_constraint)
+
+    # Plotting
+    s_stress_scaled = network.append(pym.EinSum([signal_filtered_variables, s_stress_vm], expression='i,i->i'))
+    module_plotstress = pym.PlotDomain(s_stress_scaled, domain=domain, cmap='jet')
+    network.append(module_plotstress)
+
+    if volume_constraint:
+        # Volume
+        s_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
+
+        # Volume constraint
+        s_volume_constraint = network.append(
+            pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=volume_constraint * domain.nel))
+        s_volume_constraint.tag = "Volume constraint"
+        responses.append(s_volume_constraint)
+        plot_signals.append(s_volume_constraint)
+
+    network.append(pym.PlotIter(plot_signals))
 
     # Optimization
-    pym.minimize_mma(network, [signal_variables], opt_responses, verbosity=2, maxit=200)
+    pym.minimize_mma(network, [signal_variables], responses, verbosity=2, maxit=200)
 
 
 if __name__ == "__main__":
-    flexure(100, 120, 'rz', 'ty', 0.1, use_symmetry=True)  # axial spring, no rotation
-    # flexure(100, 50, 'tx', 'ty', 1, use_symmetry=True)  # axial spring, no shear
+    # flexure(100, 120, 'rz', 'ty', 0.1)  # axial spring, no rotation
+    # flexure(100, 100, 'tx', 'ty', 1, use_symmetry=True, use_stress_constraint=True, max_stress=0.01)  # axial spring, no shear
     # flexure(100, 100, 'ty', 'tx', 0.01)  # parallel guiding system
     # flexure(100, 100, 'rz', 'tx', 0.01)  # parallel guiding system 2
-    # flexure(100, 100, 'ty', 'rz', 0.01, use_volume_constraint=False)  # notch hinge
+    flexure(100, 100, 'ty', 'rz', 0.01, volume_constraint=0.3, stress_constraint=0.001)  # notch hinge
     # flexure(100, 50, 'tx', 'rz', 0.01, use_symmetry=True)  # notch hinge 2
