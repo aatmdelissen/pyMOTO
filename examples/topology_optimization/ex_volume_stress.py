@@ -23,6 +23,10 @@ xmin, filter_radius, volfrac = 1e-6, 2, 1.0
 scaling_objective = 10.0
 maximum_vm_stress = 0.5
 
+displacement_constraint = False
+scaling_displacement_constraint = 10.0
+max_displacement = 100.0
+
 
 class ConstraintAggregation(pym.Module):
     """
@@ -159,6 +163,18 @@ if __name__ == "__main__":
 
     module_plotdomain = pym.PlotDomain(s_filtered_variables, domain=domain, saveto="out/design")
     responses = [s_objective, s_stress_constraint]
+
+    if displacement_constraint:
+        # Output displacement (is a complex value)
+        s_compliance = fn.append(pym.EinSum([s_displacement, s_force], expression='i,i->'))
+
+        # Displacement constraint
+        s_compliance_constraint = fn.append(
+            pym.Scaling(s_compliance, scaling=scaling_displacement_constraint, maxval=max_displacement))
+        s_compliance_constraint.tag = "Displacement constraint"
+
+        responses.append(s_compliance_constraint)
+
     module_plotiter = pym.PlotIter(responses)
     fn.append(module_plotdomain, module_plotstress, module_plotiter)
 
