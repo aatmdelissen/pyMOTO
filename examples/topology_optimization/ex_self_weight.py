@@ -17,7 +17,7 @@ no special treatment of the sequential approximate optimization algorithm is req
 import numpy as np
 
 import pymoto as pym
-from ex_volume_stress import Stress, ConstraintAggregation, VonMises
+from modules import SelfWeight, Stress, VonMises, ConstraintAggregation
 
 # Problem settings
 nx, ny = 100, 50  # Domain size
@@ -44,29 +44,6 @@ scaling_volume_constraint = 10.0
 
 use_stress_constraint = True
 maximum_vm_stress = 0.5
-
-
-class SelfWeight(pym.Module):
-    def _prepare(self, gravity=np.array([0.0, -1.0], dtype=float), domain=pym.DomainDefinition):
-        self.load_x = gravity[0] / 4
-        self.load_y = gravity[1] / 4
-        self.dofconn = domain.get_dofconnectivity(2)
-        self.f = np.zeros(domain.nnodes * 2, dtype=float)
-        self.dfdx = np.zeros(domain.nel, dtype=float)
-
-    def _response(self, x, *args):
-        self.f[:] = 0.0
-        load_x = np.kron(x, self.load_x * np.ones(4))
-        load_y = np.kron(x, self.load_y * np.ones(4))
-        np.add.at(self.f, self.dofconn[:, 0::2].flatten(), load_x)
-        np.add.at(self.f, self.dofconn[:, 1::2].flatten(), load_y)
-        return self.f
-
-    def _sensitivity(self, dfdv):
-        self.dfdx[:] = 0.0
-        self.dfdx[:] += dfdv[self.dofconn[:, 0::2]].sum(1) * self.load_x
-        self.dfdx[:] += dfdv[self.dofconn[:, 1::2]].sum(1) * self.load_y
-        return self.dfdx
 
 
 if __name__ == "__main__":

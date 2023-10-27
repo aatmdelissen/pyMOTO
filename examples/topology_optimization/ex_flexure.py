@@ -12,27 +12,10 @@ Mechanism and Machine Theory, 172, 104743.
 DOI: http://dx.doi.org/10.1016/j.mechmachtheory.2022.104743
 """
 import numpy as np
-from examples.topology_optimization.ex_volume_stress import Stress, VonMises, ConstraintAggregation
 
 # flake8: noqa
 import pymoto as pym
-
-
-class Symmetry(pym.Module):
-    def _prepare(self, domain=pym.DomainDefinition):
-        self.domain = domain
-
-    def _response(self, x):
-        x = np.reshape(x, (self.domain.nely, self.domain.nelx))
-        x = (x + np.flip(x, 0)) / 2
-        x = (x + np.flip(x, 1)) / 2
-        return x.flatten()
-
-    def _sensitivity(self, dfdv):
-        dfdv = np.reshape(dfdv, (self.domain.nely, self.domain.nelx))
-        dfdv = (dfdv + np.flip(dfdv, 1)) / 2
-        dfdv = (dfdv + np.flip(dfdv, 0)) / 2
-        return dfdv
+from modules import Symmetry, Stress, VonMises, ConstraintAggregation
 
 
 def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: float = 1.0,

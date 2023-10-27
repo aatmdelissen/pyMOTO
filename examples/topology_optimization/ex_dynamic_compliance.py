@@ -15,29 +15,7 @@ from math import pi
 import numpy as np
 
 import pymoto as pym
-
-
-class DynamicMatrix(pym.Module):
-    """ Constructs dynamic stiffness matrix with Rayleigh damping """
-
-    def _prepare(self, alpha=0.5, beta=0.5):
-        self.alpha = alpha
-        self.beta = beta
-
-    def _response(self, K, M, omega):
-        return K + 1j * omega * (self.alpha * M + self.beta * K) - omega ** 2 * M
-
-    def _sensitivity(self, dZ: pym.DyadCarrier):
-        K, M, omega = [s.state for s in self.sig_in]
-        dZr, dZi = dZ.real, dZ.imag
-        dK = dZr - (omega * self.beta) * dZi
-        dM = (-omega ** 2) * dZr - (omega * self.alpha) * dZi
-        dZrM = dZr.contract(M)
-        dZiK = dZi.contract(K)
-        dZiM = dZi.contract(M)
-        domega = -self.beta * dZiK - self.alpha * dZiM - 2 * omega * dZrM
-        return dK, dM, domega
-
+from modules import DynamicMatrix
 
 # Problem settings
 lx, ly = 1, 0.5

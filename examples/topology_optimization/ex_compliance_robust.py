@@ -11,31 +11,7 @@ DOI: https://doi.org/10.1007/s00158-010-0602-y
 import numpy as np
 
 import pymoto as pym
-
-
-class Continuation(pym.Module):
-    """ Module that generates a continuated value """
-
-    def _prepare(self, start=0.0, stop=1.0, nsteps=80, stepstart=10):
-        self.startval = start
-        self.endval = stop
-        self.dval = (stop - start) / nsteps
-        self.nstart = stepstart
-        self.iter = -1
-        self.val = self.startval
-
-    def _response(self):
-        if (self.val < self.endval and self.iter > self.nstart):
-            self.val += self.dval
-
-        self.val = np.clip(self.val, min(self.startval, self.endval), max(self.startval, self.endval))
-        print(self.sig_out[0].tag, ' = ', self.val)
-        self.iter += 1
-        return self.val
-
-    def _sensitivity(self, *args):
-        pass
-
+from modules import Continuation
 
 nx, ny = 100, 40
 xmin = 1e-6

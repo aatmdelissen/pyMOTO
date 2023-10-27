@@ -9,25 +9,6 @@ filter_radius = 2.0
 volfrac = 0.5
 thermal = False  # Thermal only for 2D, not 3D yet. If this is False, static mechanical analysis will be done
 
-
-class Scaling(pym.Module):
-    """
-    Quick module that scales to a given value on the first iteration.
-    This is useful, for instance, for MMA where the objective must be scaled in a certain way for good convergence
-    """
-
-    def _prepare(self, value):
-        self.value = value
-
-    def _response(self, x):
-        if not hasattr(self, 'sf'):
-            self.sf = self.value / x
-        return x * self.sf
-
-    def _sensitivity(self, dy):
-        return dy * self.sf
-
-
 if __name__ == "__main__":
     print(__doc__)
 
@@ -118,7 +99,7 @@ if __name__ == "__main__":
     scompl.tag = 'compliance'
 
     # MMA needs correct scaling of the objective
-    sg0 = func.append(Scaling(scompl, value=100.0))
+    sg0 = func.append(pym.Scaling(scompl, scaling=100.0))
     sg0.tag = "objective"
 
     # Calculate the volume of the domain by adding all design densities together

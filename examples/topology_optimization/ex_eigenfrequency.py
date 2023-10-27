@@ -2,46 +2,13 @@
 import numpy as np
 
 import pymoto as pym
+from modules import VecSet
 
 nx, ny, nz = 50, 30, 0  # Set nz to zero for the 2D problem
 xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5
 thermal = False  # Thermal only for 2D, not 3D yet. If this is False, static mechanical analysis will be done
-
-
-class Scaling(pym.Module):
-    """
-    Quick module that scales to a given value on the first iteration.
-    This is useful, for instance, for MMA where the objective must be scaled in a certain way for good convergence
-    """
-
-    def _prepare(self, value):
-        self.value = value
-
-    def _response(self, x):
-        if not hasattr(self, 'sf'):
-            self.sf = self.value / x
-        return x * self.sf
-
-    def _sensitivity(self, dy):
-        return dy * self.sf
-
-
-class VecSet(pym.Module):
-    def _prepare(self, indices, value):
-        self.indices = indices
-        self.value = value
-
-    def _response(self, x):
-        y = x.copy()
-        y[self.indices] = self.value
-        return y
-
-    def _sensitivity(self, dy):
-        dx = dy.copy()
-        dx[self.indices] = 0
-        return dx
 
 
 class MassInterpolation(pym.Module):
@@ -135,7 +102,7 @@ if __name__ == "__main__":
     sharm = func.append(pym.MathGeneral([slams[0], slams[1], slams[2]], expression='1/inp0 + 1/inp1 + 1/inp2'))
 
     # MMA needs correct scaling of the objective
-    sg0 = func.append(Scaling(sharm, value=100.0))
+    sg0 = func.append(pym.Scaling(sharm, scaling=100.0))
     sg0.tag = "objective"
 
     # Calculate the volume of the domain by adding all design densities together
