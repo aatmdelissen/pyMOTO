@@ -22,7 +22,7 @@ import pymoto as pym
 from modules import Stress, VonMises, ConstraintAggregation
 
 # Problem settings
-nx, ny = 50, 50  # Domain size
+nx, ny = 60, 80  # Domain size
 xmin, filter_radius = 1e-9, 2
 initial_volfrac = 1.0
 
@@ -30,18 +30,18 @@ load = -100.0  # point load
 
 bc = 2
 
-scaling_objective = 100.0
+scaling_objective = 10.0
 
 use_volume_constraint = True
-volfrac = 0.5
-scaling_volume_constraint = 10.0
+volfrac = 0.3
+scaling_volume_constraint = 1.0
 
 use_stress_constraint = False
-maximum_vm_stress = 10
+maximum_vm_stress = 50
 
 
 class ThermalExpansionLoading(pym.Module):
-    def _prepare(self, alpha=100, domain=pym.DomainDefinition):
+    def _prepare(self, alpha=10, domain=pym.DomainDefinition):
         self.alpha = alpha
         self.dofconn = domain.get_dofconnectivity(2)
         self.f = np.zeros(domain.nnodes * 2, dtype=float)
@@ -49,14 +49,14 @@ class ThermalExpansionLoading(pym.Module):
 
     def _response(self, x, *args):
         self.f[:] = 0.0
-        np.add.at(self.f, self.dofconn[:, [0, 1, 3, 6]].flatten(), -self.alpha * np.kron(x, np.ones(4)) / 4)
-        np.add.at(self.f, self.dofconn[:, [2, 4, 5, 7]].flatten(), self.alpha * np.kron(x, np.ones(4)) / 4)
+        np.add.at(self.f, self.dofconn[:, [0, 1, 3, 4]].flatten(), -self.alpha * np.kron(x, np.ones(4)) / 4)
+        np.add.at(self.f, self.dofconn[:, [2, 5, 6, 7]].flatten(), self.alpha * np.kron(x, np.ones(4)) / 4)
         return self.f
 
     def _sensitivity(self, dfdv):
         self.dfdx[:] = 0.0
-        self.dfdx[:] -= dfdv[self.dofconn[:, [0, 1, 3, 6]]].sum(1) * self.alpha / 4
-        self.dfdx[:] += dfdv[self.dofconn[:, [2, 4, 5, 7]]].sum(1) * self.alpha / 4
+        self.dfdx[:] -= dfdv[self.dofconn[:, [0, 1, 3, 4]]].sum(1) * self.alpha / 4
+        self.dfdx[:] += dfdv[self.dofconn[:, [2, 5, 6, 7]]].sum(1) * self.alpha / 4
         return self.dfdx
 
 
@@ -90,8 +90,9 @@ if __name__ == "__main__":
     # Filtering
     s_filtered_variables = fn.append(pym.DensityFilter(s_variables, domain=domain, radius=filter_radius))
 
-    # SIMP
-    s_penalized_variables = fn.append(pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(inp0^3)"))
+    # RAMP
+    s_penalized_variables = fn.append(
+        pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(0.1*inp0 + 0.9*inp0**3)"))
 
     # Assemble stiffness matrix
     s_K = fn.append(pym.AssembleStiffness(s_penalized_variables, domain=domain, bc=None))
