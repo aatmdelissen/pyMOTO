@@ -32,15 +32,32 @@ class StaticCondensation(Module):
     \tilde{\mathbf{A}} &= \mathbf{A}_\text{mm} - \mathbf{A}_\text{ms} \mathbf{x}_\text{sm}.
     \end{aligned}`
 
-    Implemented by @artofscience (s.koppen@tudelft.nl) based on:
+    Assumptions:
+        (i) It is assumed the prescribed DOFs (all dof - main dof - free dof) are prescribed to zero.
+        (ii) It is assumed the applied load on the free DOFs is zero; there is no reduced load.
+
+    Implemented by @artofscience (s.koppen@tudelft.nl).
+
+    References:
 
     Koppen, S., Langelaar, M., & van Keulen, F. (2022).
     Efficient multi-partition topology optimization.
     Computer Methods in Applied Mechanics and Engineering, 393, 114829.
     DOI: https://doi.org/10.1016/j.cma.2022.114829
+
+    Input Signals:
+      - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
+
+    Output Signal:
+      - ``Ared`` (`dense or sparse matrix`): The reduced system matrix :math:`\tilde{\mathbf{A}}` of size ``(m, m)``
+
+    Keyword Args:
+        free: The indices corresponding to the free degrees of freedom
+        main: The indices corresponding to the main degrees of freedom
+        **kwargs: See `pymoto.LinSolve`, as they are directly passed into the `LinSolve` module
     """
 
-    def _prepare(self, free, main, **kwargs):
+    def _prepare(self, main, free, **kwargs):
         self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
         self.module_LinSolve.use_lda_solver = False
         self.m = main
@@ -105,8 +122,6 @@ class SystemOfEquations(Module):
         self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
         self.f = free
         self.p = prescribed
-        self.nf = len(free)
-        self.np = len(prescribed)
         assert self.p is not None or self.f is not None, "Either prescribed or free indices must be provided"
 
     def _response(self, A, bf, xp):
