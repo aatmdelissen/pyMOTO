@@ -34,7 +34,7 @@ __all__ = [
     'SolverSparsePardiso', 'SolverSparseLU', 'SolverSparseCholeskyScikit', 'SolverSparseCholeskyCVXOPT',
     # Modules
     "MathGeneral", "EinSum", "ConcatSignal",
-    "Inverse", "LinSolve", "EigenSolve", "SystemOfEquations",
+    "Inverse", "LinSolve", "EigenSolve", "SystemOfEquations", "StaticCondensation"
     "AssembleGeneral", "AssembleStiffness", "AssembleMass",
     "FilterConv", "Filter", "DensityFilter", "OverhangFilter",
     "PlotDomain", "PlotGraph", "PlotIter", "WriteToVTI",
