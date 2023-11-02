@@ -19,7 +19,6 @@ DOI: https://doi.org/10.1002/nme.1620381202
 import numpy as np
 
 import pymoto as pym
-from modules import Stress, VonMises, ConstraintAggregation
 
 # Problem settings
 nx, ny = 60, 80  # Domain size
@@ -28,16 +27,10 @@ initial_volfrac = 1.0
 
 load = -100.0  # point load
 
-bc = 2
-
 scaling_objective = 10.0
 
-use_volume_constraint = True
-volfrac = 0.3
+volfrac = 0.25
 scaling_volume_constraint = 1.0
-
-use_stress_constraint = False
-maximum_vm_stress = 50
 
 
 class ThermalExpansionLoading(pym.Module):
@@ -92,7 +85,7 @@ if __name__ == "__main__":
 
     # RAMP
     s_penalized_variables = fn.append(
-        pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(0.1*inp0 + 0.9*inp0**3)"))
+        pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(inp0 / (1 + 1 * (1 - inp0)))"))
 
     # Assemble stiffness matrix
     s_K = fn.append(pym.AssembleStiffness(s_penalized_variables, domain=domain, bc=None))
@@ -119,46 +112,15 @@ if __name__ == "__main__":
     responses = [s_objective]
     plot_signals = responses.copy()
 
-    if use_stress_constraint:
-        # Calculate stress
-        s_stress = fn.append(Stress([s_state[0]], domain=domain))
-        s_stress_vm = fn.append(VonMises([s_stress]))
-        s_stress_constraints = fn.append(pym.Scaling([s_stress_vm], maxval=maximum_vm_stress, scaling=1.0))
+    # Volume
+    s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
 
-        s_stress_constraints_scaled = fn.append(
-            pym.EinSum([s_filtered_variables, s_stress_constraints], expression='i,i->i'))
-
-        s_stress_constraint = fn.append(ConstraintAggregation([s_stress_constraints_scaled], P=10))
-        s_stress_constraint.tag = "Stress constraint"
-
-        # Plotting
-        s_stress_scaled = fn.append(pym.EinSum([s_filtered_variables, s_stress_vm], expression='i,i->i'))
-        module_plotstress = pym.PlotDomain(s_stress_scaled, domain=domain, cmap='jet')
-        fn.append(module_plotstress)
-        plot_signals.append(s_stress_constraint)
-
-        responses.append(s_stress_constraint)
-
-    if use_volume_constraint:
-        # Volume
-        s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
-
-        # Volume constraint
-        s_volume_constraint = fn.append(
-            pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
-        s_volume_constraint.tag = "Volume constraint"
-        responses.append(s_volume_constraint)
-        plot_signals.append(s_volume_constraint)
-
-    if len(responses) < 2:
-        # Volume
-        s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
-
-        # Volume constraint
-        s_volume_constraint = fn.append(
-            pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=1.0 * domain.nel))
-        s_volume_constraint.tag = "Volume constraint"
-        responses.append(s_volume_constraint)
+    # Volume constraint
+    s_volume_constraint = fn.append(
+        pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
+    s_volume_constraint.tag = "Volume constraint"
+    responses.append(s_volume_constraint)
+    plot_signals.append(s_volume_constraint)
 
     fn.append(pym.PlotIter(plot_signals))
 

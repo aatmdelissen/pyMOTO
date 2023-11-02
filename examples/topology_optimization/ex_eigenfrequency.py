@@ -2,7 +2,6 @@
 import numpy as np
 
 import pymoto as pym
-from modules import VecSet
 
 nx, ny, nz = 50, 30, 0  # Set nz to zero for the 2D problem
 xmin = 1e-9
@@ -35,6 +34,22 @@ class MassInterpolation(pym.Module):
         dx[x < self.threshold] = self.p0 * x[x < self.threshold] ** (self.p0 - 1) / (
                 self.threshold ** (self.p0 - self.p1))
         return self.rhoval * dx * drho
+
+
+class VecSet(pym.Module):
+    def _prepare(self, indices, value):
+        self.indices = indices
+        self.value = value
+
+    def _response(self, x):
+        y = x.copy()
+        y[self.indices] = self.value
+        return y
+
+    def _sensitivity(self, dy):
+        dx = dy.copy()
+        dx[self.indices] = 0
+        return dx
 
 
 if __name__ == "__main__":

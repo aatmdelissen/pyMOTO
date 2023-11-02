@@ -15,12 +15,28 @@ import numpy as np
 
 # flake8: noqa
 import pymoto as pym
-from modules import Symmetry, Stress, VonMises, ConstraintAggregation
+
+
+class Symmetry(pym.Module):
+    def _prepare(self, domain=pym.DomainDefinition):
+        self.domain = domain
+
+    def _response(self, x):
+        x = np.reshape(x, (self.domain.nely, self.domain.nelx))
+        x = (x + np.flip(x, 0)) / 2
+        x = (x + np.flip(x, 1)) / 2
+        return x.flatten()
+
+    def _sensitivity(self, dfdv):
+        dfdv = np.reshape(dfdv, (self.domain.nely, self.domain.nelx))
+        dfdv = (dfdv + np.flip(dfdv, 1)) / 2
+        dfdv = (dfdv + np.flip(dfdv, 0)) / 2
+        return dfdv
 
 
 def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: float = 1.0,
             filter_radius: float = 2.0, E: float = 100.0, nu: float = 0.3, xmin: float = 1e-9,
-            volume_constraint = 0.3, initial_volfrac: float = 0.2, use_symmetry=False, stress_constraint=None):
+            volume_constraint=0.3, initial_volfrac: float = 0.2, use_symmetry=False):
 
     scaling_objective = 10.0
     scaling_compliance_constraint = 10.0
@@ -101,38 +117,21 @@ def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: 
     responses = [signal_objective, signal_compliance_constraint]
     plot_signals = responses.copy()
 
-    # Calculate stress
-    s_stress = network.append(Stress([signal_state[0][:, 1]], domain=domain))
-    s_stress_vm = network.append(VonMises([s_stress]))
-
-    if stress_constraint:
-        s_stress_constraints = network.append(pym.Scaling([s_stress_vm], maxval=stress_constraint, scaling=1.0))
-
-        s_stress_constraints_scaled = network.append(
-            pym.EinSum([signal_filtered_variables, s_stress_constraints], expression='i,i->i'))
-
-        s_stress_constraint = network.append(ConstraintAggregation([s_stress_constraints_scaled], P=10))
-        s_stress_constraint.tag = "Stress constraint"
-
-        responses.append(s_stress_constraint)
-        plot_signals.append(s_stress_constraint)
-
-    # Plotting
-    s_stress_scaled = network.append(pym.EinSum([signal_filtered_variables, s_stress_vm], expression='i,i->i'))
-    module_plotstress = pym.PlotDomain(s_stress_scaled, domain=domain, cmap='jet')
-    network.append(module_plotstress)
+    # Volume
+    s_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
 
     if volume_constraint:
-        # Volume
-        s_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
-
         # Volume constraint
         s_volume_constraint = network.append(
             pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=volume_constraint * domain.nel))
         s_volume_constraint.tag = "Volume constraint"
-        responses.append(s_volume_constraint)
         plot_signals.append(s_volume_constraint)
+    else:
+        # Volume constraint
+        s_volume_constraint = network.append(
+            pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=1.0 * domain.nel))
 
+    responses.append(s_volume_constraint)
     network.append(pym.PlotIter(plot_signals))
 
     # Optimization
@@ -141,8 +140,8 @@ def flexure(nx: int = 20, ny: int = 20, doc: str = 'tx', dof: str = 'ty', emax: 
 
 if __name__ == "__main__":
     # flexure(100, 120, 'rz', 'ty', 0.1)  # axial spring, no rotation
-    # flexure(100, 100, 'tx', 'ty', 1, use_symmetry=True, use_stress_constraint=True, max_stress=0.01)  # axial spring, no shear
+    # flexure(100, 100, 'tx', 'ty', 1, use_symmetry=True)  # axial spring, no shear
     # flexure(100, 100, 'ty', 'tx', 0.01)  # parallel guiding system
     # flexure(100, 100, 'rz', 'tx', 0.01)  # parallel guiding system 2
-    flexure(100, 100, 'ty', 'rz', 0.01, volume_constraint=0.3, stress_constraint=0.001)  # notch hinge
+    flexure(100, 100, 'ty', 'rz', 0.01, volume_constraint=0.3)  # notch hinge
     # flexure(100, 50, 'tx', 'rz', 0.01, use_symmetry=True)  # notch hinge 2

@@ -22,7 +22,6 @@ import numpy as np
 
 # flake8: noqa
 import pymoto as pym
-from modules import VecSet
 
 # Problem settings
 nx, ny = 80, 80  # Domain size
@@ -38,6 +37,22 @@ use_volume_constraint = True
 scaling_volume_constraint = 10.0
 
 domain_size = 4
+
+
+class VecSet(pym.Module):
+    def _prepare(self, indices, value):
+        self.indices = indices
+        self.value = value
+
+    def _response(self, x):
+        y = x.copy()
+        y[self.indices] = self.value
+        return y
+
+    def _sensitivity(self, dy):
+        dx = dy.copy()
+        dx[self.indices] = 0
+        return dx
 
 
 if __name__ == "__main__":
