@@ -36,6 +36,8 @@ class AssembleGeneral(Module):
         bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are active.
         matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments
           ``matrix_type((vals, (row_idx, col_idx)), shape=(n, n))``
+        add_values (optional): A list of three 1d numpy array of equal length denoting
+        (i) the row indices, (ii) the column indices, and (iii) the added value.
     """
 
     def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None,
@@ -202,7 +204,7 @@ class AssembleStiffness(AssembleGeneral):
         kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
     def _prepare(self, domain: DomainDefinition, *args,
-                 e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane='strain', add_stiffness=None, **kwargs):
+                 e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane='strain', **kwargs):
         self.E, self.nu = e_modulus, poisson_ratio
 
         # Get material relation
@@ -225,7 +227,7 @@ class AssembleStiffness(AssembleGeneral):
             B = get_B(dN_dx)
             self.KE += w * B.T @ D @ B  # Add contribution
 
-        super()._prepare(domain, self.KE, add_values=add_stiffness, *args, **kwargs)
+        super()._prepare(domain, self.KE, *args, **kwargs)
 
 
 class AssembleMass(AssembleGeneral):
@@ -248,7 +250,7 @@ class AssembleMass(AssembleGeneral):
         **kwargs : Other keyword-arguments are passed to AssembleGeneral
     """
 
-    def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, add_mass=None, **kwargs):
+    def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, **kwargs):
         # Element mass matrix
         # 1/36 Mass of one element
         mel = rho * np.prod(domain.element_size)
@@ -274,4 +276,4 @@ class AssembleMass(AssembleGeneral):
             ME *= mel / 216
         else:
             raise RuntimeError("Only for 2D and 3D")
-        super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, add_values=add_mass, **kwargs)
+        super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, **kwargs)
