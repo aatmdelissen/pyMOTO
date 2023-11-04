@@ -2,6 +2,7 @@ import inspect
 import pathlib  # For importing files
 import sys
 import unittest
+from math import isclose
 
 import numpy as np
 import scipy as sp
@@ -524,6 +525,105 @@ class TestLinSolveModule_sparse(unittest.TestCase):
         # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
         def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
         pym.finite_difference(fn, [sx, sf, sOmega], su, test_fn=tfn, dx=1e-7, tol=1e-4, verbose=False)
+
+
+class TestAssemblyAddValues(unittest.TestCase):
+    def test_finite_difference(self):
+        N = 2
+        # Set up the domain
+        domain = pym.DomainDefinition(N, N)
+        nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
+        nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
+
+        dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_left_x = dofs_left[0::2]
+        dofs_left_y = dofs_left[1::2]
+        dof_input = dofs_left_y[0]  # Input dofs for mechanism
+        dof_output = dofs_left_y[-1]  # Output dofs for mechanism
+
+        prescribed_dofs = np.union1d(dofs_left_x, dofs_right)
+
+        # Setup rhs for two loadcases
+        f = np.zeros(domain.nnodes * 2, dtype=float)
+        f[dof_input] = 1.0
+
+        # Initial design
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+        signal_force = pym.Signal('f', state=f)
+        # Setup optimization problem
+        network = pym.Network()
+
+        # Assembly
+        istiff = np.array([dof_input, dof_output])
+        jstiff = np.copy(istiff)
+        sstiff = np.array([10, 10])
+
+        signal_stiffness = network.append(
+            pym.AssembleStiffness(sx, domain=domain,
+                                  bc=prescribed_dofs, add_values=[istiff, jstiff, sstiff]))
+        su = network.append(pym.LinSolve([signal_stiffness, signal_force], pym.Signal('u')))
+        sc = network.append(pym.EinSum(su, expression='i->'))
+        network.response()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+
+        pym.finite_difference(network, [sx], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+
+    def test_added_stiffness_on_ground(self):
+        N = 2
+        # Set up the domain
+        domain = pym.DomainDefinition(N, N)
+        nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
+        nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
+
+        dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), N + 1)
+        dofs_left_x = dofs_left[0::2]
+        dofs_left_y = dofs_left[1::2]
+        dof_input = dofs_left_y[0]  # Input dofs for mechanism
+        dof_output = dofs_left_y[-1]  # Output dofs for mechanism
+
+        prescribed_dofs = np.union1d(dofs_left_x, dofs_right)
+
+        # Setup rhs for two loadcases
+        f = np.zeros(domain.nnodes * 2, dtype=float)
+        f[dof_input] = 1.0
+
+        # Initial design
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+        signal_force = pym.Signal('f', state=f)
+        # Setup optimization problem
+        network = pym.Network()
+
+        # Assembly
+        istiff = np.array([dof_input, dof_output])
+        jstiff = np.copy(istiff)
+        sstiff = np.array([10, 10])
+
+        signal_stiffness = network.append(
+            pym.AssembleStiffness(sx, domain=domain,
+                                  bc=prescribed_dofs, add_values=[istiff, jstiff, sstiff]))
+        su = network.append(pym.LinSolve([signal_stiffness, signal_force], pym.Signal('u')))
+        sc = network.append(pym.EinSum(su, expression='i->'))
+
+        network.response()
+
+        network2 = pym.Network()
+        # Assembly
+        istiff = np.array([dof_input, dof_output, 4, 5])
+        jstiff = np.copy(istiff)
+        sstiff = np.array([10, 10, 100, 100])
+
+        signal_stiffness = network2.append(
+            pym.AssembleStiffness(sx, domain=domain,
+                                  bc=prescribed_dofs, add_values=[istiff, jstiff, sstiff]))
+        su = network2.append(pym.LinSolve([signal_stiffness, signal_force], pym.Signal('u')))
+        sc2 = network2.append(pym.EinSum(su, expression='i->'))
+
+        network2.response()
+
+        assert isclose(sc, sc2.state)
 
 
 class TestSystemOfEquations(unittest.TestCase):
