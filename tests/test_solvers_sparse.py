@@ -623,7 +623,7 @@ class TestAssemblyAddValues(unittest.TestCase):
 
         network2.response()
 
-        assert isclose(sc, sc2.state)
+        assert isclose(sc.state, sc2.state)
 
 
 class TestSystemOfEquations(unittest.TestCase):
