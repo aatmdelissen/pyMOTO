@@ -139,7 +139,8 @@ class SystemOfEquations(Module):
         assert self.f.size + self.p.size == self.n, "Size of free and prescribed indices must match the matrix size"
 
         # create empty output
-        self.x = np.zeros((self.n, *bf.shape[1:]), dtype=float)
+        self.x = np.zeros((self.n, *bf.shape[1:]), dtype=complex) if np.iscomplexobj(A) else np.zeros(
+            (self.n, *bf.shape[1:]), dtype=float)
         self.x[self.p, ...] = xp
 
         b = np.zeros_like(self.x)
