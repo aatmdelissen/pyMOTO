@@ -1,32 +1,20 @@
 """
 Example of the design of cantilever for minimum dynamic compliance.
-From (Silva, 2018)
+
+Implemented by @artofscience (s.koppen@tudelft.nl) based on:
+
+Silva, O. M., Neves, M. M., & Lenzi, A. (2019).
+A critical analysis of using the dynamic compliance as objective function
+in topology optimization of one-material structures
+considering steady-state forced vibration problems.
+Journal of Sound and Vibration, 444, 1-20.
+DOI: https://doi.org/10.1016/j.jsv.2018.12.030
 """
 from math import pi
+
 import numpy as np
+
 import pymoto as pym
-
-
-class DynamicMatrix(pym.Module):
-    """ Constructs dynamic stiffness matrix with Rayleigh damping """
-    def _prepare(self, alpha=0.5, beta=0.5):
-        self.alpha = alpha
-        self.beta = beta
-
-    def _response(self, K, M, omega):
-        return K + 1j * omega * (self.alpha * M + self.beta * K) - omega ** 2 * M
-
-    def _sensitivity(self, dZ: pym.DyadCarrier):
-        K, M, omega = [s.state for s in self.sig_in]
-        dZr, dZi = dZ.real, dZ.imag
-        dK = dZr - (omega * self.beta) * dZi
-        dM = (-omega ** 2) * dZr - (omega * self.alpha) * dZi
-        dZrM = dZr.contract(M)
-        dZiK = dZi.contract(K)
-        dZiM = dZi.contract(M)
-        domega = -self.beta * dZiK - self.alpha * dZiM - 2 * omega * dZrM
-        return dK, dM, domega
-
 
 # Problem settings
 lx, ly = 1, 0.5
@@ -48,6 +36,28 @@ force_magnitude = -9000
 
 # Rayleigh damping parameters
 alpha, beta = 1e-3, 1e-8
+
+
+class DynamicMatrix(pym.Module):
+    """ Constructs dynamic stiffness matrix with Rayleigh damping """
+
+    def _prepare(self, alpha=0.5, beta=0.5):
+        self.alpha = alpha
+        self.beta = beta
+
+    def _response(self, K, M, omega):
+        return K + 1j * omega * (self.alpha * M + self.beta * K) - omega ** 2 * M
+
+    def _sensitivity(self, dZ: pym.DyadCarrier):
+        K, M, omega = [s.state for s in self.sig_in]
+        dZr, dZi = dZ.real, dZ.imag
+        dK = dZr - (omega * self.beta) * dZi
+        dM = (-omega ** 2) * dZr - (omega * self.alpha) * dZi
+        dZrM = dZr.contract(M)
+        dZiK = dZi.contract(K)
+        dZiM = dZi.contract(M)
+        domega = -self.beta * dZiK - self.alpha * dZiM - 2 * omega * dZrM
+        return dK, dM, domega
 
 
 if __name__ == "__main__":
@@ -88,7 +98,7 @@ if __name__ == "__main__":
         m_eig = pym.EigenSolve([s_K, s_M], hermitian=True, nmodes=3)
         m_eig.response()
         eigfreq = np.sqrt(m_eig.sig_out[0].state)
-        print(f"Eigenvalues are {eigfreq} rad/s or {eigfreq/(2*pi)} Hz")
+        print(f"Eigenvalues are {eigfreq} rad/s or {eigfreq / (2 * pi)} Hz")
 
     # Build dynamic stiffness matrix Z
     s_omega = pym.Signal('omega', omega)
@@ -112,7 +122,7 @@ if __name__ == "__main__":
     s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
 
     # Volume constraint
-    s_volume_constraint = fn.append(pym.Scaling(s_volume, scaling=10.0, maxval=volfrac*domain.nel))
+    s_volume_constraint = fn.append(pym.Scaling(s_volume, scaling=10.0, maxval=volfrac * domain.nel))
     s_volume_constraint.tag = "Volume constraint"
 
     # Plotting

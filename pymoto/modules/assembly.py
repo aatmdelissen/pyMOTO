@@ -1,9 +1,12 @@
 """ Assembly modules for finite element analysis """
 import sys
-from pymoto import Module, DyadCarrier, DomainDefinition
+from typing import Union
+
 import numpy as np
 from scipy.sparse import csc_matrix
-from typing import Union
+
+from pymoto import Module, DyadCarrier, DomainDefinition
+
 try:
     from opt_einsum import contract as einsum
 except ModuleNotFoundError:
@@ -33,8 +36,11 @@ class AssembleGeneral(Module):
         bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are active.
         matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments
           ``matrix_type((vals, (row_idx, col_idx)), shape=(n, n))``
+        add_constant (optional): A constant (e.g. matrix) to add.
     """
-    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None, matrix_type=csc_matrix):
+
+    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None,
+                 matrix_type=csc_matrix, add_constant=None):
         self.elmat = element_matrix
         self.ndof = self.elmat.shape[-1] // domain.elemnodes  # Number of dofs per node
         self.n = self.ndof * domain.nnodes  # Matrix size
@@ -59,6 +65,8 @@ class AssembleGeneral(Module):
         else:
             self.bcselect = None
 
+        self.add_constant = add_constant
+
     def _response(self, xscale: np.ndarray):
         scaled_el = ((self.elmat.flatten()[np.newaxis]).T * xscale).flatten(order='F')
 
@@ -76,6 +84,8 @@ class AssembleGeneral(Module):
                                    "scipy.sparse.csrmatrix are supported"
                           .format(self.matrix_type)).with_traceback(sys.exc_info()[2]) from None
 
+        if self.add_constant is not None:
+            mat += self.add_constant
         return mat
 
     def _sensitivity(self, dgdmat: Union[DyadCarrier, np.ndarray]):
@@ -232,6 +242,7 @@ class AssembleMass(AssembleGeneral):
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
         **kwargs : Other keyword-arguments are passed to AssembleGeneral
     """
+
     def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, **kwargs):
         # Element mass matrix
         # 1/36 Mass of one element
@@ -259,4 +270,3 @@ class AssembleMass(AssembleGeneral):
         else:
             raise RuntimeError("Only for 2D and 3D")
         super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, **kwargs)
-

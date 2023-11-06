@@ -22,6 +22,8 @@ nx, ny = 40, 40  # Domain size
 xmin, filter_radius, volfrac = 1e-9, 2, 0.5  # Density settings
 nu, E = 0.3, 1.0  # Material properties
 
+scaling_volume_constraint = 10.0
+
 if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny)
@@ -55,10 +57,12 @@ if __name__ == "__main__":
     signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
 
     # SIMP penalization
-    signal_penalized_variables = network.append(pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1-xmin}*inp0^3"))
+    signal_penalized_variables = network.append(
+        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
 
     # Assembly
-    signal_stiffness = network.append(pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu))
+    signal_stiffness = network.append(
+        pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu))
 
     # Solve system of equations
     up = pym.Signal('up', state=up)
@@ -77,7 +81,8 @@ if __name__ == "__main__":
     signal_volume.tag = "volume"
 
     # Volume constraint
-    signal_volume_constraint = network.append(pym.Scaling(signal_volume, scaling=10.0, maxval=volfrac*domain.nel))
+    signal_volume_constraint = network.append(
+        pym.Scaling(signal_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
     signal_volume_constraint.tag = "Volume constraint"
 
     # Plotting

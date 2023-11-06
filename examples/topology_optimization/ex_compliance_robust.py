@@ -1,10 +1,26 @@
-""" Example for a compliance topology optimization, including robust formulation """
-import pymoto as pym
+""" Example for a compliance topology optimization,
+including poor-mans robust formulation
+
+Implemented based on:
+Wang, F., Lazarov, B. S., & Sigmund, O. (2011).
+On projection methods, convergence and robust formulations in topology optimization.
+Structural and multidisciplinary optimization, 43, 767-784.
+DOI: https://doi.org/10.1007/s00158-010-0602-y
+
+"""
 import numpy as np
+
+import pymoto as pym
+
+nx, ny = 100, 40
+xmin = 1e-6
+filter_radius = 3.0
+volfrac = 0.5
 
 
 class Continuation(pym.Module):
     """ Module that generates a continuated value """
+
     def _prepare(self, start=0.0, stop=1.0, nsteps=80, stepstart=10):
         self.startval = start
         self.endval = stop
@@ -26,25 +42,6 @@ class Continuation(pym.Module):
         pass
 
 
-class ScaleTo(pym.Module):
-    """ Scales variable to a predetermined value at the first iteration """
-    def _prepare(self, val=100.0):
-        self.targetval = val
-        self.initval = None
-
-    def _response(self, x):
-        if self.initval is None:
-            self.initval = x
-        return x/self.initval * self.targetval
-
-    def _sensitivity(self, dfdy):
-        return dfdy/self.initval * self.targetval
-
-
-nx, ny = 100, 40
-xmin = 1e-6
-filter_radius = 3.0
-volfrac = 0.5
 
 if __name__ == "__main__":
     print(__doc__)
@@ -58,11 +55,11 @@ if __name__ == "__main__":
     if physics == "structural":
         # STRUCTURAL
         # Calculate boundary dof indices
-        boundary_nodes = domain.get_nodenumber(0, np.arange(ny+1))
+        boundary_nodes = domain.get_nodenumber(0, np.arange(ny + 1))
         boundary_dofs = np.repeat(boundary_nodes * 2, 2, axis=-1) + np.tile(np.arange(2), len(boundary_nodes))
 
         # Generate a force vector
-        force_dofs = 2*domain.get_nodenumber(nx, ny//2)
+        force_dofs = 2 * domain.get_nodenumber(nx, ny // 2)
         ndof = 2  # Number of displacements per node
 
         # Set padded area for the filter
@@ -93,7 +90,7 @@ if __name__ == "__main__":
     elif physics == "thermal":
         # THERMAL
         # Get dof numbers at the boundary
-        boundary_dofs = domain.get_nodenumber(0, np.arange(ny//4, (3*ny)//4))
+        boundary_dofs = domain.get_nodenumber(0, np.arange(ny // 4, (3 * ny) // 4))
 
         # Make a force vector
         force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(nx // 4, nx + 1), np.arange(ny + 1)))
@@ -113,11 +110,11 @@ if __name__ == "__main__":
         raise RuntimeError("Unknown physics: {}".format(physics))
 
     # Make force and design vector, and fill with initial values
-    f = np.zeros(domain.nnodes*ndof)
+    f = np.zeros(domain.nnodes * ndof)
     f[force_dofs] = 1.0
 
     sf = pym.Signal('f', state=f)
-    sx = pym.Signal('x', state=np.ones(domain.nel)*volfrac)
+    sx = pym.Signal('x', state=np.ones(domain.nel) * volfrac)
 
     # Start building the modular network
     fn = pym.Network()
@@ -157,20 +154,19 @@ if __name__ == "__main__":
     fn.append(pym.EinSum([su, sf], sc, expression='i,i->'))
 
     # Objective scaling
-    sg0 = pym.Signal('objective')
-    fn.append(ScaleTo(sc, sg0, val=100.0))
+    sg0 = fn.append(pym.Scaling([sc], scaling=100.0))
+    sg0.tag = "objective"
 
     # Plot design
     fn.append(pym.PlotDomain(sxNom, domain=domain, saveto="out/design"))
 
     # Volume
-    svol = pym.Signal('vol')
-    fn.append(pym.EinSum(sxfilt, svol, expression='i->'))
+    s_volume = fn.append(pym.EinSum(sxfilt, expression='i->'))
 
     # Volume constraint
-    sg1 = pym.Signal('volconstraint')
-    fn.append(pym.MathGeneral(svol, sg1, expression='10*(inp0/{} - {})'.format(domain.nel, volfrac)))
-
+    s_volume_constraint = fn.append(
+        pym.Scaling(s_volume, scaling=10, maxval=volfrac * domain.nel))
+    s_volume_constraint.tag = "Volume constraint"
     fn.append(pym.PlotIter([sg0]))
 
     # --- OPTIMIZATION ---

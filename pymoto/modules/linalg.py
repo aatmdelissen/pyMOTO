@@ -13,6 +13,71 @@ from pymoto import SolverSparseLU, SolverSparseCholeskyCVXOPT, SolverSparsePardi
 from pymoto import matrix_is_symmetric, matrix_is_hermitian, matrix_is_diagonal
 
 
+class StaticCondensation(Module):
+    r"""Static condensation of a linear system of equations
+
+    The partitioned system of equations
+
+    :math:`\begin{bmatrix} \mathbf{A}_\text{mm} & \mathbf{A}_\text{ms} \\ \mathbf{A}_\text{sm} & \mathbf{A}_\text{ss}
+    \end{bmatrix}
+    \begin{bmatrix} \mathbf{x}_\text{m} \\ \mathbf{x}_\text{s} \end{bmatrix} =
+    \begin{bmatrix} \mathbf{b}_\text{m} \\ \mathbf{b}_\text{s} \end{bmatrix}
+    ,`
+    with subscripts ``(m)`` and ``(s)`` referring to the main and secondary dofs, respectively.
+
+    The system is solved in two steps:
+
+    :math:`\begin{aligned}
+    \mathbf{A}_\text{ss} \mathbf{x}_\text{sm} &= \mathbf{A}_\text{sm} \\
+    \tilde{\mathbf{A}} &= \mathbf{A}_\text{mm} - \mathbf{A}_\text{ms} \mathbf{x}_\text{sm}.
+    \end{aligned}`
+
+    Assumptions:
+        (i) It is assumed the prescribed DOFs (all dof - main dof - free dof) are prescribed to zero.
+        (ii) It is assumed the applied load on the free DOFs is zero; there is no reduced load.
+
+    Implemented by @artofscience (s.koppen@tudelft.nl).
+
+    References:
+
+    Koppen, S., Langelaar, M., & van Keulen, F. (2022).
+    Efficient multi-partition topology optimization.
+    Computer Methods in Applied Mechanics and Engineering, 393, 114829.
+    DOI: https://doi.org/10.1016/j.cma.2022.114829
+
+    Input Signals:
+      - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
+
+    Output Signal:
+      - ``Ared`` (`dense or sparse matrix`): The reduced system matrix :math:`\tilde{\mathbf{A}}` of size ``(m, m)``
+
+    Args:
+        free: The indices corresponding to the free degrees of freedom
+        main: The indices corresponding to the main degrees of freedom
+        **kwargs: See `pymoto.LinSolve`, as they are directly passed into the `LinSolve` module
+    """
+
+    def _prepare(self, main, free, **kwargs):
+        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
+        self.module_LinSolve.use_lda_solver = False
+        self.m = main
+        self.f = free
+
+    def _response(self, A):
+        self.n = np.shape(A)[0]
+        self.module_LinSolve.sig_in[0].state = A[self.f, ...][..., self.f]
+        self.module_LinSolve.sig_in[1].state = A[self.f, ...][..., self.m].todense()
+        self.module_LinSolve.response()
+        self.X = self.module_LinSolve.sig_out[0].state
+        return A[self.m, ...][..., self.m] - A[self.m, ...][..., self.f] @ self.X
+
+    def _sensitivity(self, dfdB):
+        C = np.zeros((self.n, len(self.m)), dtype=float)
+        C[self.m, ...] = np.eye(len(self.m))
+        C[self.f, ...] = -self.X
+        return C @ dfdB @ C.T if isinstance(dfdB, DyadCarrier) else DyadCarrier(list(C.T), list(np.asarray(dfdB @ C.T)))
+
+
 class SystemOfEquations(Module):
     r""" Solve a partitioned linear system of equations
 
@@ -63,6 +128,7 @@ class SystemOfEquations(Module):
         assert bf.shape[0] + xp.shape[0] == A.shape[0], "Dimensions of applied force and displacement must match matrix"
         assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
         self.n = np.shape(A)[0]
+        self.dim = xp.ndim
 
         if self.f is None:
             all_dofs = np.arange(self.n)
@@ -73,7 +139,8 @@ class SystemOfEquations(Module):
         assert self.f.size + self.p.size == self.n, "Size of free and prescribed indices must match the matrix size"
 
         # create empty output
-        self.x = np.zeros((self.n, *bf.shape[1:]), dtype=float)
+        self.x = np.zeros((self.n, *bf.shape[1:]), dtype=complex) if np.iscomplexobj(A) else np.zeros(
+            (self.n, *bf.shape[1:]), dtype=float)
         self.x[self.p, ...] = xp
 
         b = np.zeros_like(self.x)
@@ -97,13 +164,19 @@ class SystemOfEquations(Module):
         return self.x, b
 
     def _sensitivity(self, dgdx, dgdb):
-        adjoint_load = dgdx[self.f, ...] + self.Afp * dgdb[self.p, ...]
+        adjoint_load = np.zeros_like(self.x[self.f, ...])
 
-        # adjoint equation
+        if dgdx is not None:
+            adjoint_load += dgdx[self.f, ...]
+        if dgdb is not None:
+            adjoint_load += self.Afp * dgdb[self.p, ...]
+
         lam = np.zeros_like(self.x)
         lamf = -1.0 * self.module_LinSolve.solver.adjoint(adjoint_load)
         lam[self.f, ...] = lamf
-        lam[self.p, ...] = dgdb[self.p, ...]
+
+        if dgdb is not None:
+            lam[self.p, ...] = dgdb[self.p, ...]
 
         # sensitivities to system matrix
         if self.x.ndim > 1:
@@ -112,10 +185,19 @@ class SystemOfEquations(Module):
             dgdA = DyadCarrier(lam, self.x)
 
         # sensitivities to applied load and prescribed state
-        dgdff = dgdb[self.f, ...] - lam[self.f, ...]
-        dgdup = dgdx[self.p, ...] + self.App * dgdb[self.p, ...] + self.Afp.T * lam[self.f, ...]
+        dgdbf = np.zeros_like(adjoint_load)
+        dgdup = np.zeros_like(self.x[self.p, ...])
+        dgdbf -= lam[self.f, ...]
+        dgdup += self.Afp.T * lam[self.f, ...]
 
-        return dgdA, dgdff, dgdup
+        if dgdx is not None:
+            dgdup += dgdx[self.p, ...]
+
+        if dgdb is not None:
+            dgdbf += dgdb[self.f, ...]
+            dgdup += self.App * dgdb[self.p, ...]
+
+        return dgdA, dgdbf, dgdup
 
 
 class Inverse(Module):
@@ -257,6 +339,7 @@ class LinSolve(Module):
     Attributes:
         use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
     """
+
     use_lda_solver = True
 
     def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None):

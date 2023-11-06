@@ -22,6 +22,7 @@ Mathematical Modules
    pymoto.Inverse
    pymoto.LinSolve
    pymoto.SystemOfEquations
+   pymoto.StaticCondensation
    pymoto.EigenSolve
    pymoto.Scaling
 
