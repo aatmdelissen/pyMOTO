@@ -19,6 +19,7 @@ Springer Science & Business Media.
 DOI: https://doi.org/10.1007/978-3-662-05086-6
 """
 import numpy as np
+from scipy.sparse import csc_matrix
 
 # flake8: noqa
 import pymoto as pym
@@ -30,8 +31,8 @@ nu, E = 0.3, 100  # Material properties
 
 scaling_objective = 10.0
 
-input_spring_stiffness = 10
-output_spring_stiffness = 10
+input_spring_stiffness = 10.0
+output_spring_stiffness = 15.0
 
 use_volume_constraint = True
 scaling_volume_constraint = 10.0
@@ -98,23 +99,19 @@ if __name__ == "__main__":
 
     # Assembly
     istiff = np.array([dof_input, dof_output])
-    jstiff = np.copy(istiff)
     sstiff = np.array([input_spring_stiffness, output_spring_stiffness])
 
+    K_const = csc_matrix((sstiff, (istiff, istiff)), shape=(domain.nnodes*2, domain.nnodes*2))
     signal_stiffness = network.append(
         pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu,
-                              bc=prescribed_dofs, add_stiffness=[istiff, jstiff, sstiff]))
+                              bc=prescribed_dofs, add_constant=K_const))
 
     # Solve
     signal_force = pym.Signal('f', state=f)
     signal_displacements = network.append(pym.LinSolve([signal_stiffness, signal_force]))
 
     # Output displacement
-    l = np.zeros_like(f)
-    l[dof_output] = 1.0
-    signal_selector = pym.Signal('l', state=l)
-    signal_output_displacement = network.append(
-        pym.EinSum([signal_displacements, signal_selector], expression='i,i->'))
+    signal_output_displacement = signal_displacements[dof_output]
 
     # Objective
     signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=scaling_objective))

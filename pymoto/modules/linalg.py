@@ -51,7 +51,7 @@ class StaticCondensation(Module):
     Output Signal:
       - ``Ared`` (`dense or sparse matrix`): The reduced system matrix :math:`\tilde{\mathbf{A}}` of size ``(m, m)``
 
-    Keyword Args:
+    Args:
         free: The indices corresponding to the free degrees of freedom
         main: The indices corresponding to the main degrees of freedom
         **kwargs: See `pymoto.LinSolve`, as they are directly passed into the `LinSolve` module

@@ -36,12 +36,11 @@ class AssembleGeneral(Module):
         bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are active.
         matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments
           ``matrix_type((vals, (row_idx, col_idx)), shape=(n, n))``
-        add_values (optional): A list of three 1d numpy array of equal length denoting
-        (i) the row indices, (ii) the column indices, and (iii) the added value.
+        add_constant (optional): A constant (e.g. matrix) to add.
     """
 
     def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None,
-                 matrix_type=csc_matrix, add_values=None):
+                 matrix_type=csc_matrix, add_constant=None):
         self.elmat = element_matrix
         self.ndof = self.elmat.shape[-1] // domain.elemnodes  # Number of dofs per node
         self.n = self.ndof * domain.nnodes  # Matrix size
@@ -66,12 +65,7 @@ class AssembleGeneral(Module):
         else:
             self.bcselect = None
 
-        if add_values:
-            self.add_values = add_values
-            self.rows = np.append(self.rows, add_values[0])
-            self.cols = np.append(self.cols, add_values[1])
-        else:
-            self.add_values = None
+        self.add_constant = add_constant
 
     def _response(self, xscale: np.ndarray):
         scaled_el = ((self.elmat.flatten()[np.newaxis]).T * xscale).flatten(order='F')
@@ -83,9 +77,6 @@ class AssembleGeneral(Module):
         else:
             mat_values = scaled_el
 
-        if self.add_values is not None:
-            mat_values = np.append(mat_values, self.add_values[2])
-
         try:
             mat = self.matrix_type((mat_values, (self.rows, self.cols)), shape=(self.n, self.n))
         except TypeError as e:
@@ -93,6 +84,8 @@ class AssembleGeneral(Module):
                                    "scipy.sparse.csrmatrix are supported"
                           .format(self.matrix_type)).with_traceback(sys.exc_info()[2]) from None
 
+        if self.add_constant is not None:
+            mat += self.add_constant
         return mat
 
     def _sensitivity(self, dgdmat: Union[DyadCarrier, np.ndarray]):
