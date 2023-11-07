@@ -1,5 +1,5 @@
 """
-Example of the design of a thermoelastic structure, with optional stress constraints.
+Example of the design of a thermoelastic structure.
 
 Implementation by @artofscience (s.koppen@tudelft.nl) based on:
 
@@ -7,13 +7,6 @@ Gao, T., & Zhang, W. (2010).
 Topology optimization involving thermo-elastic stress loads.
 Structural and multidisciplinary optimization, 42, 725-738.
 DOI: https://doi.org/10.1007/s00158-010-0527-5
-
-and
-
-Rodrigues, H., & Fernandes, P. (1995).
-A material based model for topology optimization of thermoelastic structures.
-International Journal for Numerical Methods in Engineering, 38(12), 1951-1965.
-DOI: https://doi.org/10.1002/nme.1620381202
 """
 
 import numpy as np
@@ -23,7 +16,6 @@ import pymoto as pym
 # Problem settings
 nx, ny = 60, 80  # Domain size
 xmin, filter_radius = 1e-9, 2
-initial_volfrac = 1.0
 
 load = -100.0  # point load
 
@@ -75,7 +67,7 @@ if __name__ == "__main__":
     f[2 * domain.get_nodenumber(1, 0) + 1] = load
 
     # Initial design
-    s_variables = pym.Signal('x', state=initial_volfrac * np.ones(domain.nel))
+    s_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
 
     # Setup optimization problem
     fn = pym.Network()
@@ -83,9 +75,9 @@ if __name__ == "__main__":
     # Filtering
     s_filtered_variables = fn.append(pym.DensityFilter(s_variables, domain=domain, radius=filter_radius))
 
-    # RAMP
+    # RAMP with q = 1
     s_penalized_variables = fn.append(
-        pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(inp0 / (1 + 1 * (1 - inp0)))"))
+        pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(inp0 / (2 - inp0))"))
 
     # Assemble stiffness matrix
     s_K = fn.append(pym.AssembleStiffness(s_penalized_variables, domain=domain, bc=None))
