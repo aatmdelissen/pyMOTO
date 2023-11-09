@@ -16,27 +16,18 @@ import numpy as np
 
 import pymoto as pym
 
-# Problem settings
-lx, ly = 1, 0.5
-nx, ny = int(lx * 100), int(ly * 100)  # Domain size
-unitx, unity = lx / nx, ly / ny
-unitz = 1.0  # out-of-plane thickness
+nx, ny = 100, 50
 
-xmin, filter_radius, volfrac = 1e-6, 2, 0.49  # Density settings
-nu = 0.3  # Material properties
+xmin, filter_radius, volfrac = 1e-9, 2, 0.5
+E, rho = 1000, 1 / 1000
 
-E = 210e9  # 210 GPa
-rho = 7860  # kg/m3
+omega = 2.0  # excitation frequency (just below first eigenfrequency)
+load = 1.0  # load magnitude
 
-# fundamental eigenfreq is 372.6 Hz, above this frequency the optimization will not result in a nice design
-omega = 370 * (2 * pi)
+alpha, beta = 0.5, 0.5  # damping parameters
 
-# force
-force_magnitude = -9000
-
-# Rayleigh damping parameters
-alpha, beta = 1e-3, 1e-8
-
+scaling_objective = 10.0
+scaling_volume_constraint = 10.0
 
 class DynamicMatrix(pym.Module):
     """ Constructs dynamic stiffness matrix with Rayleigh damping """
@@ -62,7 +53,7 @@ class DynamicMatrix(pym.Module):
 
 if __name__ == "__main__":
     # Set up the domain
-    domain = pym.DomainDefinition(nx, ny, unitx=unitx, unity=unity, unitz=unitz)
+    domain = pym.DomainDefinition(nx, ny)
 
     # Node and dof groups
     nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
@@ -70,7 +61,7 @@ if __name__ == "__main__":
 
     # Setup rhs for loadcase
     f = np.zeros(domain.nnodes * 2)  # Generate a force vector
-    f[2 * domain.get_nodenumber(nx, ny // 2) + 1] = force_magnitude
+    f[2 * domain.get_nodenumber(nx, ny // 2) + 1] = load
 
     # Initial design
     s_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
@@ -85,11 +76,10 @@ if __name__ == "__main__":
     s_penalized_variables = fn.append(pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
 
     # Assemble stiffness matrix
-    s_K = fn.append(pym.AssembleStiffness(s_penalized_variables, domain=domain, bc=dofs_left,
-                                          e_modulus=E, poisson_ratio=nu))
+    s_K = fn.append(pym.AssembleStiffness(s_penalized_variables, domain=domain, bc=dofs_left, e_modulus=E))
 
     # Assemble mass matrix
-    s_M = fn.append(pym.AssembleMass(s_penalized_variables, domain=domain, bc=dofs_left, rho=rho))
+    s_M = fn.append(pym.AssembleMass(s_filtered_variables, domain=domain, bc=dofs_left, rho=rho))
 
     # Calculate the eigenfrequencies only once
     calculate_eigenfrequencies = True
@@ -115,14 +105,15 @@ if __name__ == "__main__":
     s_dynamic_norm = fn.append(pym.ComplexNorm(s_dynamic_compliance))
 
     # Objective
-    s_objective = fn.append(pym.Scaling([s_dynamic_norm], scaling=100.0))
+    s_objective = fn.append(pym.Scaling([s_dynamic_norm], scaling=scaling_objective))
     s_objective.tag = "Objective"
 
     # Volume
     s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
 
     # Volume constraint
-    s_volume_constraint = fn.append(pym.Scaling(s_volume, scaling=10.0, maxval=volfrac * domain.nel))
+    s_volume_constraint = fn.append(
+        pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
     s_volume_constraint.tag = "Volume constraint"
 
     # Plotting
