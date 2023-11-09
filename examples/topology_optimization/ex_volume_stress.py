@@ -17,15 +17,12 @@ import pymoto as pym
 from pymoto.modules.assembly import get_B, get_D
 
 # Problem settings
-nx, ny = 50, 100  # Domain size
+nx, ny = 60, 100
 xmin, filter_radius, volfrac = 1e-9, 2, 1.0
 
 scaling_objective = 100.0
-maximum_vm_stress = 0.4
-
-displacement_constraint = False
-scaling_displacement_constraint = 10.0
-max_displacement = 20.0
+scaling_constraint = 1.0
+maximum_vm_stress = 0.3
 
 
 class Stress(pym.Module):
@@ -76,7 +73,7 @@ class VonMises(pym.Module):
         return dfdv[:, np.newaxis] * (self.y ** (-0.5))[:, np.newaxis] * self.x.dot(self.V)
 
 
-class ConstraintAggregation(pym.Module):
+class Aggregation(pym.Module):
     """
     Unified aggregation and relaxation.
 
@@ -99,26 +96,36 @@ class ConstraintAggregation(pym.Module):
         """
         self.n = len(x)
         self.x = x
-        self.y = self.x + 1
-        self.z = self.y ** self.P
+        self.z = self.x ** self.P
         z = ((1 / len(self.x)) * np.sum(self.z)) ** (1 / self.P)  # P-mean aggregation function
-        return z - 1
+        return z
 
     def _sensitivity(self, dfdc):
-        return (dfdc / self.n) * (np.sum(self.z) / self.n) ** (1 / self.P - 1) * self.y ** (self.P - 1)
+        return (dfdc / self.n) * (np.sum(self.z) / self.n) ** (1 / self.P - 1) * self.x ** (self.P - 1)
 
 
 if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny)
 
+    ofs = int(filter_radius)
+
     # Node and dof groups
     nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
     dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
 
     # Setup rhs for loadcase
+    # Note that the load is not set at the boundary, but slightly inwards (2 * filter_radius).
+    # Also, we do not use a point load, but spread out the load over multiple surrounded dofs.
+
     f = np.zeros(domain.nnodes * 2)  # Generate a force vector
-    f[2 * domain.get_nodenumber(nx, ny // 2) + 1] = 1.0
+    x_loc = nx - ofs
+    y_loc = ny // 2
+    load = 1 / 15
+    f[2 * domain.get_nodenumber(
+        *np.meshgrid(np.arange(x_loc - 1, x_loc + 2), np.arange(y_loc - 1, y_loc + 2))) + 1] = load
+    f[2 * domain.get_nodenumber(x_loc, np.arange(y_loc - 1, y_loc + 2)) + 1] += load
+    f[2 * domain.get_nodenumber(np.arange(x_loc - 1, x_loc + 2), y_loc) + 1] += load
 
     # Initial design
     s_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
@@ -139,43 +146,47 @@ if __name__ == "__main__":
     s_force = pym.Signal('f', state=f)
     s_displacement = fn.append(pym.LinSolve([s_K, s_force]))
 
-    # Calculate stress
+    # Calculate stress (3 values) per element
     s_stress = fn.append(Stress([s_displacement], domain=domain))
+
+    # Calculate elemental Von Mises stress
     s_stress_vm = fn.append(VonMises([s_stress]))
+
+    # Calculate stress constraints
     s_stress_constraints = fn.append(pym.Scaling([s_stress_vm], maxval=maximum_vm_stress, scaling=1.0))
 
+    # Calculate variable-scaled stress constraints
     s_stress_constraints_scaled = fn.append(
         pym.EinSum([s_filtered_variables, s_stress_constraints], expression='i,i->i'))
 
-    s_stress_constraint = fn.append(ConstraintAggregation([s_stress_constraints_scaled], P=10))
-    s_stress_constraint.tag = "Stress constraint"
+    # Translate the stress constraints (enforce positivity)
+    s_stress_constraints_translated = fn.append(pym.MathGeneral([s_stress_constraints_scaled], expression='inp0+1'))
+
+    # Aggregate translated stress constraints (calculate approximated maximum)
+    s_stress_constraint = fn.append(Aggregation([s_stress_constraints_translated], P=10))
+
+    # Translate back and scale stress constraint
+    s_stress_constraint_scaled = fn.append(pym.Scaling(s_stress_constraint, maxval=1.0, scaling=scaling_constraint))
+    s_stress_constraint_scaled.tag = "Stress constraint"
+
+    # Plotting: calculate variable-scaled elemental Von Mises stress
+    s_stress_scaled = fn.append(pym.EinSum([s_filtered_variables, s_stress_vm], expression='i,i->i'))
+    module_plotstress = pym.PlotDomain(s_stress_scaled, domain=domain, cmap='jet')
 
     # Volume
     s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
 
     # Objective
     s_objective = fn.append(pym.Scaling([s_volume], scaling=scaling_objective))
-    s_objective.tag = "Objective (volume)"
+    s_objective.tag = "Volume"
 
-    # Plotting
-    s_stress_scaled = fn.append(pym.EinSum([s_filtered_variables, s_stress_vm], expression='i,i->i'))
-    module_plotstress = pym.PlotDomain(s_stress_scaled, domain=domain, cmap='jet')
+    s_volfrac = fn.append(pym.Scaling([s_volume], scaling=1.0))
+    s_volfrac.tag = "Volume fraction"
 
     module_plotdomain = pym.PlotDomain(s_filtered_variables, domain=domain, saveto="out/design")
-    responses = [s_objective, s_stress_constraint]
+    responses = [s_objective, s_stress_constraint_scaled]
 
-    if displacement_constraint:
-        # Output displacement (is a complex value)
-        s_compliance = fn.append(pym.EinSum([s_displacement, s_force], expression='i,i->'))
-
-        # Displacement constraint
-        s_compliance_constraint = fn.append(
-            pym.Scaling(s_compliance, scaling=scaling_displacement_constraint, maxval=max_displacement))
-        s_compliance_constraint.tag = "Displacement constraint"
-
-        responses.append(s_compliance_constraint)
-
-    module_plotiter = pym.PlotIter(responses)
+    module_plotiter = pym.PlotIter([s_volfrac, s_stress_constraint_scaled])
     fn.append(module_plotdomain, module_plotstress, module_plotiter)
 
     # Optimization
