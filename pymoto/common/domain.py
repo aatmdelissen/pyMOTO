@@ -184,9 +184,9 @@ class DomainDefinition:
         """
         v = np.prod(self.element_size[:self.dim])
         assert v > 0.0, 'Element volume needs to be positive'
-        ret = np.ones(self.nnodes)/v
+        ret = np.ones(self.elemnodes)/v
         for i in range(self.dim):
-            ret *= np.array([self.element_size[i] + n[i]*pos[i] for n in self.node_numbering])
+            ret *= np.array([self.element_size[i]/2 + n[i]*pos[i] for n in self.node_numbering])
         return ret
 
     def eval_shape_fun_der(self, pos: np.ndarray):
