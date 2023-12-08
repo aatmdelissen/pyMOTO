@@ -283,6 +283,32 @@ class AssembleMass(AssembleGeneral):
         super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, **kwargs)
 
 
+class AssembleScalarMass(AssembleGeneral):
+    r""" Consistent mass equivalent matrix assembly by scaling elements (e.g. Thermal Capacity)
+        :math:`\mathbf{C} = \sum_e x_e \mathbf{C}_e`
+
+        Input Signal:
+            - ``x``: Scaling vector of size ``(Nel)``
+
+        Output Signal:
+            - ``C``: Scalar mass equivalent matrix of size ``(n, n)``
+
+        Args:
+            domain: The domain to assemble for -- this determines the element size and dimensionality
+            *args: Other arguments are passed to AssembleGeneral
+
+        Keyword Args:
+            MP: Material property for element matrix (e.g. Thermal capacity)
+            bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
+            **kwargs : Other keyword-arguments are passed to AssembleGeneral
+        """
+
+    def _prepare(self, domain: DomainDefinition, *args, MP: float = 1.0, bcdiagval=0.0, **kwargs):
+        # Element mass equivalent matrix
+        CE = ConsistentMassEq(domain, ndof=1, MP=MP)
+        super()._prepare(domain, CE, *args, bcdiagval=bcdiagval, **kwargs)
+
+
 class AssembleScalarField(AssembleGeneral):
     r"""
     Scalar field matrix assembly (e.g. Thermal conductivity, Electric permittivity)
