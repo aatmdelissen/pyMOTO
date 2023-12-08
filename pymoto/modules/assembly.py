@@ -230,7 +230,7 @@ def ConsistentMassEq(domain: DomainDefinition, ndof: int, MP: float = 1.0):
     Args:
         domain: The domain the element matrix has to be determined for
         ndof: Amount of dofs per node
-            Mass: ndof = domain.dim
+            Mass, Damping: ndof = domain.dim
             Else: ndof = 1
         MP: Material property to use in the element matrix
             Mass: Density (rho)
@@ -282,9 +282,10 @@ class AssembleMass(AssembleGeneral):
         ME = ConsistentMassEq(domain, ndof=domain.dim, MP=rho)
         super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, **kwargs)
 
+
 class AssembleScalarField(AssembleGeneral):
-    """
-    Scalar field matrix assembly (e.g. Thermal conductivity, Electrical conductivity)
+    r"""
+    Scalar field matrix assembly (e.g. Thermal conductivity, Electric permittivity)
     :math:`\mathbf{Ks} = \sum_e x_e \mathbf{Ks}_e`
 
     Input Signal:
@@ -298,7 +299,7 @@ class AssembleScalarField(AssembleGeneral):
         args (optional): Other arguments are passed to AssembleGeneral
 
     Keyword Args:
-        kt: Material property (e.g. Thermal conductivity, Electrical conductivity)
+        kt: Material property (e.g. Thermal conductivity, Electric permittivity)
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
         kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
