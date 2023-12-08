@@ -270,3 +270,44 @@ class AssembleMass(AssembleGeneral):
         else:
             raise RuntimeError("Only for 2D and 3D")
         super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, **kwargs)
+
+class AssembleScalarField(AssembleGeneral):
+    """
+    Scalar field matrix assembly (e.g. Thermal conductivity, Electrical conductivity)
+    :math:`\mathbf{Ks} = \sum_e x_e \mathbf{Ks}_e`
+
+    Input Signal:
+        - ``x``: Scaling vector of size ``(Nel)``
+
+    Output Signal:
+        - ``Kt``: Scalar field matrix of size ``(n, n)``
+
+    Args:
+        domain: The domain to assemble for -- this determines the element size and dimensionality
+        args (optional): Other arguments are passed to AssembleGeneral
+
+    Keyword Args:
+        kt: Material property (e.g. Thermal conductivity, Electrical conductivity)
+        bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
+        kwargs: Other keyword-arguments are passed to AssembleGeneral
+    """
+
+    def _prepare(self, domain: DomainDefinition, *args, kt: float = 1.0, **kwargs):
+        # Prepare material properties and element matrices
+        self.kt = kt
+        kappa = np.identity(domain.dim)*self.kt
+        self.SFE = np.zeros((domain.elemnodes, domain.elemnodes))
+
+
+        # Numerical Integration
+        siz = domain.element_size
+        w = np.prod(siz/2)
+
+        for n in domain.node_numbering:
+            pos = n*(siz/2)/np.sqrt(3)  # Sampling point
+            Bn = domain.eval_shape_fun_der(pos)
+            self.SFE += w * Bn.T @ kappa @ Bn  # Add contribution
+
+        super()._prepare(domain, self.SFE, *args, **kwargs)
+
+
