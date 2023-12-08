@@ -223,6 +223,40 @@ class AssembleStiffness(AssembleGeneral):
         super()._prepare(domain, self.KE, *args, **kwargs)
 
 
+def ConsistentMassEq(domain: DomainDefinition, ndof: int, MP: float = 1.0):
+    """
+    Calculates Consistent mass element matrix, or its equivalents (e.g. Damping, Capacitance)
+
+    Args:
+        domain: The domain the element matrix has to be determined for
+        ndof: Amount of dofs per node
+            Mass: ndof = domain.dim
+            Else: ndof = 1
+        MP: Material property to use in the element matrix
+            Mass: Density (rho)
+            Else: Thermal capacity, Damping parameter
+
+    Returns:
+        Consistent mass equivalent element matrix
+    """
+
+    consEl = np.zeros((domain.elemnodes*ndof, domain.elemnodes*ndof))
+
+    # Numerical integration
+    siz = domain.element_size
+    w = np.prod(siz/2)
+    Nmat = np.zeros((ndof, domain.elemnodes*ndof))
+
+    for n in domain.node_numbering:
+        pos = n*(siz/2)/np.sqrt(3)  # Sampling point
+        N = domain.eval_shape_fun(pos)
+        for d in range(domain.elemnodes):
+            Nmat[0:ndof, ndof*d:ndof*d+ndof] = np.identity(ndof)*N[d]  # fill up shape function matrix according to ndof
+        consEl += w * MP * Nmat.T @ Nmat  # Add contribution
+
+    return consEl
+
+
 class AssembleMass(AssembleGeneral):
     r""" Consistent mass matrix assembly by scaling elements
     :math:`\mathbf{M} = \sum_e x_e \mathbf{M}_e`
@@ -309,5 +343,3 @@ class AssembleScalarField(AssembleGeneral):
             self.SFE += w * Bn.T @ kappa @ Bn  # Add contribution
 
         super()._prepare(domain, self.SFE, *args, **kwargs)
-
-
