@@ -279,30 +279,7 @@ class AssembleMass(AssembleGeneral):
 
     def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, **kwargs):
         # Element mass matrix
-        # 1/36 Mass of one element
-        mel = rho * np.prod(domain.element_size)
-
-        if domain.dim == 2:
-            # Consistent mass matrix
-            ME = mel / 36 * np.array([[4.0, 0.0, 2.0, 0.0, 2.0, 0.0, 1.0, 0.0],
-                                      [0.0, 4.0, 0.0, 2.0, 0.0, 2.0, 0.0, 1.0],
-                                      [2.0, 0.0, 4.0, 0.0, 1.0, 0.0, 2.0, 0.0],
-                                      [0.0, 2.0, 0.0, 4.0, 0.0, 1.0, 0.0, 2.0],
-                                      [2.0, 0.0, 1.0, 0.0, 4.0, 0.0, 2.0, 0.0],
-                                      [0.0, 2.0, 0.0, 1.0, 0.0, 4.0, 0.0, 2.0],
-                                      [1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 4.0, 0.0],
-                                      [0.0, 1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 4.0]])
-        elif domain.dim == 3:
-            ME = np.zeros((domain.elemnodes*domain.dim, domain.elemnodes*domain.dim))
-            weights = np.array([8.0, 4.0, 2.0, 1.0])
-            for n1 in range(domain.elemnodes):
-                for n2 in range(domain.elemnodes):
-                    dist = round(np.sum(abs(np.array(domain.node_numbering[n1]) - np.array(domain.node_numbering[n2])))/2)
-                    ME[n1*domain.dim+np.arange(domain.dim), n2*domain.dim+np.arange(domain.dim)] = weights[dist]
-
-            ME *= mel / 216
-        else:
-            raise RuntimeError("Only for 2D and 3D")
+        ME = ConsistentMassEq(domain, ndof=domain.dim, MP=rho)
         super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, **kwargs)
 
 class AssembleScalarField(AssembleGeneral):
