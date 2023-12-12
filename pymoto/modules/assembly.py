@@ -213,7 +213,7 @@ class AssembleStiffness(AssembleGeneral):
 
         # Numerical integration
         siz = domain.element_size
-        w = np.prod(siz/2)
+        w = np.prod(siz[:domain.dim]/2)
         for n in domain.node_numbering:
             pos = n*(siz/2)/np.sqrt(3)  # Sampling point
             dN_dx = domain.eval_shape_fun_der(pos)
@@ -244,7 +244,9 @@ def ConsistentMassEq(domain: DomainDefinition, ndof: int, MP: float = 1.0):
 
     # Numerical integration
     siz = domain.element_size
-    w = np.prod(siz/2)
+    w = np.prod(siz[:domain.dim]/2)
+    if domain.dim != 3:
+        MP *= np.prod(siz[domain.dim:])
     Nmat = np.zeros((ndof, domain.elemnodes*ndof))
 
     for n in domain.node_numbering:
@@ -336,10 +338,11 @@ class AssembleScalarField(AssembleGeneral):
         kappa = np.identity(domain.dim)*self.kt
         self.SFE = np.zeros((domain.elemnodes, domain.elemnodes))
 
-
         # Numerical Integration
         siz = domain.element_size
-        w = np.prod(siz/2)
+        w = np.prod(siz[:domain.dim]/2)
+        if domain.dim != 3:
+            kappa *= siz[domain.dim:]
 
         for n in domain.node_numbering:
             pos = n*(siz/2)/np.sqrt(3)  # Sampling point
