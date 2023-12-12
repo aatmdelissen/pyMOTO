@@ -3,13 +3,15 @@ import numpy as np
 import pymoto as pym
 import numpy.testing as npt
 
+
 class TestElMats(unittest.TestCase):
-    def TestMassMat2D(self):
+    def test_MassMat2D(self):
         N = 20
         Lx, Ly, Lz = 2, 2, 5
         lx, ly, lz = Lx/N, Ly/N, Lz
         domain = pym.DomainDefinition(N,N, unitx = lx, unity = ly, unitz = lz)
         rho = 1.0
+
         mel = rho*np.prod(domain.element_size)
         MEhc = mel / 36 * np.array([[4.0, 0.0, 2.0, 0.0, 2.0, 0.0, 1.0, 0.0],
                                       [0.0, 4.0, 0.0, 2.0, 0.0, 2.0, 0.0, 1.0],
@@ -19,11 +21,14 @@ class TestElMats(unittest.TestCase):
                                       [0.0, 2.0, 0.0, 1.0, 0.0, 4.0, 0.0, 2.0],
                                       [1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 4.0, 0.0],
                                       [0.0, 1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 4.0]])
-        ME = pym.ConsistentMassEq(domain, 2, 1.0)
 
-        self.assertEqual(ME, MEhc)
+        s_x = pym.Signal('x', state=np.ones(domain.nel))
+        m_M = pym.AssembleMass(s_x, domain=domain, rho=rho)
+        ME = m_M.ME
 
-    def TestConductivityMat(self):
+        npt.assert_allclose(ME, MEhc)
+
+    def test_ConductivityMat(self):
         N = 20
         Lx, Ly, Lz = 2, 2, 5
         lx, ly, lz = Lx/N, Ly/N, Lz
@@ -50,12 +55,12 @@ class TestElMats(unittest.TestCase):
         npt.assert_allclose(T[nodidx_right[1]], T_chk, rtol=1e-10)
 
 
-    def TestCapacitanceMat(self):
+    #def test_CapacitanceMat(self):
 
 
 
 
-    def TestMassMat3D(self):
+    def test_MassMat3D(self):
         N = 20
         Lx, Ly, Lz = 2, 2, 2
         lx, ly, lz = Lx/N, Ly/N, Lz/N
@@ -71,12 +76,14 @@ class TestElMats(unittest.TestCase):
                 MEhc[n1 * domain.dim + np.arange(domain.dim), n2 * domain.dim + np.arange(domain.dim)] = weights[dist]
         MEhc *= mel / 216
 
-        ME = pym.ConsistentMassEq(domain, 3, 1.0)
+        s_x = pym.Signal('x', state=np.ones(domain.nel))
+        m_M = pym.AssembleMass(s_x, domain=domain, rho=rho)
+        ME = m_M.ME
 
-        self.assertEqual(ME, MEhc)
+        npt.assert_allclose(ME, MEhc)
 
 
-    def TestConductivityMat3D(self):
+    def test_ConductivityMat3D(self):
         N = 20
         Lx, Ly, Lz = 2, 2, 2
         lx, ly, lz = Lx / N, Ly / N, Lz / N
