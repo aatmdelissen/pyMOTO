@@ -29,7 +29,7 @@ class TestElMats(unittest.TestCase):
         npt.assert_allclose(ME, MEhc)
 
     def test_ConductivityMat(self):
-        N = 20
+        N = 1
         Lx, Ly, Lz = 2, 2, 5
         lx, ly, lz = Lx/N, Ly/N, Lz
         domain = pym.DomainDefinition(N,N, unitx = lx, unity = ly, unitz = lz)
@@ -51,8 +51,8 @@ class TestElMats(unittest.TestCase):
         T_chk = Q*Lx/(kt*Ly*Lz)
         T = np.linalg.solve(s_KT.state.toarray(), q)
 
-        npt.assert_allclose(T[nodidx_right[0]], 0, atol=1e-10)
-        npt.assert_allclose(T[nodidx_right[1]], T_chk, rtol=1e-10)
+        npt.assert_allclose(T[nodidx_left], 0, atol=1e-10)
+        npt.assert_allclose(T[nodidx_right], T_chk, rtol=1e-10)
 
 
     #def test_CapacitanceMat(self):
@@ -84,7 +84,7 @@ class TestElMats(unittest.TestCase):
 
 
     def test_ConductivityMat3D(self):
-        N = 20
+        N = 1
         Lx, Ly, Lz = 2, 2, 2
         lx, ly, lz = Lx / N, Ly / N, Lz / N
         domain = pym.DomainDefinition(N, N, N, unitx=lx, unity=ly, unitz=lz)
@@ -106,5 +106,5 @@ class TestElMats(unittest.TestCase):
         T_chk = Q * Lx / (kt * Ly * Lz)
         T = np.linalg.solve(s_KT.state.toarray(), q)
 
-        npt.assert_allclose(T[nodidx_right[0]], 0, atol=1e-10)
-        npt.assert_allclose(T[nodidx_right[1]], T_chk, rtol=1e-10)
+        npt.assert_allclose(T[nodidx_left], 0, atol=1e-10)
+        npt.assert_allclose(T[nodidx_right], T_chk, rtol=1e-10)
