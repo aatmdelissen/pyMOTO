@@ -18,7 +18,7 @@ class TestAssembleStiffness(unittest.TestCase):
         s_x = pym.Signal('x', state=np.ones(domain.nel))
 
         # Assemble stiffness matrix
-        m_K = pym.AssembleStiffness(s_x, domain=domain, bc=dofidx_left, e_modulus=E, poisson_ratio=nu)
+        m_K = pym.AssembleStiffness(s_x, domain=domain, bc=dofidx_left, e_modulus=E, poisson_ratio=nu, plane='stress')
         s_K = m_K.sig_out[0]
 
         m_K.response()
