@@ -213,7 +213,7 @@ class AssembleStiffness(AssembleGeneral):
 
         # Numerical integration
         siz = domain.element_size
-        w = np.prod(siz/2)
+        w = np.prod(siz[:domain.dim]/2)
         for n in domain.node_numbering:
             pos = n*(siz/2)/np.sqrt(3)  # Sampling point
             dN_dx = domain.eval_shape_fun_der(pos)
