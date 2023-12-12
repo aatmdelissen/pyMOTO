@@ -281,8 +281,8 @@ class AssembleMass(AssembleGeneral):
 
     def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, **kwargs):
         # Element mass matrix
-        ME = ConsistentMassEq(domain, ndof=domain.dim, MP=rho)
-        super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, **kwargs)
+        self.ME = ConsistentMassEq(domain, ndof=domain.dim, MP=rho)
+        super()._prepare(domain, self.ME, *args, bcdiagval=bcdiagval, **kwargs)
 
 
 class AssembleScalarMass(AssembleGeneral):
@@ -307,8 +307,8 @@ class AssembleScalarMass(AssembleGeneral):
 
     def _prepare(self, domain: DomainDefinition, *args, MP: float = 1.0, bcdiagval=0.0, **kwargs):
         # Element mass equivalent matrix
-        CE = ConsistentMassEq(domain, ndof=1, MP=MP)
-        super()._prepare(domain, CE, *args, bcdiagval=bcdiagval, **kwargs)
+        self.CE = ConsistentMassEq(domain, ndof=1, MP=MP)
+        super()._prepare(domain, self.CE, *args, bcdiagval=bcdiagval, **kwargs)
 
 
 class AssembleScalarField(AssembleGeneral):
