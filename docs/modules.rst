@@ -35,6 +35,8 @@ Finite Element Modules
    pymoto.AssembleGeneral
    pymoto.AssembleStiffness
    pymoto.AssembleMass
+   pymoto.AssembleScalarMass
+   pymoto.AssembleScalarField
 
 Filter Modules
 --------------
