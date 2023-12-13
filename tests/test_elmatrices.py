@@ -55,10 +55,25 @@ class TestElMats(unittest.TestCase):
         npt.assert_allclose(T[nodidx_right], T_chk, rtol=1e-10)
 
 
-    #def test_CapacitanceMat(self):
+    def test_CapacitanceMat(self):
+        N = 1
+        Lx, Ly, Lz = 2, 3, 4
+        lx, ly, lz = Lx/N, Ly/N, Lz
+        domain = pym.DomainDefinition(N, N, unitx=lx, unity=ly, unitz=lz)
+        rho = 1.0
+        cp = 1.0
 
+        cel = cp*rho*np.prod(domain.element_size)
+        CEhc = cel / 36 * np.array([[4.0, 2.0, 2.0, 1.0],
+                                    [2.0, 4.0, 1.0, 2.0],
+                                    [2.0, 1.0, 4.0, 2.0],
+                                    [1.0, 2.0, 2.0, 4.0]])
 
+        s_x = pym.Signal('x', state=np.ones(domain.nel))
+        m_C = pym.AssembleScalarMass(s_x, domain=domain, MP=rho*cp)
+        CE = m_C.CE
 
+        npt.assert_allclose(CE, CEhc)
 
     def test_MassMat3D(self):
         N = 1
