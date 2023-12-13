@@ -6,8 +6,8 @@ import numpy.testing as npt
 
 class TestElMats(unittest.TestCase):
     def test_MassMat2D(self):
-        N = 20
-        Lx, Ly, Lz = 2, 2, 5
+        N = 1
+        Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz
         domain = pym.DomainDefinition(N,N, unitx = lx, unity = ly, unitz = lz)
         rho = 1.0
@@ -30,7 +30,7 @@ class TestElMats(unittest.TestCase):
 
     def test_ConductivityMat(self):
         N = 1
-        Lx, Ly, Lz = 2, 2, 5
+        Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz
         domain = pym.DomainDefinition(N,N, unitx = lx, unity = ly, unitz = lz)
         nodidx_left = domain.get_nodenumber(0, np.arange(domain.nely + 1))
@@ -61,10 +61,10 @@ class TestElMats(unittest.TestCase):
 
 
     def test_MassMat3D(self):
-        N = 20
-        Lx, Ly, Lz = 2, 2, 2
+        N = 1
+        Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz/N
-        domain = pym.DomainDefinition(N,N,N, unitx = lx, unity = ly, unitz = lz)
+        domain = pym.DomainDefinition(N, N, N, unitx=lx, unity=ly, unitz=lz)
         rho = 1.0
         mel = rho * np.prod(domain.element_size)
 
@@ -85,7 +85,7 @@ class TestElMats(unittest.TestCase):
 
     def test_ConductivityMat3D(self):
         N = 1
-        Lx, Ly, Lz = 2, 2, 2
+        Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx / N, Ly / N, Lz / N
         domain = pym.DomainDefinition(N, N, N, unitx=lx, unity=ly, unitz=lz)
         nodidx_left = domain.get_nodenumber(*np.meshgrid(0, range(domain.nely + 1), range(domain.nelz + 1))).flatten()
