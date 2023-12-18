@@ -5,7 +5,7 @@ import numpy.testing as npt
 
 
 class TestElMats(unittest.TestCase):
-    def test_MassMat2D(self):
+    def test_mass_mat_2d(self):
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz
@@ -29,7 +29,7 @@ class TestElMats(unittest.TestCase):
 
         npt.assert_allclose(ME, MEhc)
 
-    def test_ConductivityMat(self):
+    def test_conductivity_mat_2d(self):
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz
@@ -55,7 +55,7 @@ class TestElMats(unittest.TestCase):
         npt.assert_allclose(T[nodidx_left], 0, atol=1e-10)
         npt.assert_allclose(T[nodidx_right], T_chk, rtol=1e-10)
 
-    def test_CapacitanceMat(self):
+    def test_capacitance_mat(self):
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz
@@ -76,7 +76,7 @@ class TestElMats(unittest.TestCase):
 
         npt.assert_allclose(CE, CEhc)
 
-    def test_MassMat3D(self):
+    def test_mass_mat_3d(self):
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz/N
@@ -99,7 +99,7 @@ class TestElMats(unittest.TestCase):
 
         npt.assert_allclose(ME, MEhc)
 
-    def test_ConductivityMat3D(self):
+    def test_conductivity_mat_3d(self):
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx / N, Ly / N, Lz / N
