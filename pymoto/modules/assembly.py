@@ -223,42 +223,6 @@ class AssembleStiffness(AssembleGeneral):
         super()._prepare(domain, self.KE, *args, **kwargs)
 
 
-def ConsistentMassEq(domain: DomainDefinition, ndof: int, MP: float = 1.0):
-    """
-    Calculates Consistent mass element matrix, or its equivalents (e.g. Damping, Capacitance)
-
-    Args:
-        domain: The domain the element matrix has to be determined for
-        ndof: Amount of dofs per node
-            Mass, Damping: ndof = domain.dim
-            Else: ndof = 1
-        MP: Material property to use in the element matrix
-            Mass: Density (rho)
-            Else: Thermal capacity, Damping parameter
-
-    Returns:
-        Consistent mass equivalent element matrix
-    """
-
-    consEl = np.zeros((domain.elemnodes*ndof, domain.elemnodes*ndof))
-
-    # Numerical integration
-    siz = domain.element_size
-    w = np.prod(siz[:domain.dim]/2)
-    if domain.dim != 3:
-        MP *= np.prod(siz[domain.dim:])
-    Nmat = np.zeros((ndof, domain.elemnodes*ndof))
-
-    for n in domain.node_numbering:
-        pos = n*(siz/2)/np.sqrt(3)  # Sampling point
-        N = domain.eval_shape_fun(pos)
-        for d in range(domain.elemnodes):
-            Nmat[0:ndof, ndof*d:ndof*d+ndof] = np.identity(ndof)*N[d]  # fill up shape function matrix according to ndof
-        consEl += w * MP * Nmat.T @ Nmat  # Add contribution
-
-    return consEl
-
-
 class AssembleMass(AssembleGeneral):
     r""" Consistent mass matrix assembly by scaling elements
     :math:`\mathbf{M} = \sum_e x_e \mathbf{M}_e`
@@ -271,44 +235,39 @@ class AssembleMass(AssembleGeneral):
 
     Args:
         domain: The domain to assemble for -- this determines the element size and dimensionality
+        ndof: Amount of dofs per node
+            Mass, Damping: ndof = domain.dim
+            Else: ndof = 1
         *args: Other arguments are passed to AssembleGeneral
 
     Keyword Args:
-        rho: Base density
+        MP: Material property to use in the element matrix
+            Mass: Density (rho)
+            Damping: Damping parameter
+            Thermal capacity: Thermal capacity * Density
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
         **kwargs : Other keyword-arguments are passed to AssembleGeneral
     """
 
-    def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, **kwargs):
-        # Element mass matrix
-        self.ME = ConsistentMassEq(domain, ndof=domain.dim, MP=rho)
-        super()._prepare(domain, self.ME, *args, bcdiagval=bcdiagval, **kwargs)
+    def _prepare(self, domain: DomainDefinition, *args, MP: float = 1.0, ndof: int = 1, bcdiagval=0.0, **kwargs):
+        # Element mass (or equivalent) matrix
+        self.ElMat = np.zeros((domain.elemnodes * ndof, domain.elemnodes * ndof))
 
+        # Numerical integration
+        siz = domain.element_size
+        w = np.prod(siz[:domain.dim] / 2)
+        if domain.dim != 3:
+            MP *= np.prod(siz[domain.dim:])
+        Nmat = np.zeros((ndof, domain.elemnodes * ndof))
 
-class AssembleScalarMass(AssembleGeneral):
-    r""" Consistent mass equivalent matrix assembly by scaling elements (e.g. Thermal Capacity)
-        :math:`\mathbf{C} = \sum_e x_e \mathbf{C}_e`
+        for n in domain.node_numbering:
+            pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
+            N = domain.eval_shape_fun(pos)
+            for d in range(domain.elemnodes):
+                Nmat[0:ndof, ndof * d:ndof * d + ndof] = np.identity(ndof) * N[d]  # fill up shape function matrix according to ndof
+            self.ElMat += w * MP * Nmat.T @ Nmat  # Add contribution
 
-        Input Signal:
-            - ``x``: Scaling vector of size ``(Nel)``
-
-        Output Signal:
-            - ``C``: Scalar mass equivalent matrix of size ``(n, n)``
-
-        Args:
-            domain: The domain to assemble for -- this determines the element size and dimensionality
-            *args: Other arguments are passed to AssembleGeneral
-
-        Keyword Args:
-            MP: Material property for element matrix (e.g. Thermal capacity)
-            bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
-            **kwargs : Other keyword-arguments are passed to AssembleGeneral
-        """
-
-    def _prepare(self, domain: DomainDefinition, *args, MP: float = 1.0, bcdiagval=0.0, **kwargs):
-        # Element mass equivalent matrix
-        self.CE = ConsistentMassEq(domain, ndof=1, MP=MP)
-        super()._prepare(domain, self.CE, *args, bcdiagval=bcdiagval, **kwargs)
+        super()._prepare(domain, self.ElMat, *args, bcdiagval=bcdiagval, **kwargs)
 
 
 class AssembleScalarField(AssembleGeneral):
