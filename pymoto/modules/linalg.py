@@ -433,7 +433,7 @@ class EigenSolve(Module):
           calculated first (default = ``0.0``)
         mode: Mode of the eigensolver (see documentation of `scipy.sparse.linalg.eigsh` for more info)
     """
-    def _prepare(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None, nmodes=None, sigma=None, mode=None):
+    def _prepare(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None, nmodes=None, sigma=None, mode='normal'):
         self.sorting_fn = sorting_func
         self.is_hermitian = hermitian
         self.nmodes = nmodes
