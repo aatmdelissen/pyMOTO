@@ -464,13 +464,6 @@ class EigenSolve(Module):
             qi *= np.sign(np.real(qi[np.argmax(abs(qi) > 0)]))  # Set first value positive for orientation
             Bqi = qi if B is None else B@qi
             qi /= np.sqrt(qi@Bqi)  # Normalize
-
-            eigvec_nrm = abs(qi@(qi if B is None else B@qi) - 1.0)
-            if eigvec_nrm > 1e-5:
-                warnings.warn(f"Eigenvector {i} normalization error large: |v^T{'B'if len(args)>0 else ''}v|-1 = {eigvec_nrm}")
-            resi_nrm = np.linalg.norm(A@qi - wi*(qi if B is None else B@qi)) / np.linalg.norm(A@qi)
-            if resi_nrm > 1e-5:
-                warnings.warn(f"Eigenvalue {i} residual large: |Av - λ{'B'if len(args)>0 else ''}v|/|Av| = {resi_nrm}")
         return W, Q
 
     def _sensitivity(self, dW, dQ):
