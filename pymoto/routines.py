@@ -20,8 +20,8 @@ def _has_signal_overlap(sig1: List[Signal], sig2: List[Signal]):
 # flake8: noqa: C901
 def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = None,
                       tosig: Union[Signal, Iterable[Signal]] = None,
-                      dx: float = 1e-8, tol: float = 1e-5, random: bool = True, use_df: list = None,
-                      test_fn: Callable = None, keep_zero_structure=True, verbose=True):
+                      dx: float = 1e-8, relative_dx: bool = False, tol: float = 1e-5, random: bool = True,
+                      use_df: list = None, test_fn: Callable = None, keep_zero_structure=True, verbose=True):
     """ Performs a finite difference check on the given Module or Network
 
     Args:
@@ -31,6 +31,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
 
     Keyword Args:
         dx: Perturbation size
+        relative_dx: Use a relative perturbation size or not
         tol: Tolerance
         random: Randomize sensitivity data
         use_df: Give pre-defined sensitivity data
@@ -153,11 +154,13 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 if x0 == 0 and keep_zero_structure:
                     it.iternext()
                     continue
-                it[0] += dx
+                sf = np.abs(x0) if (relative_dx and np.abs(x0)!=0) else 1.0  # Scale factor
+                it[0] += dx*sf
                 Sin.state = x
             else:
                 x0 = it[0].item()
-                Sin.state = x0 + dx
+                sf = np.abs(x0) if (relative_dx and np.abs(x0) != 0) else 1.0
+                Sin.state = x0 + dx*sf
 
             # Calculate perturbed solution
             blk.response()
@@ -168,7 +171,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 fp = Sout.state
 
                 # Finite difference sensitivity
-                df = (fp - f0[Iout])/dx
+                df = (fp - f0[Iout])/(dx*sf)
 
                 dgdx_fd = np.real(np.sum(df*df_an[Iout]))
 
@@ -207,9 +210,9 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             if np.iscomplexobj(x0):
                 # Do the perturbation
                 if is_iterable:
-                    it[0] += dx*1j
+                    it[0] += dx*1j*sf
                 else:
-                    Sin.state = x0 + dx*1j
+                    Sin.state = x0 + dx*1j*sf
 
                 # Calculate perturbed solution
                 blk.response()
@@ -220,7 +223,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                     fp = Sout.state
 
                     # Finite difference sensitivity
-                    df = (fp - f0[Iout])/(dx*1j)
+                    df = (fp - f0[Iout])/(dx*1j*sf)
                     dgdx_fd = np.imag(np.sum(df*df_an[Iout]))
 
                     if dx_an[Iout][Iin] is not None:
