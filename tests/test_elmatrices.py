@@ -24,8 +24,8 @@ class TestElMats(unittest.TestCase):
                                     [0.0, 1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 4.0]])
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
-        m_M = pym.AssembleMass(s_x, domain=domain, rho=rho)
-        ME = m_M.ME
+        m_M = pym.AssembleMass(s_x, domain=domain, material_property=rho, ndof=domain.dim)
+        ME = m_M.el_mat
 
         npt.assert_allclose(ME, MEhc)
 
@@ -39,7 +39,7 @@ class TestElMats(unittest.TestCase):
         kt = 1.0
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
-        m_KT = pym.AssembleScalarField(s_x, domain=domain, bc=nodidx_left, kt = kt)
+        m_KT = pym.AssemblePoisson(s_x, domain=domain, bc=nodidx_left, material_property=kt)
         s_KT = m_KT.sig_out[0]
         m_KT.response()
 
@@ -71,8 +71,8 @@ class TestElMats(unittest.TestCase):
                                     [1.0, 2.0, 2.0, 4.0]])
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
-        m_C = pym.AssembleScalarMass(s_x, domain=domain, MP=rho*cp)
-        CE = m_C.CE
+        m_C = pym.AssembleMass(s_x, domain=domain, material_property=rho*cp, ndof=1)
+        CE = m_C.el_mat
 
         npt.assert_allclose(CE, CEhc)
 
@@ -94,8 +94,8 @@ class TestElMats(unittest.TestCase):
         MEhc *= mel / 216
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
-        m_M = pym.AssembleMass(s_x, domain=domain, rho=rho)
-        ME = m_M.ME
+        m_M = pym.AssembleMass(s_x, domain=domain, material_property=rho, ndof=domain.dim)
+        ME = m_M.el_mat
 
         npt.assert_allclose(ME, MEhc)
 
@@ -109,7 +109,7 @@ class TestElMats(unittest.TestCase):
         kt = 1.0
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
-        m_KT = pym.AssembleScalarField(s_x, domain=domain, bc=nodidx_left, kt=kt)
+        m_KT = pym.AssemblePoisson(s_x, domain=domain, bc=nodidx_left, material_property=kt)
         s_KT = m_KT.sig_out[0]
         m_KT.response()
 
