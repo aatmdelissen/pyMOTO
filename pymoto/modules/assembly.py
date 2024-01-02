@@ -209,7 +209,7 @@ class AssembleStiffness(AssembleGeneral):
         ndof = nnode*domain.dim
 
         # Element stiffness matrix
-        self.KE = np.zeros((ndof, ndof))
+        self.stiffness_element = np.zeros((ndof, ndof))
 
         # Numerical integration
         siz = domain.element_size
@@ -218,13 +218,13 @@ class AssembleStiffness(AssembleGeneral):
             pos = n*(siz/2)/np.sqrt(3)  # Sampling point
             dN_dx = domain.eval_shape_fun_der(pos)
             B = get_B(dN_dx)
-            self.KE += w * B.T @ D @ B  # Add contribution
+            self.stiffness_element += w * B.T @ D @ B  # Add contribution
 
-        super()._prepare(domain, self.KE, *args, **kwargs)
+        super()._prepare(domain, self.stiffness_element, *args, **kwargs)
 
 
 class AssembleMass(AssembleGeneral):
-    r""" Consistent mass matrix assembly by scaling elements
+    r""" Consistent mass matrix or equivalents assembly by scaling elements
     :math:`\mathbf{M} = \sum_e x_e \mathbf{M}_e`
 
     Input Signal:
@@ -241,7 +241,7 @@ class AssembleMass(AssembleGeneral):
         *args: Other arguments are passed to AssembleGeneral
 
     Keyword Args:
-        MP: Material property to use in the element matrix
+        material_property: Material property to use in the element matrix
             Mass: Density (rho)
             Damping: Damping parameter
             Thermal capacity: Thermal capacity * Density
@@ -249,15 +249,15 @@ class AssembleMass(AssembleGeneral):
         **kwargs : Other keyword-arguments are passed to AssembleGeneral
     """
 
-    def _prepare(self, domain: DomainDefinition, *args, MP: float = 1.0, ndof: int = 1, bcdiagval=0.0, **kwargs):
+    def _prepare(self, domain: DomainDefinition, *args, material_property: float = 1.0, ndof: int = 1, bcdiagval=0.0, **kwargs):
         # Element mass (or equivalent) matrix
-        self.ElMat = np.zeros((domain.elemnodes * ndof, domain.elemnodes * ndof))
+        self.el_mat = np.zeros((domain.elemnodes * ndof, domain.elemnodes * ndof))
 
         # Numerical integration
         siz = domain.element_size
         w = np.prod(siz[:domain.dim] / 2)
         if domain.dim != 3:
-            MP *= np.prod(siz[domain.dim:])
+            material_property *= np.prod(siz[domain.dim:])
         Nmat = np.zeros((ndof, domain.elemnodes * ndof))
 
         for n in domain.node_numbering:
@@ -265,47 +265,46 @@ class AssembleMass(AssembleGeneral):
             N = domain.eval_shape_fun(pos)
             for d in range(domain.elemnodes):
                 Nmat[0:ndof, ndof * d:ndof * d + ndof] = np.identity(ndof) * N[d]  # fill up shape function matrix according to ndof
-            self.ElMat += w * MP * Nmat.T @ Nmat  # Add contribution
+            self.el_mat += w * material_property * Nmat.T @ Nmat  # Add contribution
 
-        super()._prepare(domain, self.ElMat, *args, bcdiagval=bcdiagval, **kwargs)
+        super()._prepare(domain, self.el_mat, *args, bcdiagval=bcdiagval, **kwargs)
 
 
-class AssembleScalarField(AssembleGeneral):
+class AssemblePoisson(AssembleGeneral):
     r"""
-    Scalar field matrix assembly (e.g. Thermal conductivity, Electric permittivity)
-    :math:`\mathbf{Ks} = \sum_e x_e \mathbf{Ks}_e`
+    Assembly of matrix to solve Poisson equation (e.g. Thermal conductivity, Electric permittivity)
+    :math:`\mathbf{Kp} = \sum_e x_e \mathbf{Kp}_e`
 
     Input Signal:
         - ``x``: Scaling vector of size ``(Nel)``
 
     Output Signal:
-        - ``Kt``: Scalar field matrix of size ``(n, n)``
+        - ``Kp``: Poisson matrix of size ``(n, n)``
 
     Args:
         domain: The domain to assemble for -- this determines the element size and dimensionality
         args (optional): Other arguments are passed to AssembleGeneral
 
     Keyword Args:
-        kt: Material property (e.g. Thermal conductivity, Electric permittivity)
+        material_property: Material property (e.g. Thermal conductivity, Electric permittivity)
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
         kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
 
-    def _prepare(self, domain: DomainDefinition, *args, kt: float = 1.0, **kwargs):
+    def _prepare(self, domain: DomainDefinition, *args, material_property: float = 1.0, **kwargs):
         # Prepare material properties and element matrices
-        self.kt = kt
-        kappa = np.identity(domain.dim)*self.kt
-        self.SFE = np.zeros((domain.elemnodes, domain.elemnodes))
+        self.material_property = material_property
+        self.poisson_element = np.zeros((domain.elemnodes, domain.elemnodes))
 
         # Numerical Integration
         siz = domain.element_size
         w = np.prod(siz[:domain.dim]/2)
         if domain.dim != 3:
-            kappa *= siz[domain.dim:]
+            self.material_property *= siz[domain.dim:]
 
         for n in domain.node_numbering:
             pos = n*(siz/2)/np.sqrt(3)  # Sampling point
             Bn = domain.eval_shape_fun_der(pos)
-            self.SFE += w * Bn.T @ kappa @ Bn  # Add contribution
+            self.poisson_element += w * self.material_property * Bn.T @ Bn  # Add contribution
 
-        super()._prepare(domain, self.SFE, *args, **kwargs)
+        super()._prepare(domain, self.poisson_element, *args, **kwargs)
