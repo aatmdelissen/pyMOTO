@@ -13,7 +13,7 @@ from .common.solvers_sparse import SolverSparsePardiso, SolverSparseLU, SolverSp
 from .core_objects import Signal, Module, Network, make_signals
 
 # Import modules
-from .modules.assembly import AssembleGeneral, AssembleStiffness, AssembleMass, AssembleScalarMass, AssembleScalarField
+from .modules.assembly import AssembleGeneral, AssembleStiffness, AssembleMass, AssemblePoisson
 from .modules.autodiff import AutoMod
 from .modules.complex import MakeComplex, RealPart, ImagPart, ComplexNorm
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
@@ -39,7 +39,7 @@ __all__ = [
     # Modules
     "MathGeneral", "EinSum", "ConcatSignal",
     "Inverse", "LinSolve", "EigenSolve", "SystemOfEquations", "StaticCondensation",
-    "AssembleGeneral", "AssembleStiffness", "AssembleMass", "AssembleScalarMass", "AssembleScalarField",
+    "AssembleGeneral", "AssembleStiffness", "AssembleMass", "AssemblePoisson",
     "FilterConv", "Filter", "DensityFilter", "OverhangFilter",
     "PlotDomain", "PlotGraph", "PlotIter", "WriteToVTI",
     "MakeComplex", "RealPart", "ImagPart", "ComplexNorm",
