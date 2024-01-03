@@ -103,7 +103,7 @@ class TestLinSolveModuleSparse(unittest.TestCase):
         sOmega = pym.Signal('omega', 0.1)
         fn = pym.Network()
         sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), dom, bc=bc))
-        sM = fn.append(pym.AssembleMass(sx, pym.Signal('M'), dom, bc=bc))
+        sM = fn.append(pym.AssembleMass(sx, pym.Signal('M'), dom, bc=bc, ndof=dom.dim))
         sZ = fn.append(DynamicMatrix([sK, sM, sOmega], pym.Signal('Z')))
 
         su = fn.append(pym.LinSolve([sZ, sf], pym.Signal('u')))
