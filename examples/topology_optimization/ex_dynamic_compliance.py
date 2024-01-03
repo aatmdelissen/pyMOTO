@@ -89,7 +89,8 @@ if __name__ == "__main__":
                                           e_modulus=E, poisson_ratio=nu))
 
     # Assemble mass matrix
-    s_M = fn.append(pym.AssembleMass(s_penalized_variables, domain=domain, bc=dofs_left, rho=rho))
+    s_M = fn.append(pym.AssembleMass(s_penalized_variables, domain=domain, bc=dofs_left,
+                                     material_property=rho, ndof=domain.dim))
 
     # Calculate the eigenfrequencies only once
     calculate_eigenfrequencies = True

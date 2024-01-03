@@ -105,7 +105,7 @@ if __name__ == "__main__":
 
     # System matrix assembly module
     sK = func.append(pym.AssembleStiffness(sSIMP, domain=domain, bc=boundary_dofs))
-    sM = func.append(pym.AssembleMass(sDENS, domain=domain, bc=boundary_dofs))
+    sM = func.append(pym.AssembleMass(sDENS, domain=domain, bc=boundary_dofs, ndof=domain.dim))
 
     # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
     slams, seigvec = func.append(pym.EigenSolve([sK, sM], hermitian=True, nmodes=3))

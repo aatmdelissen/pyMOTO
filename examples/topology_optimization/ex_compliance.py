@@ -22,15 +22,7 @@ if __name__ == "__main__":
 
             # Make a force vector
             force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx + 1), np.arange(ny + 1)))
-
-            # Element conductivity matrix
-            el = 1 / 6 * np.array([
-                [+8., -2., -2., -4.],
-                [-2., +8., -4., -2.],
-                [-2., -4., +8., -2.],
-                [-4., -2., -2., +8.]
-            ])
-            ndof = 1  # Number of dofs per node
+            ndof = 1
 
         else:  # Mechanical
             # Calculate boundary dof indices
@@ -45,7 +37,10 @@ if __name__ == "__main__":
         domain = pym.DomainDefinition(nx, ny, nz)
 
         if thermal:
-            raise RuntimeError("Thermal only defined in 2D!")  # TODO
+            boundary_dofs = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(nz + 1))).flatten()
+
+            force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx+1), np.arange(ny + 1), np.arange(nz + 1))).flatten()
+            ndof = 1
         else:
             boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(ny + 1))).flatten()
             boundary_dofs = np.repeat(boundary_nodes * 3, 3, axis=-1) + np.tile(np.arange(3), len(boundary_nodes))
@@ -80,7 +75,7 @@ if __name__ == "__main__":
 
     # System matrix assembly module
     if thermal:
-        sK = func.append(pym.AssembleGeneral(sSIMP, domain=domain, element_matrix=el, bc=boundary_dofs))
+        sK = func.append(pym.AssemblePoisson(sSIMP, domain=domain, bc=boundary_dofs))
     else:
         sK = func.append(pym.AssembleStiffness(sSIMP, domain=domain, bc=boundary_dofs))
 
