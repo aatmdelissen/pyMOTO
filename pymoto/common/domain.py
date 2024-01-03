@@ -184,10 +184,10 @@ class DomainDefinition:
         """
         v = np.prod(self.element_size[:self.dim])
         assert v > 0.0, 'Element volume needs to be positive'
-        ret = np.ones(self.elemnodes)/v
+        shapefn = np.ones(self.elemnodes)/v
         for i in range(self.dim):
-            ret *= np.array([self.element_size[i]/2 + n[i]*pos[i] for n in self.node_numbering])
-        return ret
+            shapefn *= np.array([self.element_size[i]/2 + n[i]*pos[i] for n in self.node_numbering])
+        return shapefn
 
     def eval_shape_fun_der(self, pos: np.ndarray):
         """ Evaluates the shape function derivatives in x, y, and optionally z-direction.

@@ -431,12 +431,14 @@ class EigenSolve(Module):
         nmodes: Number of modes to calculate (only for sparse matrices, default = ``0``)
         sigma: Shift value for the eigenvalue problem (only for sparse matrices). Eigenvalues around the shift are
           calculated first (default = ``0.0``)
+        mode: Mode of the eigensolver (see documentation of `scipy.sparse.linalg.eigsh` for more info)
     """
-    def _prepare(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None, nmodes=None, sigma=None):
+    def _prepare(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None, nmodes=None, sigma=None, mode='normal'):
         self.sorting_fn = sorting_func
         self.is_hermitian = hermitian
         self.nmodes = nmodes
         self.sigma = sigma
+        self.mode = mode
         self.Ainv = None
 
     def _response(self, A, *args):
@@ -462,13 +464,6 @@ class EigenSolve(Module):
             qi *= np.sign(np.real(qi[np.argmax(abs(qi) > 0)]))  # Set first value positive for orientation
             Bqi = qi if B is None else B@qi
             qi /= np.sqrt(qi@Bqi)  # Normalize
-
-            eigvec_nrm = abs(qi@(qi if B is None else B@qi) - 1.0)
-            if eigvec_nrm > 1e-5:
-                warnings.warn(f"Eigenvector {i} normalization error large: |v^T{'B'if len(args)>0 else ''}v|-1 = {eigvec_nrm}")
-            resi_nrm = np.linalg.norm(A@qi - wi*(qi if B is None else B@qi)) / np.linalg.norm(A@qi)
-            if resi_nrm > 1e-5:
-                warnings.warn(f"Eigenvalue {i} residual large: |Av - λ{'B'if len(args)>0 else ''}v|/|Av| = {resi_nrm}")
         return W, Q
 
     def _sensitivity(self, dW, dQ):
@@ -510,7 +505,7 @@ class EigenSolve(Module):
         AinvOp = spsla.LinearOperator(mat_shifted.shape, matvec=self.Ainv.solve, rmatvec=self.Ainv.adjoint)
 
         if self.is_hermitian:
-            return spsla.eigsh(A, M=B, k=self.nmodes, OPinv=AinvOp, sigma=self.sigma)
+            return spsla.eigsh(A, M=B, k=self.nmodes, OPinv=AinvOp, sigma=self.sigma, mode=self.mode)
         else:
             # TODO
             raise NotImplementedError('Non-Hermitian sparse matrix not supported')
