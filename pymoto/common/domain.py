@@ -126,6 +126,22 @@ class DomainDefinition:
         """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
+    def get_node_position(self, nod_idx: Union[int, np.ndarray]):
+        """ Gets the Cartesian index (i, j, k) for given node number(s)
+
+        Args:
+            nod_idx: Node index; can be integer or array
+
+        Returns:
+            i, j, k for requested node(s); k is only returned in 3D
+        """
+        nodi = nod_idx % (self.nelx + 1)
+        nodj = (nod_idx // (self.nelx + 1)) % (self.nely + 1)
+        if self.dim == 2:
+            return nodi, nodj
+        nodk = nod_idx // ((self.nelx + 1)*(self.nely + 1))
+        return nodi, nodj, nodk
+
     def get_elemconnectivity(self, i: Union[int, np.ndarray], j: Union[int, np.ndarray], k: Union[int, np.ndarray] = 0):
         """ Get the connectivity for element identified with Cartesian indices (i, j, k)
         This is where the nodal numbers are defined
