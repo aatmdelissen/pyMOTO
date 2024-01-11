@@ -126,7 +126,7 @@ class DomainDefinition:
         """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
-    def get_node_position(self, nod_idx: Union[int, np.ndarray]):
+    def get_node_indices(self, nod_idx: Union[int, np.ndarray]):
         """ Gets the Cartesian index (i, j, k) for given node number(s)
 
         Args:
@@ -141,6 +141,10 @@ class DomainDefinition:
             return nodi, nodj
         nodk = nod_idx // ((self.nelx + 1)*(self.nely + 1))
         return nodi, nodj, nodk
+
+    def get_node_position(self, nod_idx: Union[int, np.ndarray]):
+        ijk = self.get_node_indices(nod_idx)
+        return [idx * self.element_size[ii] for ii, idx in enumerate(ijk)]
 
     def get_elemconnectivity(self, i: Union[int, np.ndarray], j: Union[int, np.ndarray], k: Union[int, np.ndarray] = 0):
         """ Get the connectivity for element identified with Cartesian indices (i, j, k)
