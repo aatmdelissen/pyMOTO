@@ -235,21 +235,19 @@ class AssembleMass(AssembleGeneral):
 
     Args:
         domain: The domain to assemble for -- this determines the element size and dimensionality
-        ndof: Amount of dofs per node
-            Mass, Damping: ndof = domain.dim
-            Else: ndof = 1
+        ndof: Amount of dofs per node (for mass and damping: ndof = domain.dim; else ndof=1)
         *args: Other arguments are passed to AssembleGeneral
 
     Keyword Args:
-        material_property: Material property to use in the element matrix
-            Mass: Density (rho)
-            Damping: Damping parameter
-            Thermal capacity: Thermal capacity * Density
+        material_property: Material property to use in the element matrix (for mass matrix the material density is used;
+            for damping the damping parameter, and for a thermal capacity matrix the thermal capacity multiplied with
+            density)
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
-        **kwargs : Other keyword-arguments are passed to AssembleGeneral
+        **kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
 
-    def _prepare(self, domain: DomainDefinition, *args, material_property: float = 1.0, ndof: int = 1, bcdiagval=0.0, **kwargs):
+    def _prepare(self, domain: DomainDefinition, *args, material_property: float = 1.0, ndof: int = 1,
+                 bcdiagval: float = 0.0, **kwargs):
         # Element mass (or equivalent) matrix
         self.el_mat = np.zeros((domain.elemnodes * ndof, domain.elemnodes * ndof))
 
@@ -271,22 +269,21 @@ class AssembleMass(AssembleGeneral):
 
 
 class AssemblePoisson(AssembleGeneral):
-    r"""
-    Assembly of matrix to solve Poisson equation (e.g. Thermal conductivity, Electric permittivity)
-    :math:`\mathbf{Kp} = \sum_e x_e \mathbf{Kp}_e`
+    r""" Assembly of matrix to solve Poisson equation (e.g. Thermal conductivity, Electric permittivity)
+    :math:`\mathbf{P} = \sum_e x_e \mathbf{P}_e`
 
     Input Signal:
         - ``x``: Scaling vector of size ``(Nel)``
 
     Output Signal:
-        - ``Kp``: Poisson matrix of size ``(n, n)``
+        - ``P``: Poisson matrix of size ``(n, n)``
 
     Args:
         domain: The domain to assemble for -- this determines the element size and dimensionality
         args (optional): Other arguments are passed to AssembleGeneral
 
     Keyword Args:
-        material_property: Material property (e.g. Thermal conductivity, Electric permittivity)
+        material_property: Material property (e.g. thermal conductivity, electric permittivity)
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
         kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
