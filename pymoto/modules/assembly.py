@@ -209,7 +209,7 @@ class AssembleStiffness(AssembleGeneral):
         ndof = nnode*domain.dim
 
         # Element stiffness matrix
-        self.KE = np.zeros((ndof, ndof))
+        self.stiffness_element = np.zeros((ndof, ndof))
 
         # Numerical integration
         siz = domain.element_size
@@ -218,13 +218,13 @@ class AssembleStiffness(AssembleGeneral):
             pos = n*(siz/2)/np.sqrt(3)  # Sampling point
             dN_dx = domain.eval_shape_fun_der(pos)
             B = get_B(dN_dx)
-            self.KE += w * B.T @ D @ B  # Add contribution
+            self.stiffness_element += w * B.T @ D @ B  # Add contribution
 
-        super()._prepare(domain, self.KE, *args, **kwargs)
+        super()._prepare(domain, self.stiffness_element, *args, **kwargs)
 
 
 class AssembleMass(AssembleGeneral):
-    r""" Consistent mass matrix assembly by scaling elements
+    r""" Consistent mass matrix or equivalents assembly by scaling elements
     :math:`\mathbf{M} = \sum_e x_e \mathbf{M}_e`
 
     Input Signal:
@@ -235,38 +235,73 @@ class AssembleMass(AssembleGeneral):
 
     Args:
         domain: The domain to assemble for -- this determines the element size and dimensionality
+        ndof: Amount of dofs per node (for mass and damping: ndof = domain.dim; else ndof=1)
         *args: Other arguments are passed to AssembleGeneral
 
     Keyword Args:
-        rho: Base density
+        material_property: Material property to use in the element matrix (for mass matrix the material density is used;
+            for damping the damping parameter, and for a thermal capacity matrix the thermal capacity multiplied with
+            density)
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
-        **kwargs : Other keyword-arguments are passed to AssembleGeneral
+        **kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
 
-    def _prepare(self, domain: DomainDefinition, *args, rho: float = 1.0, bcdiagval=0.0, **kwargs):
-        # Element mass matrix
-        # 1/36 Mass of one element
-        mel = rho * np.prod(domain.element_size)
+    def _prepare(self, domain: DomainDefinition, *args, material_property: float = 1.0, ndof: int = 1,
+                 bcdiagval: float = 0.0, **kwargs):
+        # Element mass (or equivalent) matrix
+        self.el_mat = np.zeros((domain.elemnodes * ndof, domain.elemnodes * ndof))
 
-        if domain.dim == 2:
-            # Consistent mass matrix
-            ME = mel / 36 * np.array([[4.0, 0.0, 2.0, 0.0, 2.0, 0.0, 1.0, 0.0],
-                                      [0.0, 4.0, 0.0, 2.0, 0.0, 2.0, 0.0, 1.0],
-                                      [2.0, 0.0, 4.0, 0.0, 1.0, 0.0, 2.0, 0.0],
-                                      [0.0, 2.0, 0.0, 4.0, 0.0, 1.0, 0.0, 2.0],
-                                      [2.0, 0.0, 1.0, 0.0, 4.0, 0.0, 2.0, 0.0],
-                                      [0.0, 2.0, 0.0, 1.0, 0.0, 4.0, 0.0, 2.0],
-                                      [1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 4.0, 0.0],
-                                      [0.0, 1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 4.0]])
-        elif domain.dim == 3:
-            ME = np.zeros((domain.elemnodes*domain.dim, domain.elemnodes*domain.dim))
-            weights = np.array([8.0, 4.0, 2.0, 1.0])
-            for n1 in range(domain.elemnodes):
-                for n2 in range(domain.elemnodes):
-                    dist = round(np.sum(abs(np.array(domain.node_numbering[n1]) - np.array(domain.node_numbering[n2])))/2)
-                    ME[n1*domain.dim+np.arange(domain.dim), n2*domain.dim+np.arange(domain.dim)] = weights[dist]
+        # Numerical integration
+        siz = domain.element_size
+        w = np.prod(siz[:domain.dim] / 2)
+        if domain.dim != 3:
+            material_property *= np.prod(siz[domain.dim:])
+        Nmat = np.zeros((ndof, domain.elemnodes * ndof))
 
-            ME *= mel / 216
-        else:
-            raise RuntimeError("Only for 2D and 3D")
-        super()._prepare(domain, ME, *args, bcdiagval=bcdiagval, **kwargs)
+        for n in domain.node_numbering:
+            pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
+            N = domain.eval_shape_fun(pos)
+            for d in range(domain.elemnodes):
+                Nmat[0:ndof, ndof * d:ndof * d + ndof] = np.identity(ndof) * N[d]  # fill up shape function matrix according to ndof
+            self.el_mat += w * material_property * Nmat.T @ Nmat  # Add contribution
+
+        super()._prepare(domain, self.el_mat, *args, bcdiagval=bcdiagval, **kwargs)
+
+
+class AssemblePoisson(AssembleGeneral):
+    r""" Assembly of matrix to solve Poisson equation (e.g. Thermal conductivity, Electric permittivity)
+    :math:`\mathbf{P} = \sum_e x_e \mathbf{P}_e`
+
+    Input Signal:
+        - ``x``: Scaling vector of size ``(Nel)``
+
+    Output Signal:
+        - ``P``: Poisson matrix of size ``(n, n)``
+
+    Args:
+        domain: The domain to assemble for -- this determines the element size and dimensionality
+        args (optional): Other arguments are passed to AssembleGeneral
+
+    Keyword Args:
+        material_property: Material property (e.g. thermal conductivity, electric permittivity)
+        bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
+        kwargs: Other keyword-arguments are passed to AssembleGeneral
+    """
+
+    def _prepare(self, domain: DomainDefinition, *args, material_property: float = 1.0, **kwargs):
+        # Prepare material properties and element matrices
+        self.material_property = material_property
+        self.poisson_element = np.zeros((domain.elemnodes, domain.elemnodes))
+
+        # Numerical Integration
+        siz = domain.element_size
+        w = np.prod(siz[:domain.dim]/2)
+        if domain.dim != 3:
+            self.material_property *= siz[domain.dim:]
+
+        for n in domain.node_numbering:
+            pos = n*(siz/2)/np.sqrt(3)  # Sampling point
+            Bn = domain.eval_shape_fun_der(pos)
+            self.poisson_element += w * self.material_property * Bn.T @ Bn  # Add contribution
+
+        super()._prepare(domain, self.poisson_element, *args, **kwargs)

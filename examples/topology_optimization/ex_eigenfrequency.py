@@ -8,6 +8,8 @@ xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5
 thermal = False  # Thermal only for 2D, not 3D yet. If this is False, static mechanical analysis will be done
+rho = 2700.0
+E = 68.9e+9
 
 
 class MassInterpolation(pym.Module):
@@ -100,12 +102,14 @@ if __name__ == "__main__":
     func.append(pym.PlotDomain(sx_analysis, domain=domain, saveto="out/design", clim=[0, 1]))
 
     # SIMP material interpolation
-    sSIMP = func.append(pym.MathGeneral(sx_analysis, expression=f"{xmin} + {1.0 - xmin}*inp0^3"))
-    sDENS = func.append(MassInterpolation(sx_analysis))
+    # Note: Material properties can either be set in the scaling variables (sSIMP and sDENS; as is done here), or in
+    # the assembly modules AssembleStiffness and AssembleMass by providing the relevant keyword arguments.
+    sSIMP = func.append(pym.MathGeneral(sx_analysis, expression=f"{E}*({xmin} + {1.0 - xmin}*inp0^3)"))
+    sDENS = func.append(MassInterpolation(sx_analysis, rhoval=rho))
 
     # System matrix assembly module
     sK = func.append(pym.AssembleStiffness(sSIMP, domain=domain, bc=boundary_dofs))
-    sM = func.append(pym.AssembleMass(sDENS, domain=domain, bc=boundary_dofs))
+    sM = func.append(pym.AssembleMass(sDENS, domain=domain, bc=boundary_dofs, ndof=domain.dim))
 
     # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
     slams, seigvec = func.append(pym.EigenSolve([sK, sM], hermitian=True, nmodes=3))

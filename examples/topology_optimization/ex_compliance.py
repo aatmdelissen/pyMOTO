@@ -3,11 +3,11 @@ import numpy as np
 
 import pymoto as pym
 
-nx, ny, nz = 10, 10, 0  # Set nz to zero for the 2D problem
+nx, ny, nz = 30, 30, 0  # Set nz to zero for the 2D problem
 xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5
-thermal = False  # Thermal only for 2D, not 3D yet. If this is False, static mechanical analysis will be done
+thermal = False  # True = Static thermal analysis; False = Static mechanical analysis will be done
 
 if __name__ == "__main__":
     print(__doc__)
@@ -22,36 +22,30 @@ if __name__ == "__main__":
 
             # Make a force vector
             force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx + 1), np.arange(ny + 1)))
-
-            # Element conductivity matrix
-            el = 1 / 6 * np.array([
-                [+8., -2., -2., -4.],
-                [-2., +8., -4., -2.],
-                [-2., -4., +8., -2.],
-                [-4., -2., -2., +8.]
-            ])
             ndof = 1  # Number of dofs per node
 
         else:  # Mechanical
+            ndof = 2
             # Calculate boundary dof indices
             boundary_nodes = domain.get_nodenumber(0, np.arange(ny + 1))
-            boundary_dofs = np.repeat(boundary_nodes * 2, 2, axis=-1) + np.tile(np.arange(2), len(boundary_nodes))
+            boundary_dofs = np.repeat(boundary_nodes * ndof, ndof, axis=-1) + np.tile(np.arange(ndof), len(boundary_nodes))
 
             # Which dofs to put a force on? The 1 is added for a force in y-direction (x-direction would be zero)
-            force_dofs = domain.dim * domain.get_nodenumber(nx, ny // 2) + 1
-            ndof = 2
+            force_dofs = ndof * domain.get_nodenumber(nx, ny // 2) + 1
 
     else:
         domain = pym.DomainDefinition(nx, ny, nz)
+        boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(nz + 1))).flatten()
 
         if thermal:
-            raise RuntimeError("Thermal only defined in 2D!")  # TODO
-        else:
-            boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(ny + 1))).flatten()
-            boundary_dofs = np.repeat(boundary_nodes * 3, 3, axis=-1) + np.tile(np.arange(3), len(boundary_nodes))
+            boundary_dofs = boundary_nodes
+            force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx+1), np.arange(ny + 1), np.arange(nz + 1))).flatten()
+            ndof = 1
 
-            force_dofs = domain.dim * domain.get_nodenumber(nx, ny // 2, ny // 2) + 2  # Z-direction
+        else:
             ndof = 3
+            boundary_dofs = np.repeat(boundary_nodes * ndof, ndof, axis=-1) + np.tile(np.arange(ndof), len(boundary_nodes))
+            force_dofs = ndof * domain.get_nodenumber(nx, ny // 2, nz // 2) + 2  # Z-direction
 
     if domain.nnodes > 1e+6:
         print("Too many nodes :(")  # Safety, to prevent overloading the memory in your machine
@@ -80,12 +74,12 @@ if __name__ == "__main__":
 
     # System matrix assembly module
     if thermal:
-        sK = func.append(pym.AssembleGeneral(sSIMP, domain=domain, element_matrix=el, bc=boundary_dofs))
+        sK = func.append(pym.AssemblePoisson(sSIMP, domain=domain, bc=boundary_dofs))
     else:
         sK = func.append(pym.AssembleStiffness(sSIMP, domain=domain, bc=boundary_dofs))
 
     # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
-    solver = None  # Default (automatic search)
+    solver = None  # Default (solver is automatically chosen based on matrix properties)
     # solver = pym.SolverSparsePardiso()  # Requires Intel MKL installed
     # solver = pym.SolverSparseCholeskyCVXOPT()  # Requires cvxopt installed
     # solver = pym.SolverSparseCholeskyScikit()  # Requires scikit installed
