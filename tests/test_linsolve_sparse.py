@@ -29,7 +29,9 @@ class TestLinSolveModuleSparse(unittest.TestCase):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
         N = 10  # Number of elements
         dom = pym.DomainDefinition(N, N)
-        sx = pym.Signal('x', np.random.rand(dom.nel))
+        np.random.seed(0)
+        xmin = 1e-4
+        sx = pym.Signal('x', xmin + (1-xmin)*np.random.rand(dom.nel))
         fixed_nodes = dom.get_nodenumber(0, np.arange(0, N+1))
         bc = np.concatenate((fixed_nodes*2, fixed_nodes*2+1))
         # Setup different rhs types
@@ -62,13 +64,14 @@ class TestLinSolveModuleSparse(unittest.TestCase):
                 self.assertTrue(np.allclose(sK.state@su.state, sf.state))  # Check residual
                 # Check finite difference
                 # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
-                def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-                pym.finite_difference(fn, [sx, sf], su, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+                def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
+                pym.finite_difference(fn, [sx, sf], su, test_fn=tfn, dx=1e-6, tol=1e-4, verbose=False)
 
     def test_symmetric_real_compliance3d(self):
         """ Test symmetric real sparse matrix (compliance in 3D)"""
         N = 3  # Number of elements
         dom = pym.DomainDefinition(N, N, N)
+        np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(dom.nel))
         jfix, kfix = np.meshgrid(np.arange(0, N+1), np.arange(0, N+1), indexing='ij')
         fixed_nodes = dom.get_nodenumber(0, jfix, kfix).flatten()
@@ -93,6 +96,7 @@ class TestLinSolveModuleSparse(unittest.TestCase):
         """ Test symmetric complex sparse matrix (dynamic compliance in 2D)"""
         N = 5  # Number of elements
         dom = pym.DomainDefinition(N, N)
+        np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(dom.nel))
         fixed_nodes = dom.get_nodenumber(0, np.arange(0, N+1))
         bc = np.concatenate((fixed_nodes*2, fixed_nodes*2+1))
@@ -121,6 +125,7 @@ class TestLinSolveModuleSparse(unittest.TestCase):
 
 class TestAssemblyAddValues(unittest.TestCase):
     def test_finite_difference(self):
+        np.random.seed(0)
         N = 2
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
@@ -161,6 +166,7 @@ class TestAssemblyAddValues(unittest.TestCase):
         pym.finite_difference(network, [sx], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_added_stiffness_on_ground(self):
+        np.random.seed(0)
         N = 2
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
@@ -217,6 +223,7 @@ class TestAssemblyAddValues(unittest.TestCase):
 class TestSystemOfEquations(unittest.TestCase):
     def test_sparse_symmetric_real_compliance2d_single_load(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
+        np.random.seed(0)
         N=10
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
@@ -258,6 +265,7 @@ class TestSystemOfEquations(unittest.TestCase):
 
     def test_sparse_symmetric_real_compliance2d_single_load_u(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
+        np.random.seed(0)
         N = 10
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
@@ -301,6 +309,7 @@ class TestSystemOfEquations(unittest.TestCase):
 
     def test_sparse_symmetric_real_compliance2d_single_load_f(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
+        np.random.seed(0)
         N = 10
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
@@ -344,6 +353,7 @@ class TestSystemOfEquations(unittest.TestCase):
 
     def test_sparse_symmetric_real_compliance2d_single_multi_load(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
+        np.random.seed(0)
         N=10
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
@@ -388,6 +398,7 @@ class TestSystemOfEquations(unittest.TestCase):
 
     def test_sparse_symmetric_real_compliance2d_single_multi_load_u(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
+        np.random.seed(0)
         N = 10
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
@@ -432,6 +443,7 @@ class TestSystemOfEquations(unittest.TestCase):
 
     def test_sparse_symmetric_real_compliance2d_single_multi_load_f(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
+        np.random.seed(0)
         N = 10
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
