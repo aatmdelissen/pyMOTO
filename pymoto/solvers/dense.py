@@ -1,7 +1,8 @@
 import warnings
 import numpy as np
 import scipy.linalg as spla  # Dense matrix solvers
-from .solvers import matrix_is_hermitian, matrix_is_diagonal, LinearSolver
+from .matrix_checks import matrix_is_hermitian, matrix_is_diagonal
+from .solvers import LinearSolver
 
 
 class SolverDiagonal(LinearSolver):

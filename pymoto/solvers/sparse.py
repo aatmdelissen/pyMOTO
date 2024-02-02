@@ -2,7 +2,8 @@ import warnings
 import numpy as np
 import scipy.sparse as sps
 from scipy.sparse import SparseEfficiencyWarning
-from .solvers import matrix_is_hermitian, matrix_is_complex, matrix_is_symmetric, LinearSolver
+from .matrix_checks import matrix_is_hermitian, matrix_is_complex, matrix_is_symmetric
+from .solvers import LinearSolver
 
 # ------------------------------------ Pardiso Solver -----------------------------------
 try:

@@ -49,7 +49,7 @@ def generate_symm_indef():
     sigma = -0.1  # To prevent exact singularity
     As = A - sigma*spsp.eye(A.shape[0])
     # Calculate eigenvalues
-    # solver = pym.SolverSparseLU().update(As)
+    # solver = pym.solvers.SolverSparseLU().update(As)
     # opinv = spspla.LinearOperator(A.shape, matvec=solver.solve, rmatvec=solver.adjoint)
     # w, _ = spspla.eigsh(A, sigma=sigma, k=100, OPinv=opinv, ncv=200)]
     return As.tocoo()
@@ -59,7 +59,7 @@ def generate_dynamic(complex=False, indef=False):
     """ Generate a dynamic stiffness matrix, either complex or not, and indefinite or not"""
     K = load_matrix("bcsstk26.mtx.gz")
     M = load_matrix("bcsstm26.mtx.gz")
-    solver = pym.SolverSparseLU().update(K.tocsc())
+    solver = pym.solvers.SolverSparseLU().update(K.tocsc())
     opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=solver.adjoint)
     w, _ = spspla.eigsh(K, M=M, sigma=0, k=100, OPinv=opinv, ncv=200)
     eigfreqs = np.sqrt(w)
@@ -77,7 +77,7 @@ def generate_dynamic(complex=False, indef=False):
 def generate_saddlepoint():
     K = load_matrix("bcsstk26.mtx.gz")
     M = load_matrix("bcsstm26.mtx.gz")
-    solver = pym.SolverSparseLU().update(K.tocsc())
+    solver = pym.solvers.SolverSparseLU().update(K.tocsc())
     opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=solver.adjoint)
     w, V = spspla.eigsh(K, M=M, sigma=0, k=100, OPinv=opinv, ncv=200)
     wi, vi = w[0], V[:, [0]]
@@ -172,7 +172,7 @@ class TestGenericUtility(unittest.TestCase):
 
 
 class TestIsComplex(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_complex)
+    fn = staticmethod(pym.solvers.matrix_is_complex)
     data = [
         (mat_real_diagonal, False),
         (mat_real_spdiag, False),
@@ -192,7 +192,7 @@ class TestIsComplex(TestGenericUtility):
 
 
 class TestIsDiagonal(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_diagonal)
+    fn = staticmethod(pym.solvers.matrix_is_diagonal)
     data = [
         (mat_real_diagonal, True),
         (mat_real_spdiag, True),
@@ -212,7 +212,7 @@ class TestIsDiagonal(TestGenericUtility):
 
 
 class TestIsSymmetric(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_symmetric)
+    fn = staticmethod(pym.solvers.matrix_is_symmetric)
     data = [
         (mat_real_diagonal, True),
         (mat_real_spdiag, True),
@@ -232,7 +232,7 @@ class TestIsSymmetric(TestGenericUtility):
 
 
 class TestIsHermitian(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_hermitian)
+    fn = staticmethod(pym.solvers.matrix_is_hermitian)
     data = [
         (mat_real_diagonal, True),
         (mat_real_spdiag, True),
@@ -283,8 +283,8 @@ class GenericTestSolvers(unittest.TestCase):
     def run_solver(self, solver, A, b):
         """ Run the actual test for given solver, matrix and right-hand-side """
         # Reference solution
-        x_ref = pym.SolverSparseLU(A).solve(b)
-        xadj_ref = pym.SolverSparseLU(A.conj().T).solve(b)
+        x_ref = pym.solvers.SolverSparseLU(A).solve(b)
+        xadj_ref = pym.solvers.SolverSparseLU(A.conj().T).solve(b)
 
         # Calculate the solution and the adjoint solution
         solver.update(A)
@@ -323,7 +323,7 @@ class GenericTestSolvers(unittest.TestCase):
                 b = np.random.rand(N, 3)
                 self.run_sparse_tests(self.solver(), A, b)
 
-            if not pym.matrix_is_complex(A):
+            if not pym.solvers.matrix_is_complex(A):
                 continue
 
             with self.subTest(msg=f"{t}.complex-rhs"):
@@ -335,7 +335,7 @@ class GenericTestSolvers(unittest.TestCase):
 
 
 class TestSparseDiagonal(GenericTestSolvers):
-    solver = pym.SolverDiagonal
+    solver = pym.solvers.SolverDiagonal
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -345,7 +345,7 @@ class TestSparseDiagonal(GenericTestSolvers):
 
 
 class TestSparseLU(GenericTestSolvers):
-    solver = pym.SolverSparseLU
+    solver = pym.solvers.SolverSparseLU
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -367,7 +367,7 @@ class TestSparseLU(GenericTestSolvers):
 
 class TestCholeskyScikit(GenericTestSolvers):
     # I don't know why, but scikit is able to solve indefinite matrix as well. Maybe they do some LDL inside?
-    solver = pym.SolverSparseCholeskyScikit
+    solver = pym.solvers.SolverSparseCholeskyScikit
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -380,7 +380,7 @@ class TestCholeskyScikit(GenericTestSolvers):
 
 
 class TestCholeskyCVXOPT(GenericTestSolvers):
-    solver = pym.SolverSparseCholeskyCVXOPT
+    solver = pym.solvers.SolverSparseCholeskyCVXOPT
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -392,7 +392,7 @@ class TestCholeskyCVXOPT(GenericTestSolvers):
 
 
 class TestPardiso(GenericTestSolvers):
-    solver = pym.SolverSparsePardiso
+    solver = pym.solvers.SolverSparsePardiso
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,

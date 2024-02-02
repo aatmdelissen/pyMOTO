@@ -80,9 +80,9 @@ if __name__ == "__main__":
 
     # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
     solver = None  # Default (solver is automatically chosen based on matrix properties)
-    # solver = pym.SolverSparsePardiso()  # Requires Intel MKL installed
-    # solver = pym.SolverSparseCholeskyCVXOPT()  # Requires cvxopt installed
-    # solver = pym.SolverSparseCholeskyScikit()  # Requires scikit installed
+    # solver = pym.solvers.SolverSparsePardiso()  # Requires Intel MKL installed
+    # solver = pym.solvers.SolverSparseCholeskyCVXOPT()  # Requires cvxopt installed
+    # solver = pym.solvers.SolverSparseCholeskyScikit()  # Requires scikit installed
     su = func.append(pym.LinSolve([sK, sf], hermitian=True, solver=solver))
 
     # Output the design, deformation, and force field to a Paraview file

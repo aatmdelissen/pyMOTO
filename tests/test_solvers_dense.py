@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import pymoto as pym
-from pymoto.modules.linalg import auto_determine_solver
+from pymoto.solvers import auto_determine_solver
 import sys
 import inspect
 np.random.seed(0)
@@ -87,7 +87,7 @@ class TestGenericUtility(unittest.TestCase):
 
 
 class TestIsComplex(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_complex)
+    fn = staticmethod(pym.solvers.matrix_is_complex)
     data = [
         (mat_real_diagonal, False),
         (mat_real_symm, False),
@@ -103,7 +103,7 @@ class TestIsComplex(TestGenericUtility):
 
 
 class TestIsDiagonal(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_diagonal)
+    fn = staticmethod(pym.solvers.matrix_is_diagonal)
     data = [
         (mat_real_diagonal, True),
         (mat_real_symm, False),
@@ -119,7 +119,7 @@ class TestIsDiagonal(TestGenericUtility):
 
 
 class TestIsSymmetric(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_symmetric)
+    fn = staticmethod(pym.solvers.matrix_is_symmetric)
     data = [
         (mat_real_diagonal, True),
         (mat_real_symm, True),
@@ -135,7 +135,7 @@ class TestIsSymmetric(TestGenericUtility):
 
 
 class TestIsHermitian(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_hermitian)
+    fn = staticmethod(pym.solvers.matrix_is_hermitian)
     data = [
         (mat_real_diagonal, True),
         (mat_real_symm, True),
@@ -154,16 +154,16 @@ class TestAutoSolver(TestGenericUtility):
     """ Check if the auto_determine returns correct solver types """
     fn = staticmethod(lambda A: type(auto_determine_solver(A)))
     data = [
-        (mat_real_diagonal, pym.SolverDiagonal),
-        (mat_real_symm, pym.SolverDenseCholesky),
-        (mat_real_symm_pos_def, pym.SolverDenseCholesky),
-        (mat_real_asymm, pym.SolverDenseLU),
-        (mat_complex_diagonal, pym.SolverDiagonal),
-        (mat_complex_herm, pym.SolverDenseCholesky),
-        (mat_complex_herm_pos_def, pym.SolverDenseCholesky),
-        (mat_complex_symm, pym.SolverDenseLDL),
-        (mat_complex_symm_pos_def, pym.SolverDenseLDL),
-        (mat_complex_asymm, pym.SolverDenseLU),
+        (mat_real_diagonal, pym.solvers.SolverDiagonal),
+        (mat_real_symm, pym.solvers.SolverDenseCholesky),
+        (mat_real_symm_pos_def, pym.solvers.SolverDenseCholesky),
+        (mat_real_asymm, pym.solvers.SolverDenseLU),
+        (mat_complex_diagonal, pym.solvers.SolverDiagonal),
+        (mat_complex_herm, pym.solvers.SolverDenseCholesky),
+        (mat_complex_herm_pos_def, pym.solvers.SolverDenseCholesky),
+        (mat_complex_symm, pym.solvers.SolverDenseLDL),
+        (mat_complex_symm_pos_def, pym.solvers.SolverDenseLDL),
+        (mat_complex_asymm, pym.solvers.SolverDenseLU),
     ]
 
 
@@ -217,9 +217,9 @@ class GenericTestDenseSolvers(unittest.TestCase):
         self.assertTrue(np.allclose(Aadj @ xadj - b, 0.0))
 
         # Run with LDAWrapper
-        is_herm = pym.matrix_is_hermitian(A)
-        is_symm = pym.matrix_is_symmetric(A)
-        LDAsolver = pym.LDAWrapper(solver, hermitian=is_herm, symmetric=is_symm)
+        is_herm = pym.solvers.matrix_is_hermitian(A)
+        is_symm = pym.solvers.matrix_is_symmetric(A)
+        LDAsolver = pym.solvers.LDAWrapper(solver, hermitian=is_herm, symmetric=is_symm)
         LDAsolver.update(A)
 
         # First solve (do the solution)
@@ -272,7 +272,7 @@ class GenericTestDenseSolvers(unittest.TestCase):
 
 
 class TestDenseDiagonal(GenericTestDenseSolvers):
-    solver = pym.SolverDiagonal
+    solver = pym.solvers.SolverDiagonal
     matrices = [
         mat_real_diagonal,
         mat_complex_diagonal,
@@ -280,7 +280,7 @@ class TestDenseDiagonal(GenericTestDenseSolvers):
 
 
 class TestDenseQR(GenericTestDenseSolvers):
-    solver = pym.SolverDenseQR
+    solver = pym.solvers.SolverDenseQR
     matrices = [
         mat_real_diagonal,
         mat_real_symm,
@@ -296,7 +296,7 @@ class TestDenseQR(GenericTestDenseSolvers):
 
 
 class TestDenseLU(GenericTestDenseSolvers):
-    solver = pym.SolverDenseLU
+    solver = pym.solvers.SolverDenseLU
     matrices = [
         mat_real_diagonal,
         mat_real_symm,
@@ -313,7 +313,7 @@ class TestDenseLU(GenericTestDenseSolvers):
 
 class TestDenseCholesky(GenericTestDenseSolvers):
     # The indefinite matrices use LDL instead as a backup
-    solver = pym.SolverDenseCholesky
+    solver = pym.solvers.SolverDenseCholesky
     matrices = [
         mat_real_diagonal,
         mat_real_symm,
@@ -324,7 +324,7 @@ class TestDenseCholesky(GenericTestDenseSolvers):
 
 
 class TestDenseLDL(GenericTestDenseSolvers):
-    solver = pym.SolverDenseLDL
+    solver = pym.solvers.SolverDenseLDL
     matrices = [
         mat_real_diagonal,
         mat_real_symm,
@@ -392,8 +392,8 @@ class TestLinSolveModule_dense(unittest.TestCase):
 
         sx = pym.Signal("x")
         fn = pym.Network()
-        symmetry = pym.matrix_is_symmetric(A)
-        hermitian = pym.matrix_is_hermitian(A)
+        symmetry = pym.solvers.matrix_is_symmetric(A)
+        hermitian = pym.solvers.matrix_is_hermitian(A)
 
         if symmetry or hermitian:
             sAsys = pym.Signal("Asym", A)
