@@ -3,6 +3,7 @@ from .utils import _parse_to_list, _concatenate_to_array
 from .core_objects import Signal, SignalSlice, Module, Network
 from .common.mma import MMA
 from typing import List, Iterable, Union, Callable
+from scipy.sparse import issparse
 
 
 def _has_signal_overlap(sig1: List[Signal], sig2: List[Signal]):
@@ -171,7 +172,10 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 fp = Sout.state
 
                 # Finite difference sensitivity
-                df = (fp - f0[Iout])/(dx*sf)
+                if issparse(fp):
+                    df = (fp.toarray() - f0[Iout].toarray()) / (dx * sf)
+                else:
+                    df = (fp - f0[Iout])/(dx*sf)
 
                 dgdx_fd = np.real(np.sum(df*df_an[Iout]))
 
@@ -223,7 +227,10 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                     fp = Sout.state
 
                     # Finite difference sensitivity
-                    df = (fp - f0[Iout])/(dx*1j*sf)
+                    if issparse(fp):
+                        df = (fp.toarray() - f0[Iout].toarray()) / (dx * 1j * sf)
+                    else:
+                        df = (fp - f0[Iout])/(dx*1j*sf)
                     dgdx_fd = np.imag(np.sum(df*df_an[Iout]))
 
                     if dx_an[Iout][Iin] is not None:
