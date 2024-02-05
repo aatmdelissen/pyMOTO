@@ -49,8 +49,8 @@ class AssembleGeneral(Module):
         self.dofconn = domain.get_dofconnectivity(self.ndof)
 
         # Row and column indices for the matrix
-        self.rows = np.kron(self.dofconn, np.ones((domain.elemnodes*self.ndof, 1), dtype=int)).flatten()
-        self.cols = np.kron(self.dofconn, np.ones((1, domain.elemnodes*self.ndof), dtype=int)).flatten()
+        self.rows = np.kron(self.dofconn, np.ones((1, domain.elemnodes*self.ndof), dtype=int)).flatten()
+        self.cols = np.kron(self.dofconn, np.ones((domain.elemnodes * self.ndof, 1), dtype=int)).flatten()
         self.matrix_type = matrix_type
 
         # Boundary conditions

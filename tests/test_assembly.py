@@ -5,6 +5,20 @@ import numpy.testing as npt
 
 
 class TestAssembleStiffness(unittest.TestCase):
+    def test_rows_columns(self):
+        """ Check if element rows and columns are implemented correctly """
+        domain = pym.DomainDefinition(1, 1)
+        elmat = np.arange(4*4).reshape((4, 4))
+
+        s_x = pym.Signal('x', state=np.ones(domain.nel))
+
+        # Assemble stiffness matrix
+        m = pym.AssembleGeneral(s_x, domain=domain, element_matrix=elmat)
+        m.response()
+        A = m.sig_out[0].state
+
+        npt.assert_allclose(A.toarray(), elmat)
+
     def test_FEA_pure_tensile_2d_one_element(self):
         Lx, Ly, Lz = 0.1, 0.2, 0.3
         domain = pym.DomainDefinition(1, 1, unitx=Lx, unity=Ly, unitz=Lz)
