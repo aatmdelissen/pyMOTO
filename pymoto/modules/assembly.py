@@ -305,3 +305,95 @@ class AssemblePoisson(AssembleGeneral):
             self.poisson_element += w * self.material_property * Bn.T @ Bn  # Add contribution
 
         super()._prepare(domain, self.poisson_element, *args, **kwargs)
+
+
+class ElementOperation(Module):
+    r""" Generic module for element-wise operations based on nodal information
+
+    :math:`y_e = \mathbf{B} \mathbf{u}_e`
+
+    Input Signal:
+        - ``u``: Nodal vector of size ``(n_dof_per_element * #nodes)``
+
+    Output Signal:
+        - ``y``: Elemental output data of size ``(..., #elements)``
+
+    Args:
+        domain: The domain defining element and nodal connectivity
+        element_matrix: The element operator matrix :math:`\mathbf{B}` of size ``(..., n_dof_per_element)``
+    """
+    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray):
+        if element_matrix.shape[-1] % domain.elemnodes != 0:
+            raise IndexError("Size of last dimension of element operator matrix is not compatible with mesh. "
+                             "Must be dividable by the number of nodes.")
+
+        ndof = element_matrix.shape[-1] // domain.elemnodes
+
+        self.element_matrix = element_matrix
+        self.dofconn = domain.get_dofconnectivity(ndof)
+
+    def _response(self, u):
+        return self.element_matrix @ u[self.dofconn].T
+
+    def _sensitivity(self, dy):
+        du_el = dy.T @ self.element_matrix
+        du = np.zeros_like(self.sig_in[0].state)
+        np.add.at(du, self.dofconn, du_el)
+        return du
+
+
+class Strain(ElementOperation):
+    r""" Evaluate mechanical strains in solid elements based on deformation
+
+    The strains are returned in Voigt notation.
+    :math:`\mathbf{\epsilon}_e = \mathbf{B} \mathbf{u}_e`
+
+    The returned strain is either
+    :math:`\mathbf{\epsilon} = \begin{bmatrix}\epsilon_{xx} & \epsilon_{yy} & \epsilon_{xy} \end{bmatrix}`
+    in case ``engineering_strain = False`` or
+    :math:`\mathbf{\epsilon} = \begin{bmatrix}\epsilon_{xx} & \epsilon_{yy} & \gamma_{xy} \end{bmatrix}`
+    in case ``engineering_strain = True``, for which :math:`\gamma_{xy}=2\epsilon_{xy}`.
+
+    Input Signal:
+       - ``u``: Nodal vector of size ``(#dof per element * #nodes)``
+
+    Output Signal:
+       - ``e``: Strain matrix of size ``(#strains per element, #elements)``
+
+    Args:
+        domain: The domain defining element and nodal connectivity
+
+    Keyword Args:
+        engineering_strain: Use engineering strain
+    """
+    def _prepare(self, domain: DomainDefinition, engineering_strain: bool = True):
+        # Numerical integration
+        B = None
+        siz = domain.element_size
+        w = np.prod(siz[:domain.dim] / 2)
+        for n in domain.node_numbering:
+            pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
+            dN_dx = domain.eval_shape_fun_der(pos)
+            B_add = w*get_B(dN_dx)  # Add contribution
+            if B is None:
+                B = B_add
+            else:
+                B += B_add
+
+        if engineering_strain:
+            idx_shear = np.count_nonzero(B, axis=1) == 2*domain.elemnodes  # Shear is combination of two displacements
+            B[idx_shear, :] *= 2  # Voigt notation with engineering strain
+
+        super()._prepare(domain, B)
+
+
+class Stress(Strain):
+    def _prepare(self, domain: DomainDefinition,
+                 e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane: str = 'strain'):
+        super()._prepare(domain, engineering_strain=True)
+
+        # Get material relation
+        D = get_D(e_modulus, poisson_ratio, '3d' if domain.dim == 3 else plane.lower())
+        if domain.dim == 2:
+            D *= domain.element_size[2]
+        self.element_matrix = D @ self.element_matrix
