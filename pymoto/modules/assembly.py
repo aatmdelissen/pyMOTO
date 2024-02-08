@@ -331,28 +331,32 @@ class ElementOperation(Module):
 
         self.element_matrix = element_matrix
         self.dofconn = domain.get_dofconnectivity(ndof)
+        self.usiz = ndof * domain.nnodes
 
     def _response(self, u):
-        return self.element_matrix @ u[self.dofconn].T
+        assert u.size == self.usiz
+        return einsum('...k, lk -> ...l', self.element_matrix, u[self.dofconn], optimize=True)
 
     def _sensitivity(self, dy):
-        du_el = dy.T @ self.element_matrix
+        du_el = einsum('...k, ...l -> lk', self.element_matrix, dy, optimize=True)
         du = np.zeros_like(self.sig_in[0].state)
         np.add.at(du, self.dofconn, du_el)
         return du
 
 
 class Strain(ElementOperation):
-    r""" Evaluate mechanical strains in solid elements based on deformation
+    r""" Evaluate average mechanical strains in solid elements based on deformation
 
     The strains are returned in Voigt notation.
     :math:`\mathbf{\epsilon}_e = \mathbf{B} \mathbf{u}_e`
 
+    Each integration point in the element has different strain values. Here, the average is returned.
+
     The returned strain is either
     :math:`\mathbf{\epsilon} = \begin{bmatrix}\epsilon_{xx} & \epsilon_{yy} & \epsilon_{xy} \end{bmatrix}`
-    in case ``engineering_strain = False`` or
+    in case ``voigt = False`` or
     :math:`\mathbf{\epsilon} = \begin{bmatrix}\epsilon_{xx} & \epsilon_{yy} & \gamma_{xy} \end{bmatrix}`
-    in case ``engineering_strain = True``, for which :math:`\gamma_{xy}=2\epsilon_{xy}`.
+    in case ``voigt = True``, for which :math:`\gamma_{xy}=2\epsilon_{xy}`.
 
     Input Signal:
        - ``u``: Nodal vector of size ``(#dof per element * #nodes)``
@@ -364,13 +368,13 @@ class Strain(ElementOperation):
         domain: The domain defining element and nodal connectivity
 
     Keyword Args:
-        engineering_strain: Use engineering strain
+        voigt: Use Voigt strain notation (2x off-diagonal strain contribution)
     """
-    def _prepare(self, domain: DomainDefinition, engineering_strain: bool = True):
+    def _prepare(self, domain: DomainDefinition, voigt: bool = True):
         # Numerical integration
         B = None
         siz = domain.element_size
-        w = np.prod(siz[:domain.dim] / 2)
+        w = 1/domain.elemnodes  # Average strain at the integration points
         for n in domain.node_numbering:
             pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
             dN_dx = domain.eval_shape_fun_der(pos)
@@ -388,9 +392,26 @@ class Strain(ElementOperation):
 
 
 class Stress(Strain):
+    """ Calculate the average stresses per element
+
+    Input Signal:
+       - ``u``: Nodal vector of size ``(#dof per element * #nodes)``
+
+    Output Signal:
+       - ``s``: Stress matrix of size ``(#stresses per element, #elements)``
+
+    Args:
+        domain: The domain defining element and nodal connectivity
+
+    Keyword Args:
+        e_modulus: Young's modulus
+        poisson_ratio: Poisson ratio
+        plane: Plane 'strain' or 'stress'
+    """
     def _prepare(self, domain: DomainDefinition,
                  e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane: str = 'strain'):
-        super()._prepare(domain, engineering_strain=True)
+
+        super()._prepare(domain, voigt=True)
 
         # Get material relation
         D = get_D(e_modulus, poisson_ratio, '3d' if domain.dim == 3 else plane.lower())
