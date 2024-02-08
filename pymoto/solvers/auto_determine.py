@@ -84,7 +84,9 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
 
         if ishermitian:
             # Check if diagonal is all positive or all negative -> Cholesky
-            if np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0):  # TODO what about the complex case?
+            if ispositivedefinite is None:
+                ispositivedefinite = np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0)
+            if ispositivedefinite:  # TODO what about the complex case?
                 if SolverSparseCholeskyScikit.defined:
                     return SolverSparseCholeskyScikit()
                 if SolverSparseCholeskyCVXOPT.defined:
