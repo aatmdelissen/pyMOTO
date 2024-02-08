@@ -387,6 +387,10 @@ class DyadCarrier(object):
 
         return val
 
+    def toarray(self):
+        """ Convert to array, same as todense(). To be consistent with scipy.sparse """
+        return self.todense()
+
     def iscomplex(self):
         """ Check if the DyadCarrier is of complex type """
         return np.iscomplexobj(np.array([], dtype=self.dtype))
