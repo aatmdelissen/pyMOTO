@@ -384,7 +384,7 @@ class Strain(ElementOperation):
             else:
                 B += B_add
 
-        if engineering_strain:
+        if voigt:
             idx_shear = np.count_nonzero(B, axis=1) == 2*domain.elemnodes  # Shear is combination of two displacements
             B[idx_shear, :] *= 2  # Voigt notation with engineering strain
 
