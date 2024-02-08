@@ -4,6 +4,10 @@ import numpy.testing as npt
 import pymoto as pym
 
 
+def fd_testfn(x0, dx, df_an, df_fd):
+    npt.assert_allclose(df_an, df_fd, rtol=1e-7, atol=1e-5)
+
+
 class TestDomainDefinition(unittest.TestCase):
     def test_node_numbering_2D(self):
         Nx, Ny = 100, 142
@@ -61,6 +65,28 @@ class TestDomainDefinition(unittest.TestCase):
         npt.assert_allclose(i_pos, i_nod * 0.1)
         npt.assert_allclose(j_pos, j_nod * 0.2)
         npt.assert_allclose(k_pos, k_nod * 0.3)
+
+    def test_shape_fn_2D(self):
+        unitx, unity = 0.8, 0.3
+        domain = pym.DomainDefinition(1, 1, unitx=unitx, unity=unity)
+
+        for i, n in enumerate(domain.node_numbering):
+            N_chk = np.zeros(domain.elemnodes)
+            N_chk[i] = 1.0
+            pos = np.array([n[0]*unitx/2, n[1]*unity/2])
+            npt.assert_allclose(domain.eval_shape_fun(pos), N_chk)
+    def test_shape_fn_derivatives_2D(self):
+        unitx, unity = 0.8, 0.3
+        domain = pym.DomainDefinition(1, 1, unitx=unitx, unity=unity)
+        pos = np.array([0.2, 0.1])
+
+        class ShapeFn(pym.Module):
+            def _response(self, pos):
+                return domain.eval_shape_fun(pos)
+            def _sensitivity(self, dN):
+                return domain.eval_shape_fun_der(pos) @ dN
+
+        pym.finite_difference(ShapeFn(pym.Signal('pos', state=pos)), test_fn=fd_testfn)
 
 
 if __name__ == '__main__':
