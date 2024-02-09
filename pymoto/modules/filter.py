@@ -167,6 +167,8 @@ class DensityFilter(Filter):
         nwindy = yupp - ylow + 1
         nwindz = zupp - zlow + 1
         nwind = nwindx * nwindy * nwindz
+        if np.sum(nwind) < 0:
+            raise OverflowError("Filter size too large for this mesh size")
 
         # Total number of window elements
         ncum = np.cumsum(nwind)
