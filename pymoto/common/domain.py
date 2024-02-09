@@ -5,6 +5,8 @@ import struct
 import warnings
 from typing import Union
 import numpy as np
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
 
 
 
