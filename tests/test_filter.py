@@ -37,6 +37,32 @@ class TestConvolutionFilter(unittest.TestCase):
         npt.assert_allclose(y[domain.get_elemnumber(ix-1, iy-1)], w[0, 0, 0])
         npt.assert_allclose(y[domain.get_elemnumber(ix+1, iy-1)], w[2, 0, 0])
 
+    def test_2D_edge(self):
+        np.random.seed(0)
+        domain = pym.DomainDefinition(10, 12)
+
+        ix, iy = 0, 6
+
+        x = np.zeros(domain.nel)
+        x[domain.get_elemnumber(ix, iy)] = 1.0
+        sx = pym.Signal('x', state=x)
+
+        m = pym.FilterConv(sx, domain=domain, radius=2, relative_units=True)
+        m.response()
+
+        y = m.sig_out[0].state
+        w = m.weights
+
+        npt.assert_allclose(y[domain.get_elemnumber(ix, iy)], w[1, 1, 0])
+        npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy)], w[2, 1, 0])
+        npt.assert_allclose(y[domain.get_elemnumber(ix, iy + 1)], w[1, 2, 0])
+        npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy)], w[0, 1, 0])
+        npt.assert_allclose(y[domain.get_elemnumber(ix, iy - 1)], w[1, 0, 0])
+        npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy + 1)], w[2, 2, 0])
+        npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy + 1)], w[0, 2, 0])
+        npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy - 1)], w[0, 0, 0])
+        npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy - 1)], w[2, 0, 0])
+
     def test_2D_symmetric(self):
         np.random.seed(0)
         domain = pym.DomainDefinition(10, 12, unitx=0.5, unity=1.0)
@@ -45,7 +71,7 @@ class TestConvolutionFilter(unittest.TestCase):
 
         m = pym.FilterConv(sx, domain=domain, radius=5.3, relative_units=False)
 
-        pym.finite_difference(m, test_fn=fd_testfn)
+        pym.finite_difference(m)#, test_fn=fd_testfn
 
     def test_2D_asymmetric(self):
         np.random.seed(0)

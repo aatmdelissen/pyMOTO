@@ -25,10 +25,11 @@ class FilterConv(Module):
 
         domain_sizes = [self.domain.nelx, self.domain.nely, self.domain.nelz]
         el_x, el_y, el_z = np.meshgrid(*[np.arange(max(1, s)) for s in domain_sizes], indexing='ij')
-        self.el3d = self.domain.get_elemnumber(el_x, el_y, el_z)
+        self.el3d_orig = self.domain.get_elemnumber(el_x, el_y, el_z)
 
         # Reflect boundaries
-        self.el3d = np.pad(self.el3d, [(d, d) for d in pad_sizes], mode='reflect')
+        self.el3d = np.pad(self.el3d_orig, [(d, d) for d in pad_sizes], mode='reflect')
+
 
     def set_filter_radius(self, radius: float, relative_units: bool = True):
         if relative_units:
@@ -47,13 +48,15 @@ class FilterConv(Module):
         self.weights /= np.sum(self.weights)  # Volume preserving
 
     def _response(self, x):
-        y3d = convolve(x[self.el3d], self.weights, mode='same')
+        dx, dy, dz = [v // 2 for v in self.weights.shape]
+        y3d = convolve(x[self.el3d], self.weights, mode='valid')
         y = np.zeros_like(x)
-        np.add.at(y, self.el3d, y3d)
+        np.add.at(y, self.el3d_orig, y3d)
         return y
 
     def _sensitivity(self, dfdv):
-        dx3d = correlate(dfdv[self.el3d], self.weights, mode='same')
+        dx, dy, dz = [v // 2 for v in self.weights.shape]
+        dx3d = correlate(dfdv[self.el3d_orig], self.weights, mode='full')
         dx = np.zeros_like(self.sig_in[0].state)
         np.add.at(dx, self.el3d, dx3d)
         return dx
