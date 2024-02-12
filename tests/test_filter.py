@@ -56,7 +56,7 @@ class TestConvolutionFilter(unittest.TestCase):
         sx = pym.Signal('x', state=x)
         nx, ny = 3, 1
         weights = 1+np.arange(nx*ny).reshape((nx, ny, 1))
-        m = pym.FilterConv(sx, domain=domain, weights=weights, mode='reflect')
+        m = pym.FilterConv(sx, domain=domain, weights=weights)
 
         pym.finite_difference(m, test_fn=fd_testfn)
 
@@ -93,18 +93,18 @@ class TestConvolutionFilter(unittest.TestCase):
 
     def test_3D_symmetric1(self):
         np.random.seed(0)
-        domain = pym.DomainDefinition(100, 120, 13, unitx=0.5, unity=1.0, unitz=1.2)
+        domain = pym.DomainDefinition(60, 60, 60, unitx=0.5, unity=1.0, unitz=1.2)
 
         sx = pym.Signal('x', state=np.random.rand(domain.nel))
         start = time.time()
-        m1 = pym.FilterConv(sx, domain=domain, radius=5.3, relative_units=True)
+        m1 = pym.FilterConv(sx, domain=domain, radius=5, relative_units=True)
         print(f"Convolution setup = {time.time() - start} s")
         start = time.time()
         m1.response()
         print(f"Convolution elapsed = {time.time() - start} s")
 
         start = time.time()
-        m2 = pym.DensityFilter(sx, domain=domain, radius=5.3)
+        m2 = pym.DensityFilter(sx, domain=domain, radius=5)
         print(f"H-matrix setup = {time.time() - start} s")
         start = time.time()
         m2.response()
