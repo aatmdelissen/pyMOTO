@@ -6,7 +6,7 @@ from scipy.signal import convolve, correlate
 
 
 class FilterConv(Module):
-    def _prepare(self, domain: DomainDefinition, radius: float = None, relative_units: bool = True, weights: np.ndarray = None, mode: str = 'reflect', origin: np.ndarray = None, cval: float = 0.0):
+    def _prepare(self, domain: DomainDefinition, radius: float = None, relative_units: bool = True, weights: np.ndarray = None):
         self.domain = domain
         if (weights is None and radius is None) or (weights is not None and radius is not None):
             raise ValueError("Only one of arguments 'filter_radius' or 'weights' must be provided.")
@@ -18,9 +18,6 @@ class FilterConv(Module):
                 assert self.weights.shape[i]%2==1, "Size of weights must be uneven"
         elif radius is not None:
             self.set_filter_radius(radius, relative_units)
-        self.mode = mode
-        self.origin = origin if origin is not None else np.array([0, 0, 0])
-        self.cval = cval
 
         # Process padding
         # TODO Other options than reflect: wrap, constant, extend, ... and choose at which faces/edges/corners
