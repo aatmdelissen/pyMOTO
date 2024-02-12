@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 from .utils import _parse_to_list, _concatenate_to_array
 from .core_objects import Signal, SignalSlice, Module, Network
@@ -342,8 +343,9 @@ def minimize_oc(function, variables, objective: Signal,
         function.sensitivity()
         dfdx, _ = _concatenate_to_array(obtain_sensitivities(variables))
         maxdfdx = max(dfdx)
-        if maxdfdx > 0:
-            raise RuntimeError(f"OC only works for negative sensitivities: max(dfdx) = {maxdfdx}")
+        if maxdfdx > 1e-15:
+            warnings.warn(f"OC only works for negative sensitivities: max(dfdx) = {maxdfdx}. Clipping positive values.")
+        dfdx = np.minimum(dfdx, 0)
 
         # Do OC update
         l1, l2 = l1init, l2init
