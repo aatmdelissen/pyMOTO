@@ -2,45 +2,64 @@ from pymoto import Module
 from .assembly import DomainDefinition
 import numpy as np
 from scipy.sparse import coo_matrix
-from scipy.ndimage import convolve
+from scipy.signal import convolve, correlate
 
 
 class FilterConv(Module):
-    def _prepare(self, domain: DomainDefinition, weights: np.ndarray, mode: str = 'reflect'):
+    def _prepare(self, domain: DomainDefinition, radius: float = None, relative_units: bool = True, weights: np.ndarray = None, mode: str = 'reflect', origin: np.ndarray = None, cval: float = 0.0):
         self.domain = domain
-        self.weights = weights
+        if (weights is None and radius is None) or (weights is not None and radius is not None):
+            raise ValueError("Only one of arguments 'filter_radius' or 'weights' must be provided.")
+        elif weights is not None:
+            self.weights = weights.copy()
+            while self.weights.ndim < 3:
+                self.weights = np.expand_dims(self.weights, axis=-1)
+            for i in range(self.weights.ndim):
+                assert self.weights.shape[i]%2==1, "Size of weights must be uneven"
+        elif radius is not None:
+            self.set_filter_radius(radius, relative_units)
         self.mode = mode
+        self.origin = origin if origin is not None else np.array([0, 0, 0])
+        self.cval = cval
 
-    def set_filter_radius(self, radius: float, relative_units: bool = False):
+        # Process padding
+        # TODO Other options than reflect: wrap, constant, extend, ... and choose at which faces/edges/corners
+        pad_sizes = [v//2 for v in self.weights.shape]
+
+        domain_sizes = [self.domain.nelx, self.domain.nely, self.domain.nelz]
+        el_x, el_y, el_z = np.meshgrid(*[np.arange(max(1, s)) for s in domain_sizes], indexing='ij')
+        self.el3d = self.domain.get_elemnumber(el_x, el_y, el_z)
+
+        # Reflect boundaries
+        self.el3d = np.pad(self.el3d, [(d, d) for d in pad_sizes], mode='reflect')
+
+    def set_filter_radius(self, radius: float, relative_units: bool = True):
         if relative_units:
             dx, dy, dz = 1.0, 1.0, 1.0
         else:
             dx, dy, dz = self.domain.element_size
-        delemx, delemy, delemz = int((radius-1e-10*dx)/dx), int((radius-1e-10*dy)/dy), int((radius-1e-10*dz)/dz)
-        if self.domain.dim < 3:
-            delemz = 0
+        nx, ny, nz = self.domain.nelx, self.domain.nely, self.domain.nelz
+        delemx = min(nx, int((radius-1e-10*dx)/dx))
+        delemy = min(ny, int((radius-1e-10*dy)/dy))
+        delemz = min(nz, int((radius-1e-10*dz)/dz))
         xrange = np.arange(-delemx, delemx+1)*dx
         yrange = np.arange(-delemy, delemy+1)*dy
         zrange = np.arange(-delemz, delemz+1)*dz
-        coords_x, coords_y, coords_z = np.meshgrid(xrange, yrange, zrange)
+        coords_x, coords_y, coords_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
         self.weights = np.maximum(0.0, radius - np.sqrt(coords_x*coords_x + coords_y*coords_y + coords_z*coords_z))
         self.weights /= np.sum(self.weights)  # Volume preserving
-        if self.domain.dim < 3:
-            self.weights = self.weights[:, :, 0]
 
     def _response(self, x):
-        domain_sizes = [self.domain.nelx, self.domain.nely]
-        if self.domain.dim >= 3:
-            domain_sizes.append(self.domain.nely)
-        xbox = x.reshape(*domain_sizes, order='F').T  # TODO 3d?
-        return convolve(xbox, self.weights, mode=self.mode).flatten()
+        y3d = convolve(x[self.el3d], self.weights, mode='same')
+        y = np.zeros_like(x)
+        np.add.at(y, self.el3d, y3d)
+        return y
 
     def _sensitivity(self, dfdv):
-        domain_sizes = [self.domain.nelx, self.domain.nely]
-        if self.domain.dim == 3:
-            domain_sizes.append(self.domain.nely)
-        ybox = dfdv.reshape(*domain_sizes, order='F').T  # TODO 3d
-        return convolve(ybox, self.weights, mode=self.mode).flatten()
+        dx3d = correlate(dfdv[self.el3d], self.weights, mode='same')
+        dx = np.zeros_like(self.sig_in[0].state)
+        np.add.at(dx, self.el3d, dx3d)
+        return dx
 
 
 class Filter(Module):
