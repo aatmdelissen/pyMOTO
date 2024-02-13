@@ -99,7 +99,11 @@ class PlotDomain(_FigModule):
             self.im = ax.imshow(data, origin='lower', cmap=self.cmap)
             self.cbar = self.fig.colorbar(self.im, orientation='horizontal')
             ax.set(xlabel='x', ylabel='y')
-        clim = [np.min(data), np.max(data)] if self.clim is None else self.clim
+        vmin, vmax = np.min(data), np.max(data)
+        if vmin < 0:
+            vabs = max(abs(vmin), abs(vmax))
+            vmin, vmax = -vabs, vabs
+        clim = [vmin, vmax] if self.clim is None else self.clim
         self.im.set_clim(vmin=clim[0], vmax=clim[1])
 
     def _plot_3d(self, x):
