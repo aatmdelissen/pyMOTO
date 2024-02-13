@@ -28,8 +28,7 @@ class FilterConv(Module):
         self.el3d_orig = self.domain.get_elemnumber(el_x, el_y, el_z)
 
         # Reflect boundaries
-        self.el3d = np.pad(self.el3d_orig, [(d, d) for d in pad_sizes], mode='reflect')
-
+        self.el3d = np.pad(self.el3d_orig, [(d, d) for d in pad_sizes], mode='symmetric')
 
     def set_filter_radius(self, radius: float, relative_units: bool = True):
         if relative_units:
