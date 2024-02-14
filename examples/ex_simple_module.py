@@ -95,13 +95,13 @@ class TwoOutputs(Module):
 
         # If the sensitivity of the output signal is empty, it is None. So we only need to do calculations whenever it
         # is not None. In case both sensitivities of the output signals are None, this function won't be called.
-        if df_dv1 is not None:
-            df_dx1 += df_dv1*self.x2
-            df_dx2 += df_dv1*self.x1
+        if df_dy1 is not None:
+            df_dx1 += df_dy1*self.x2
+            df_dx2 += df_dy1*self.x1
 
-        if df_dv2 is not None:
-            df_dx1 += df_dv2
-            df_dx2 += df_dv2
+        if df_dy2 is not None:
+            df_dx1 += df_dy2
+            df_dx2 += df_dy2
 
         # Return the results
         return df_dx1, df_dx2
@@ -110,7 +110,7 @@ class TwoOutputs(Module):
 if __name__ == "__main__":
     print(__doc__)
     print("_" * 80)
-    print("-- MostSimple Module: Setup")
+    print("-- Module setup")
 
     # Create signals for the inputs. The argument is the 'tag' of the signal, which is optional.
     # The tag of the signal can be seen as its name, which can be useful for printing and debugging
@@ -122,12 +122,15 @@ if __name__ == "__main__":
     # And create a signal for the output
     y = Signal("y")
 
-    # The module is instantiated using the constructor. The first argument is a list of input signals, and the
-    # second argument is the output signal.
-    print("Instantiate MostSimple Module:")
+    # The module is instantiated using the constructor. The first argument is the input signal (or a list of input
+    # signals), and the second argument is the output signal (or again a list). Different module types are prepared in
+    # this example. Uncomment lines below to see what happens.
+    print("Instantiate Module:")
     simple_module = MostSimple([x1, x2], y)
+    # simple_module = WithPrepare(x1, y, 3.14, optional_value='bar')  # Module with extra (constant) parameters
+    # simple_module = TwoOutputs([x1, x2], [y, Signal('y2')])  # Module with two outputs
 
-    print("\n-- MostSimple Module: Forward analysis")
+    print("\n-- Forward analysis")
     try:
         print("Trying to call the response without setting initial values results in an error")
         simple_module.response()
@@ -146,36 +149,36 @@ if __name__ == "__main__":
     # The state of the output signal can be accessed using <Signal>.state again
     print(f"The result: {y.tag} = {y.state}")
 
-    print("\n-- MostSimple Module: Sensitivity analysis by back-propagation")
+    print("\n-- Sensitivity analysis by back-propagation")
     # Calculate sensitivities
     print("\nIf no seed is given, no sensitivities will be calculated")
     simple_module.sensitivity()
-    print(f"dg/d{x1.tag} = {x1.sensitivity}")
-    print(f"dg/d{x2.tag} = {x2.sensitivity}")
+    print(f"dy/d{x1.tag} = {x1.sensitivity}")
+    print(f"dy/d{x2.tag} = {x2.sensitivity}")
 
-    print("\nSeed dg/dy1 = 1.0, so we can calculate dy1/dx1 and dy1/dx2")
+    print("\nSeed dy/dy = 1.0, so we can calculate dy/dx1 and dy/dx2")
     # An initial 'seed' sensitivity of the response you're interested in needs to be set. We can do this by setting
     # the <Signal>.sensitivity property
     y.sensitivity = 1.0
     simple_module.sensitivity()
     # The sensitivities of the input signals can now be accessed by <Signal>.sensitivity
-    print(f"dg/d{x1.tag} = {x1.sensitivity}")
-    print(f"dg/d{x2.tag} = {x2.sensitivity}")
+    print(f"dy/d{x1.tag} = {x1.sensitivity}")
+    print(f"dy/d{x2.tag} = {x2.sensitivity}")
 
     print("\nWhen reset is not called after the sensitivity calculation, the results will not be correct.")
-    print("Seed dg/dy1 = 1.0 again (not strictly necessary, since the value already was seeded)")
+    print("Seed dy/dy = 1.0 again (not strictly necessary, since the value already was seeded without being cleared)")
     y.sensitivity = 1.0
     simple_module.sensitivity()
-    print(f"Incorrect sensitivity dy1/d{x1.tag} = {x1.sensitivity}")
-    print(f"Incorrect sensitivity dy1/d{x2.tag} = {x2.sensitivity}")
+    print(f"Incorrect sensitivity dy/d{x1.tag} = {x1.sensitivity}")
+    print(f"Incorrect sensitivity dy/d{x2.tag} = {x2.sensitivity}")
     print("The values are now double of what they're supposed to be, because they're added to what we already had.")
 
-    print("\nRESET! And seed dg/dy2 = 1.0 to calculate the other sensitivities")
+    print("\nRESET! And seed dy/dy = 1.0 to calculate the other sensitivities")
     simple_module.reset()  # !! DON'T FORGET TO RESET, ELSE SENSITIVITIES FROM PREVIOUS RUNS WILL CONTAMINATE YOUR RESULT !!
     y.sensitivity = 1.0
     simple_module.sensitivity()
-    print(f"dg/d{x1.tag} = {x1.sensitivity}")
-    print(f"dg/d{x2.tag} = {x2.sensitivity}")
+    print(f"dy/d{x1.tag} = {x1.sensitivity}")
+    print(f"dy/d{x2.tag} = {x2.sensitivity}")
 
     # You can always check your module with finite differencing
     finite_difference(simple_module)
