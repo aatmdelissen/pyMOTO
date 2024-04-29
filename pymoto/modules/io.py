@@ -282,3 +282,33 @@ class WriteToVTI(Module):
             filen = pth[0] + '.{0:04d}'.format(self.iter) + pth[1]
         self.domain.write_to_vti(data, filename=filen, scale=self.scale)
         self.iter += 1
+
+
+class ScalarToFile(Module):
+    def _prepare(self, path=".", filename="log.txt"):
+        self.path = path
+        self.filename = filename
+        self.file = os.path.join(self.path, self.filename)
+
+        if self.filename.find(".csv") > 0:
+            self.separator = ", "
+        else:
+            self.separator = "\t\t"
+
+        newline = ["#iter",] + [s.tag for s in self.sig_in]
+        with open(self.file, "w+") as f:
+            f.write(self.separator.join(newline))
+            f.write("\n")
+
+        self.iter = 0
+
+    def _response(self, *args):
+        data = []
+        for s in self.sig_in:
+            data.append(s.state)
+        with open(self.file, "a+") as f:
+            f.write("{:04d}".format(self.iter) + self.separator)
+            f.write(self.separator.join(['%.5f' % d for d in data]))
+            f.write("\n")
+
+        self.iter += 1
