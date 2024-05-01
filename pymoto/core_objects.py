@@ -2,6 +2,7 @@ import sys
 import warnings
 import inspect
 import time
+import copy
 from typing import Union, List, Any
 from abc import ABC, abstractmethod
 from .utils import _parse_to_list, _concatenate_to_array, _split_from_array
@@ -77,16 +78,20 @@ class Signal:
     >> Signal(tag='x2')
 
     """
-    def __init__(self, tag: str = "", state: Any = None, sensitivity: Any = None):
+    def __init__(self, tag: str = "", state: Any = None, sensitivity: Any = None, min: Any = None, max: Any = None):
         """
-
-        :param tag: The name of the signal (string)
-        :param state: The initialized state (optional)
-        :param sensitivity: The initialized sensitivity (optional)
+        Keyword Args:
+            tag: The name of the signal
+            state: The initialized state
+            sensitivity: The initialized sensitivity
+            min: Minimum allowed value
+            max: Maximum allowed value
         """
         self.tag = tag
         self.state = state
         self.sensitivity = sensitivity
+        self.min = min
+        self.max = max
         self.keep_alloc = sensitivity is not None
 
         # Save error string to location where it is initialized
@@ -96,11 +101,12 @@ class Signal:
         return err_fmt(f"Signal \'{self.tag}\', initialized in {self._init_loc}")
 
     def add_sensitivity(self, ds: Any):
+        """ Add a new term to internal sensitivity """
         try:
             if ds is None:
                 return
             if self.sensitivity is None:
-                self.sensitivity = ds
+                self.sensitivity = copy.deepcopy(ds)
             else:
                 self.sensitivity += ds
             return self
@@ -117,8 +123,12 @@ class Signal:
     def reset(self, keep_alloc: bool = None):
         """ Reset the sensitivities to zero or None
         This must be called to clear internal memory of subsequent sensitivity calculations.
-        :param keep_alloc: Keep the sensitivity allocation intact?
-        :return: self
+
+        Args:
+            keep_alloc: Keep the sensitivity allocation intact?
+
+        Returns:
+            self
         """
         if self.sensitivity is None:
             return self
@@ -139,10 +149,33 @@ class Signal:
 
     def __getitem__(self, item):
         """ Obtain a sliced signal, for using its partial contents.
-        :param item: Slice indices
-        :return: Sliced signal (SignalSlice)
+
+        Args:
+            item: Slice indices
+
+        Returns:
+            Sliced signal (SignalSlice)
         """
         return SignalSlice(self, item)
+
+    def __str__(self):
+        state_msg = f"state {self.state}" if self.state is not None else "empty state"
+        state_msg = state_msg.split('\n')
+        if len(state_msg) > 1:
+            state_msg = state_msg[0] + ' ... ' + state_msg[-1]
+        else:
+            state_msg = state_msg[0]
+        return f"Signal \"{self.tag}\" with {state_msg}"
+
+    def __repr__(self):
+        state_msg = f"state {self.state}" if self.state is not None else "empty state"
+        state_msg = state_msg.split('\n')
+        if len(state_msg) > 1:
+            state_msg = state_msg[0] + ' ... ' + state_msg[-1]
+        else:
+            state_msg = state_msg[0]
+        sens_msg = 'empty sensitivity' if self.sensitivity is None else 'non-empty sensitivity'
+        return f"Signal \"{self.tag}\" with {state_msg} and {sens_msg} at {hex(id(self))}"
 
 
 class SignalSlice(Signal):
@@ -172,7 +205,6 @@ class SignalSlice(Signal):
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
             raise type(e)(str(e) + "\n\t| Above error was raised in SignalSlice.state (getter). Signal details:" +
                       self._err_str()).with_traceback(sys.exc_info()[2])
-
 
     @state.setter
     def state(self, new_state):
