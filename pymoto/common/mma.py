@@ -333,12 +333,9 @@ class MMA:
             # Set the new states
             for i, s in enumerate(self.variables):
                 if self.cumlens[i+1]-self.cumlens[i] == 1:
-                    try:
-                        s.state[:] = xval[self.cumlens[i]]
-                    except TypeError:
-                        s.state = xval[self.cumlens[i]]
+                    s.state = xval[self.cumlens[i]]
                 else:
-                    s.state[:] = xval[self.cumlens[i]:self.cumlens[i+1]]
+                    s.state = xval[self.cumlens[i]:self.cumlens[i+1]]
 
             if self.fn_callback is not None:
                 self.fn_callback()
@@ -346,19 +343,11 @@ class MMA:
             # Calculate response
             self.funbl.response()
 
-            # Update the states
-            for i, s in enumerate(self.variables):
-                if self.cumlens[i+1]-self.cumlens[i] == 1:
-                    try:
-                        xval[self.cumlens[i]] = s.state[:]
-                    except (TypeError, IndexError):
-                        xval[self.cumlens[i]] = s.state
-                else:
-                    xval[self.cumlens[i]:self.cumlens[i+1]] = s.state[:]
-
             # Save response
             f = ()
             for s in self.responses:
+                if not np.isscalar(s.state):
+                    raise TypeError("State of responses must be scalar.")
                 f += (s.state, )
 
             # Check function change convergence criterion
@@ -536,7 +525,8 @@ class MMA:
 
         if self.verbosity >= 2:
             msgs = ["g{0:d}({1:s}): {2:+.4e}".format(i, s.tag, g[i]) for i, s in enumerate(self.responses)]
-            print("It. {0: 4d}, {1}".format(self.iter, ", ".join(msgs)))
+            feasible = np.all(g[1:] <= 0)
+            print("It. {0: 4d}, [{1:1s}] {2}".format(self.iter, 'f' if feasible else ' ', ", ".join(msgs)))
 
         if self.verbosity >=3:
             # Print changes
