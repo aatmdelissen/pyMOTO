@@ -263,6 +263,7 @@ class GenericTestSolvers(unittest.TestCase):
     """ Generic test runner for any solver and list of matrices """
     solver = None  # The solver to use
     matrices = []  # The list of matrices the solver should be able to handle
+    kwargs = dict()
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -318,20 +319,24 @@ class GenericTestSolvers(unittest.TestCase):
             N = A.shape[0]
             with self.subTest(msg=f"{t}.real-rhs"):
                 b = np.random.rand(N)
-                self.run_sparse_tests(self.solver(), A, b)
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
             with self.subTest(msg=f"{t}.multi-real-rhs"):
                 b = np.random.rand(N, 3)
-                self.run_sparse_tests(self.solver(), A, b)
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
+            with self.subTest(msg=f"{t}.multi-real-rhs-lineardependent"):
+                b = np.random.rand(N, 3)
+                b[:, 1] = b[:, 2]
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
 
             if not pym.solvers.matrix_is_complex(A):
                 continue
 
             with self.subTest(msg=f"{t}.complex-rhs"):
                 b = np.random.rand(N) + 1j * np.random.rand(N)
-                self.run_sparse_tests(self.solver(), A, b)
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
             with self.subTest(msg=f"{t}.multi-complex-rhs"):
                 b = np.random.rand(N, 3) + 1j * np.random.rand(N, 3)
-                self.run_sparse_tests(self.solver(), A, b)
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
 
 
 class TestSparseDiagonal(GenericTestSolvers):
@@ -407,6 +412,28 @@ class TestPardiso(GenericTestSolvers):
         # mat_complex_symm_pos_def_dynamic,
         # mat_complex_symm_indef_dynamic,
         # mat_complex_hermitian_1,
+    ]
+
+
+class TestSparseCG(GenericTestSolvers):
+    solver = pym.solvers.CG
+    kwargs = dict(preconditioner=pym.solvers.Jacobi(), verbosity=1)
+    matrices = [
+        mat_real_diagonal,
+        mat_real_spdiag,
+        mat_real_symm_pos_def,
+        mat_real_symm_pos_def_dynamic,
+        # mat_real_symm_indef,
+        # mat_real_symm_indef_dynamic,
+        # mat_real_asymm,
+        # mat_real_symm_saddle,
+        mat_complex_diagonal,
+        mat_complex_spdiag,
+        mat_complex_symm_pos_def_dynamic,
+        # mat_complex_symm_indef_dynamic,
+        # mat_complex_hermitian_1,
+        # mat_complex_hermitian_indef,
+        # mat_complex_hermitian_pos_def,
     ]
 
 
