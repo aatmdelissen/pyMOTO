@@ -3,11 +3,11 @@ import numpy as np
 
 import pymoto as pym
 
-nx, ny, nz = 30, 30, 0  # Set nz to zero for the 2D problem
+nx, ny, nz = 120, 40, 0  # Set nz to zero for the 2D problem, nz > 0 runs a 3D problem
 xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5
-thermal = False  # True = Static thermal analysis; False = Static mechanical analysis will be done
+thermal = True  # True = Static thermal analysis; False = Static mechanical analysis will be done
 
 if __name__ == "__main__":
     print(__doc__)
@@ -17,12 +17,12 @@ if __name__ == "__main__":
         domain = pym.DomainDefinition(nx, ny)
 
         if thermal:
+            ndof = 1  # Number of dofs per node
             # Get dof numbers at the boundary
             boundary_dofs = domain.get_nodenumber(0, np.arange(ny // 4, (ny + 1) - ny // 4))
 
             # Make a force vector
             force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx + 1), np.arange(ny + 1)))
-            ndof = 1  # Number of dofs per node
 
         else:  # Mechanical
             ndof = 2
@@ -42,7 +42,7 @@ if __name__ == "__main__":
             force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx+1), np.arange(ny + 1), np.arange(nz + 1))).flatten()
             ndof = 1
 
-        else:
+        else:  # Mechanical
             ndof = 3
             boundary_dofs = np.repeat(boundary_nodes * ndof, ndof, axis=-1) + np.tile(np.arange(ndof), len(boundary_nodes))
             force_dofs = ndof * domain.get_nodenumber(nx, ny // 2, nz // 2) + 2  # Z-direction
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     svol.tag = 'volume'
 
     # Volume constraint
-    sg1 = func.append(pym.MathGeneral(svol, expression='10*(inp0/{} - {})'.format(domain.nel, volfrac)))
+    sg1 = func.append(pym.MathGeneral(svol, expression=f'10*(inp0/{domain.nel} - {volfrac})'))
     sg1.tag = "volume constraint"
 
     # Maybe you want to check the design-sensitivities?
@@ -112,8 +112,8 @@ if __name__ == "__main__":
 
     func.append(pym.PlotIter([sg0, sg1]))  # Plot iteration history
 
-    # Do the optimization with MMA (requires nlopt package)
-    # pym.minimize_mma(func, [sx], [sg0, sg1])  # TODO does not work correctly for the thermal case
+    # Do the optimization with MMA
+    # pym.minimize_mma(func, [sx], [sg0, sg1])
 
     # Do the optimization with OC
     pym.minimize_oc(func, sx, sg0)
