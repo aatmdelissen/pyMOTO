@@ -96,7 +96,9 @@ class PlotDomain(_FigModule):
             self.im.set_data(data)
         else:
             ax = self.fig.add_subplot(111)
-            self.im = ax.imshow(data, origin='lower', cmap=self.cmap)
+            Lx = self.domain.nelx * self.domain.unitx
+            Ly = self.domain.nely * self.domain.unity
+            self.im = ax.imshow(data, cmap=self.cmap, origin='lower', extent=(0.0, Lx, 0.0, Ly))
             self.cbar = self.fig.colorbar(self.im, orientation='horizontal')
             ax.set(xlabel='x', ylabel='y')
         vmin, vmax = np.min(data), np.max(data)
@@ -179,9 +181,10 @@ class PlotGraph(_FigModule):
         for i, y in enumerate(ys):
             self.line[i].set_xdata(x)
             self.line[i].set_ydata(y)
-            ymin, ymax = min(ymin, min(y)), max(ymax, max(y))
-        self.ax.set_xlim([min(x), max(x)])
-        self.ax.set_ylim([ymin, ymax])
+            ymin, ymax = min(ymin, np.min(y)), max(ymax, np.max(y))
+        self.ax.set_xlim([np.min(x), np.max(x)])
+        dy = ymax - ymin
+        self.ax.set_ylim([ymin-0.05*dy, ymax+0.05*dy])
 
         self._update_fig()
 
