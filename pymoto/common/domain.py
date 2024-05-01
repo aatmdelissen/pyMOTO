@@ -9,7 +9,6 @@ from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
 
-
 def plot_deformed_element(ax, x, y, **kwargs):
     codes, verts = zip(*[
         (Path.MOVETO, [x[0], y[0]]),
@@ -21,6 +20,7 @@ def plot_deformed_element(ax, x, y, **kwargs):
     patch = PathPatch(path, **kwargs)
     ax.add_artist(patch)
     return patch
+
 
 def get_path(x, y):
     codes, verts = zip(*[
@@ -161,17 +161,17 @@ class DomainDefinition:
             i, j, k for requested node(s); k is only returned in 3D
         """
         if nod_idx is None:
-            nod_idx = np.arange(self.nel)
+            nod_idx = np.arange(self.nnodes)
         nodi = nod_idx % (self.nelx + 1)
         nodj = (nod_idx // (self.nelx + 1)) % (self.nely + 1)
         if self.dim == 2:
-            return nodi, nodj
+            return np.stack([nodi, nodj], axis=0)
         nodk = nod_idx // ((self.nelx + 1)*(self.nely + 1))
-        return nodi, nodj, nodk
+        return np.stack([nodi, nodj, nodk], axis=0)
 
     def get_node_position(self, nod_idx: Union[int, np.ndarray] = None):
         ijk = self.get_node_indices(nod_idx)
-        return [idx * self.element_size[ii] for ii, idx in enumerate(ijk)]
+        return (self.element_size[:self.dim] * ijk.T).T
 
     def get_elemconnectivity(self, i: Union[int, np.ndarray], j: Union[int, np.ndarray], k: Union[int, np.ndarray] = 0):
         """ Get the connectivity for element identified with Cartesian indices (i, j, k)
