@@ -31,7 +31,7 @@ def isnullslice(x):
 
 
 class DyadCarrier(object):
-    """ Efficient storage for dyadic or rank-N matrix
+    r""" Efficient storage for dyadic or rank-N matrix
 
     Stores only the vectors instead of creating a full rank-N matrix
     :math:`\mathbf{A} = \sum_k^N \mathbf{u}_k\otimes\mathbf{v}_k`
@@ -67,7 +67,7 @@ class DyadCarrier(object):
             return self.ulen * self.vlen
 
     def add_dyad(self, u: Iterable, v: Iterable = None, fac: float = None):
-        """ Adds a list of vectors to the dyad carrier
+        r""" Adds a list of vectors to the dyad carrier
 
         Checks for conforming sizes of `u` and `v`. The data inside the vectors are copied.
 
