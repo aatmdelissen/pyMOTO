@@ -21,6 +21,7 @@ from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
 from .modules.generic import MathGeneral, EinSum, ConcatSignal
 from .modules.io import PlotDomain, PlotGraph, PlotIter, WriteToVTI
 from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations, StaticCondensation
+from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, SoftMinMax, KSFunction
 from .modules.scaling import Scaling
 
 # Further helper routines
@@ -36,6 +37,9 @@ __all__ = [
     'DomainDefinition',
     'solvers',
 
+    # Helpers
+    "AggScaling", "AggActiveSet",
+
     # Modules
     "MathGeneral", "EinSum", "ConcatSignal",
     "Inverse", "LinSolve", "EigenSolve", "SystemOfEquations", "StaticCondensation",
@@ -45,5 +49,6 @@ __all__ = [
     "PlotDomain", "PlotGraph", "PlotIter", "WriteToVTI",
     "MakeComplex", "RealPart", "ImagPart", "ComplexNorm",
     "AutoMod",
-    "Scaling"
+    "Aggregation", "PNorm", "SoftMinMax", "KSFunction",
+    "Scaling",
 ]
