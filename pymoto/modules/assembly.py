@@ -68,6 +68,8 @@ class AssembleGeneral(Module):
         self.add_constant = add_constant
 
     def _response(self, xscale: np.ndarray):
+        nel = self.dofconn.shape[0]
+        assert xscale.size == nel, f"Input vector wrong size ({xscale.size}), must be of size #nel ({nel})"
         scaled_el = ((self.elmat.flatten()[np.newaxis]).T * xscale).flatten(order='F')
 
         # Set boundary conditions
