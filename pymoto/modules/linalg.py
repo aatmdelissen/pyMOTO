@@ -265,7 +265,10 @@ class LinSolve(Module):
         if self.solver is None:
             self.solver = auto_determine_solver(mat, ishermitian=self.ishermitian)
         if not isinstance(self.solver, LDAWrapper) and self.use_lda_solver:
-            self.solver = LDAWrapper(self.solver, hermitian=self.ishermitian, symmetric=self.issymmetric)
+            lda_kwargs = dict(hermitian=self.ishermitian, symmetric=self.issymmetric)
+            if hasattr(self.solver, 'tol'):
+                lda_kwargs['tol'] = self.solver.tol * 2
+            self.solver = LDAWrapper(self.solver, **lda_kwargs)
 
         # Update solver with new matrix
         self.solver.update(mat)
