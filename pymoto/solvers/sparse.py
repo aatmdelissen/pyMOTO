@@ -297,7 +297,10 @@ class SolverSparseCholeskyScikit(LinearSolver):
         """
         if trans not in ['N', 'T', 'H']:
             raise TypeError("Only N, T, or H transposition is possible")
-        return self.inv(rhs)
+        if trans == 'T':
+            return self.inv(rhs.conj()).conj()
+        else:
+            return self.inv(rhs)
 
 
 # ------------------------------------ Cholesky Solver cvxopt -----------------------------------
@@ -355,7 +358,13 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
             raise TypeError("Only N, T, or H transposition is possible")
         if rhs.dtype != self._dtype:
             warnings.warn(f"{type(self).__name__}: Type warning: rhs value type ({rhs.dtype}) is converted to {self._dtype}")
-        B = cvxopt.matrix(rhs.astype(self._dtype))
+        if trans == 'T':
+            B = cvxopt.matrix(rhs.conj().astype(self._dtype))
+        else:
+            B = cvxopt.matrix(rhs.astype(self._dtype))
         nrhs = 1 if rhs.ndim == 1 else rhs.shape[1]
+
         cvxopt.cholmod.solve(self.inv, B, nrhs=nrhs)
-        return np.array(B).flatten() if nrhs == 1 else np.array(B)
+
+        x = np.array(B).flatten() if nrhs == 1 else np.array(B)
+        return x.conj() if trans == 'T' else x
