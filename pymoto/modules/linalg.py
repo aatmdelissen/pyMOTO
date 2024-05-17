@@ -171,7 +171,7 @@ class SystemOfEquations(Module):
             adjoint_load += self.Afp * dgdb[self.p, ...]
 
         lam = np.zeros_like(self.x)
-        lamf = -1.0 * self.module_LinSolve.solver.adjoint(adjoint_load)
+        lamf = -1.0 * self.module_LinSolve.solver.solve(adjoint_load, trans='T')
         lam[self.f, ...] = lamf
 
         if dgdb is not None:
@@ -247,6 +247,7 @@ class LinSolve(Module):
         self.ishermitian = hermitian
         self.issymmetric = symmetric
         self.solver = solver
+        self.u = None  # Solution storage
 
     def _response(self, mat, rhs):
         # Do some detections on the matrix type
@@ -274,13 +275,14 @@ class LinSolve(Module):
         self.solver.update(mat)
 
         # Solution
-        self.u = self.solver.solve(rhs)
+        self.u = self.solver.solve(rhs, x0=self.u)
 
         return self.u
 
     def _sensitivity(self, dfdv):
         mat, rhs = [s.state for s in self.sig_in]
-        lam = self.solver.adjoint(dfdv.conj()).conj()
+        # lam = self.solver.solve(dfdv.conj(), trans='H').conj()
+        lam = self.solver.solve(dfdv, trans='T')
 
         if self.issparse:
             if self.u.ndim > 1:
@@ -343,6 +345,7 @@ class EigenSolve(Module):
         self.sigma = sigma
         self.mode = mode
         self.Ainv = None
+        self.do_solve = False
 
     def _response(self, A, *args):
         B = args[0] if len(args) > 0 else None
@@ -403,9 +406,14 @@ class EigenSolve(Module):
         # Use shift-and-invert, so make inverse operator
         if self.Ainv is None:
             self.Ainv = auto_determine_solver(mat_shifted, ishermitian=self.is_hermitian)
-        self.Ainv.update(mat_shifted)
+            self.do_solve = True
+        if self.sigma != 0:
+            self.do_solve = True
+        if self.do_solve:
+            self.Ainv.update(mat_shifted)
 
-        AinvOp = spsla.LinearOperator(mat_shifted.shape, matvec=self.Ainv.solve, rmatvec=self.Ainv.adjoint)
+        AinvOp = spsla.LinearOperator(mat_shifted.shape, matvec=self.Ainv.solve,
+                                      rmatvec=lambda b: self.Ainv.solve(b, trans='H'))
 
         if self.is_hermitian:
             return spsla.eigsh(A, M=B, k=self.nmodes, OPinv=AinvOp, sigma=self.sigma, mode=self.mode)

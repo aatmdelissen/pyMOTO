@@ -5,6 +5,7 @@ import unittest
 from math import isclose
 
 import numpy as np
+import numpy.testing as npt
 import scipy as sp
 import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
@@ -60,7 +61,7 @@ def generate_dynamic(complex=False, indef=False):
     K = load_matrix("bcsstk26.mtx.gz")
     M = load_matrix("bcsstm26.mtx.gz")
     solver = pym.solvers.SolverSparseLU().update(K.tocsc())
-    opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=solver.adjoint)
+    opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=lambda b: solver.adjoint(b, trans='H'))
     w, _ = spspla.eigsh(K, M=M, sigma=0, k=100, OPinv=opinv, ncv=200)
     eigfreqs = np.sqrt(w)
     if indef:
@@ -78,7 +79,7 @@ def generate_saddlepoint():
     K = load_matrix("bcsstk26.mtx.gz")
     M = load_matrix("bcsstm26.mtx.gz")
     solver = pym.solvers.SolverSparseLU().update(K.tocsc())
-    opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=solver.adjoint)
+    opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=lambda b: solver.adjoint(b, trans='H'))
     w, V = spspla.eigsh(K, M=M, sigma=0, k=100, OPinv=opinv, ncv=200)
     wi, vi = w[0], V[:, [0]]
     Mv = M@vi
@@ -279,30 +280,40 @@ class GenericTestSolvers(unittest.TestCase):
         start = src.find('matrices')
         start += src[start:].find('=') + 1
         finish = start + src[start:].find(']')
-        return [t.strip(' ').replace('\n', '').replace(' ', '') for t in src[start:finish].strip(' []').split(',')]
+        tags_orig = src[start:finish].strip(' []').split(',')
+        tags_proc = [t.strip(' ').replace('\n', '').replace(' ', '') for t in tags_orig]
+        # Remove commented or empty
+        tags_final = []
+        for t in tags_proc:
+            if len(t) == 0:
+                continue
+            if t[0] == '#':
+                continue
+            tags_final.append(t)
+        return tags_final
 
     def run_solver(self, solver, A, b):
         """ Run the actual test for given solver, matrix and right-hand-side """
         # Reference solution
-        x_ref = pym.solvers.SolverSparseLU(A).solve(b)
-        xadj_ref = pym.solvers.SolverSparseLU(A.conj().T).solve(b)
-
-        # Calculate the solution and the adjoint solution
+        mats = dict()
+        mats['N'] = A
+        mats['T'] = A.T
+        mats['H'] = A.conj().T
         solver.update(A)
-        x = solver.solve(b)
-        xadj = solver.adjoint(b)
 
-        # Check residual and solution
-        residual = A @ x - b
-        r = np.linalg.norm(residual) / np.linalg.norm(b)
-        self.assertTrue(r < 1e-4, msg=f"Residual is {r}")
-        self.assertTrue(np.allclose(x, x_ref))
+        for k, Ai in mats.items():
+            print(f'Run mode = {k}')
+            xref = pym.solvers.SolverSparseLU(Ai).solve(b)
 
-        # Check adjoint residual and solution
-        residual_adj = (A.conj().T) @ xadj - b
-        r_adj = np.linalg.norm(residual_adj) / np.linalg.norm(b)
-        self.assertTrue(r_adj < 1e-4, msg=f"Adjoint residual is {r_adj} (normal residual = {r})")
-        self.assertTrue(np.allclose(xadj, xadj_ref))
+            # Calculate the solution and the adjoint solution
+            x = solver.solve(b, trans=k)
+
+            # Check residual and solution
+            r = np.linalg.norm(Ai @ x - b) / np.linalg.norm(b)
+            self.assertTrue(r < 1e-4, msg=f"Residual is {r}")
+            npt.assert_allclose(np.real(x), np.real(xref), atol=1e-10, rtol=1e-5)
+            if np.iscomplexobj(x) or np.iscomplexobj(xref):
+                npt.assert_allclose(np.imag(x), np.imag(xref), atol=1e-8, rtol=1e-5)
 
     def run_sparse_tests(self, solver, Acoo, rhs):
         """ Run the sparse tests for different matrix types """
@@ -417,7 +428,9 @@ class TestPardiso(GenericTestSolvers):
 
 class TestSparseCG(GenericTestSolvers):
     solver = pym.solvers.CG
-    kwargs = dict(preconditioner=pym.solvers.Jacobi(), verbosity=1)
+    # kwargs = dict(preconditioner=pym.solvers.ILU(), verbosity=1, tol=1e-9)
+    kwargs = dict(preconditioner=pym.solvers.SOR(w=1.0), verbosity=1, tol=1e-9)
+    # kwargs = dict(preconditioner=pym.solvers.DampedJacobi(), verbosity=1, tol=1e-9)
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -429,11 +442,11 @@ class TestSparseCG(GenericTestSolvers):
         # mat_real_symm_saddle,
         mat_complex_diagonal,
         mat_complex_spdiag,
-        mat_complex_symm_pos_def_dynamic,
+        # mat_complex_symm_pos_def_dynamic, # Works but needs many iterations
         # mat_complex_symm_indef_dynamic,
-        # mat_complex_hermitian_1,
+        mat_complex_hermitian_1,
         # mat_complex_hermitian_indef,
-        # mat_complex_hermitian_pos_def,
+        mat_complex_hermitian_pos_def,
     ]
 
 
