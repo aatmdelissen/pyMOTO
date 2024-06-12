@@ -1,4 +1,4 @@
-[![10.5281/zenodo.7708738](https://zenodo.org/badge/DOI/10.5281/zenodo.7708738.svg)](https://doi.org/10.5281/zenodo.7708738) 
+[![10.5281/zenodo.8138859](https://zenodo.org/badge/DOI/10.5281/zenodo.8138859.svg)](https://doi.org/10.5281/zenodo.8138859) 
 [![anaconda.org/aatmdelissen/pymoto](https://anaconda.org/aatmdelissen/pymoto/badges/version.svg)](https://anaconda.org/aatmdelissen/pymoto)
 [![pypi.org/project/pyMOTO](https://badge.fury.io/py/pyMOTO.svg)](https://pypi.org/project/pyMOTO/)
 
