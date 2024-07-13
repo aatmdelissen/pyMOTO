@@ -125,6 +125,13 @@ class DomainDefinition:
         self.conn = np.zeros((self.nel, self.elemnodes), dtype=int)
         self.conn[el, :] = self.get_elemconnectivity(elx, ely, elz)
 
+        # Helper for element slicing
+        eli, elj, elk = np.meshgrid(np.arange(self.nelx), np.arange(self.nely), np.arange(self.nelz), indexing='ij')
+        self.elements = self.get_elemnumber(eli, elj, elk)
+
+        ndi, ndj, ndk = np.meshgrid(np.arange(self.nelx+1), np.arange(self.nely+1), np.arange(self.nelz+1), indexing='ij')
+        self.nodes = self.get_nodenumber(ndi, ndj, ndk)
+
     def get_elemnumber(self, eli: Union[int, np.ndarray], elj: Union[int, np.ndarray], elk: Union[int, np.ndarray] = 0):
         """ Gets the element number(s) for element(s) with given Cartesian indices (i, j, k)
 
