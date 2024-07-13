@@ -14,7 +14,7 @@ from pymoto import Module
 from .assembly import DomainDefinition
 
 
-class _FigModule(Module):
+class FigModule(Module):
     """ Abstract base class for any module which produces a figure
 
     Keyword Args:
@@ -55,7 +55,7 @@ class _FigModule(Module):
         plt.close(self.fig)
 
 
-class PlotDomain(_FigModule):
+class PlotDomain(FigModule):
     """ Plots the densities of a domain (2D or 3D)
 
     Input Signal:
@@ -144,7 +144,7 @@ class PlotDomain(_FigModule):
         self.fac = ax.voxels(sel, facecolors=colors, linewidth=0.5, edgecolors='k')
 
 
-class PlotGraph(_FigModule):
+class PlotGraph(FigModule):
     """ Plot an X-Y graph
 
     Input Signals:
@@ -189,7 +189,7 @@ class PlotGraph(_FigModule):
         self._update_fig()
 
 
-class PlotIter(_FigModule):
+class PlotIter(FigModule):
     """ Plot iteration history of one or more variables
 
     Input Signals:
