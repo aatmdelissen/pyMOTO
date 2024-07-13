@@ -63,6 +63,7 @@ class LinearSolver:
         Returns:
             Residual value
         """
+        assert x.shape == b.shape
         if trans == 'N':
             mat = A
         elif trans == 'T':
@@ -71,7 +72,7 @@ class LinearSolver:
             mat = A.conj().T
         else:
             raise TypeError("Only N, T, or H transposition is possible")
-        return np.linalg.norm(mat@x - b) / np.linalg.norm(b)
+        return np.linalg.norm(mat@x - b, axis=0) / np.linalg.norm(b, axis=0)
 
 
 class LDAWrapper(LinearSolver):
@@ -130,56 +131,81 @@ class LDAWrapper(LinearSolver):
 
     def _do_solve_1rhs(self, A, rhs, x_data, b_data, solve_fn, x0=None):
         dtype = np.result_type(A, rhs)
-        rhs_loc = np.zeros_like(rhs, dtype=dtype)
-        rhs_loc[:] = rhs
+        if rhs.ndim == 1:
+            rhs_loc = np.zeros((rhs.size, 1), dtype=dtype)
+            rhs_loc[:, 0] = rhs
+        else:
+            rhs_loc = np.zeros_like(rhs, dtype=dtype)
+            rhs_loc[:] = rhs
         sol = np.zeros_like(rhs_loc, dtype=dtype)
 
         # Check linear dependencies in the rhs using modified Gram-Schmidt
         for (x, b) in zip(x_data, b_data):
-            alpha = rhs_loc @ b.conj() / (b.conj() @ b)
-            rem_rhs = alpha*b
-            add_sol = alpha*x
+            assert x.ndim == b.ndim == 1
+            assert x.size == b.size == rhs_loc.shape[0]
+            alpha = rhs_loc.T @ b.conj() / (b.conj() @ b)
 
-            if (np.iscomplexobj(add_sol) or np.iscomplexobj(rem_rhs)) and not (np.iscomplexobj(sol) or np.iscomplexobj(rhs_loc)):
-                small_imag_rhs = np.linalg.norm(np.imag(rem_rhs)) < 1e-10*np.linalg.norm(np.real(rem_rhs))
-                small_imag_sol = np.linalg.norm(np.imag(add_sol)) < 1e-10*np.linalg.norm(np.real(add_sol))
-                if small_imag_rhs and small_imag_sol:
+            rem_rhs = alpha * b[:, None]
+            add_sol = alpha * x[:, None]
+
+            if np.iscomplexobj(rem_rhs) and not np.iscomplexobj(rhs_loc):
+                if np.linalg.norm(np.imag(rem_rhs)) < 1e-10*np.linalg.norm(np.real(rem_rhs)):
                     rem_rhs = np.real(rem_rhs)
+                else:
+                    warnings.warn('LDAS: Complex vector cannot be subtracted from real rhs')
+                    continue
+
+            if np.iscomplexobj(add_sol) and not np.iscomplexobj(sol):
+                if np.linalg.norm(np.imag(add_sol)) < 1e-10*np.linalg.norm(np.real(add_sol)):
                     add_sol = np.real(add_sol)
                 else:
-                    # Complex vector cannot be added to real solution
+                    warnings.warn('LDAS: Complex vector cannot be added to real solution')
                     continue
+
             rhs_loc -= rem_rhs
             sol += add_sol
-            if x0 is not None:
-                # Remove solution from x0 vector
-                beta = x0 @ x.conj() / (x.conj() @ x)
-                x0 -= beta * x
 
         # Check tolerance
-        self._last_rtol = 1.0 if len(x_data) == 0 else self.residual(A, sol, rhs)
+        self._last_rtol = np.ones(rhs_loc.shape[-1]) if len(x_data) == 0 else self.residual(A, sol, rhs if rhs.ndim > 1 else rhs.reshape(-1, 1))
+        self._did_solve = self._last_rtol > self.tol
+        if np.any(self._did_solve):
+            if x0 is not None:
+                if x0.ndim == 1:
+                    x0_loc = x0.reshape(-1, 1).copy()
+                else:
+                    x0_loc = x0[..., self._did_solve].copy()
+                for x in x_data:
+                    beta = x0_loc.T @ x.conj() / (x.conj() @ x)
+                    x0_loc -= beta * x
+            else:
+                x0_loc = None
 
-        if self._last_rtol > self.tol:
             # Calculate a new solution
-            xnew = solve_fn(rhs_loc, x0)
-            x_data.append(xnew)
-            bnew = np.zeros_like(rhs)
-            bnew[:] = A@xnew
-            b_data.append(bnew)
-            sol += xnew
-            self._did_solve = True
+            xnew = solve_fn(rhs_loc[..., self._did_solve], x0_loc)
+            self.residual(A, xnew, rhs_loc[..., self._did_solve])
+            sol[..., self._did_solve] += xnew
+
+            # Add to database
+            for i in range(xnew.shape[-1]):
+                # Remove all previous components that are already in the database (orthogonalize)
+                xadd = xnew[..., i]
+                badd = A @ xadd
+                for x, b in zip(x_data, b_data):
+                    beta = badd @ b.conj() / (b.conj() @ b)
+                    badd -= beta * b
+                    xadd -= beta * x
+                bnrm = np.linalg.norm(badd)
+                if not np.isfinite(bnrm) or bnrm == 0:
+                    continue
+                badd /= bnrm
+                xadd /= bnrm
+                x_data.append(xadd)
+                b_data.append(badd)
+
+        if rhs.ndim == 1:
+            return sol.flatten()
         else:
-            self._did_solve = False
-
-        return sol
-
-    def _solve_1x(self, b, storage='N', x0=None):
-        if storage == 'N':  # Use the normal storage
-            return self._do_solve_1rhs(self.A, b, self.x_stored, self.b_stored,
-                                       lambda rhs, x0: self.solver.solve(rhs, trans='N', x0=x0), x0=x0)
-        elif storage == 'H':  # Use adjoint storage
-            return self._do_solve_1rhs(self.A.conj().T, b, self.xadj_stored, self.badj_stored,
-                                       lambda rhs, x0: self.solver.solve(rhs, trans='H', x0=x0), x0=x0)
+            return sol
 
     def solve(self, rhs, x0=None, trans='N'):
         r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by performing a modified
@@ -213,15 +239,15 @@ class LDAWrapper(LinearSolver):
 
         storage = 'H' if adjoint_mode else 'N'
         rhs = rhs.conj() if conj_mode else rhs
+        if storage == 'N':  # Use the normal storage
+            ret = self._do_solve_1rhs(self.A, rhs,
+                                      self.x_stored, self.b_stored,
+                                      lambda b, x_init: self.solver.solve(b, trans='N', x0=x_init),
+                                      x0=x0)
+        elif storage == 'H':  # Use adjoint storage
+            ret = self._do_solve_1rhs(self.A.conj().T, rhs,
+                                      self.xadj_stored, self.badj_stored,
+                                      lambda b, x_init: self.solver.solve(b, trans='H', x0=x_init),
+                                      x0=x0)
 
-        if rhs.ndim == 1:
-            ret = self._solve_1x(rhs, storage=storage, x0=x0)
-        else:  # Multiple rhs
-            if x0 is not None and x0.shape != rhs.shape:
-                warnings.warn(f'Shape of x0 {x0.shape}, but expected {rhs.shape}. Not using initial guess.')
-                x0 = None
-            sol = []
-            for i in range(rhs.shape[-1]):
-                sol.append(self._solve_1x(rhs[..., i], storage=storage, x0=x0[..., i] if x0 is not None else None))
-            ret = np.stack(sol, axis=-1)
         return ret.conj() if conj_mode else ret

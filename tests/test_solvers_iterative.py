@@ -9,13 +9,15 @@ import numpy.testing as npt
 import pymoto as pym
 
 
-class TestMultirrid(unittest.TestCase):
+class TestMultigrid(unittest.TestCase):
     def test_interpolation_2D(self):
         domain = pym.DomainDefinition(10, 10)
         mg1 = pym.solvers.GeometricMultigrid(domain)
+        bc_nodes = domain.nodes[:, 0].flatten()
+        bc = np.concatenate([bc_nodes*2, bc_nodes*2+1])
 
         sx = pym.Signal('x', np.ones(domain.nel))
-        m = pym.AssembleStiffness(sx, domain=domain)
+        m = pym.AssembleStiffness(sx, domain=domain, bc=bc)
         m.response()
         K = m.sig_out[0].state
 
@@ -44,9 +46,11 @@ class TestMultirrid(unittest.TestCase):
     def test_interpolation_3D(self):
         domain = pym.DomainDefinition(10, 10, 10)
         mg1 = pym.solvers.GeometricMultigrid(domain)
+        bc_nodes = domain.nodes[:, :, 0].flatten()
+        bc = np.concatenate([bc_nodes * 3, bc_nodes * 3 + 1, bc_nodes * 3 + 2])
 
         sx = pym.Signal('x', np.ones(domain.nel))
-        m = pym.AssembleStiffness(sx, domain=domain)
+        m = pym.AssembleStiffness(sx, domain=domain, bc=bc)
         m.response()
         K = m.sig_out[0].state
 

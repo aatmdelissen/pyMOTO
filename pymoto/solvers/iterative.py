@@ -299,7 +299,7 @@ class CG(LinearSolver):
         self.A = A
         self.preconditioner.update(A)
         if self.verbosity >= 1:
-            print(f"Preconditioner set up in {time.perf_counter() - tstart}s")
+            print(f"Preconditioner set up in {np.round(time.perf_counter() - tstart,3)}s")
 
     def solve(self, rhs, x0=None, trans='N'):
         if trans == 'N':
@@ -353,7 +353,7 @@ class CG(LinearSolver):
         if tval > self.tol:
             warnings.warn(f'Maximum iterations ({self.maxit}) reached, with final residual {tval}')
         elif self.verbosity >= 1:
-            print(f"Converged in {i} iterations and {time.perf_counter() - tstart}s, with final residuals {np.linalg.norm(r, axis=0) / np.linalg.norm(b, axis=0)}")
+            print(f"Converged in {i} iterations and {np.round(time.perf_counter() - tstart, 3)}s, with final residuals {np.linalg.norm(r, axis=0) / np.linalg.norm(b, axis=0)}")
 
         if rhs.ndim == 1:
             return x.flatten()
