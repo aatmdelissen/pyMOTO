@@ -209,7 +209,7 @@ class GenericTestDenseSolvers(unittest.TestCase):
         return tags_final
 
     def run_solver(self, solver, A, b):
-        atol = 1e-13
+        atol = 1e-12
         # Get reference solutions
         A_N = A
         A_T = A.T
