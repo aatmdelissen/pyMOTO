@@ -366,5 +366,5 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
 
         cvxopt.cholmod.solve(self.inv, B, nrhs=nrhs)
 
-        x = np.array(B).flatten() if nrhs == 1 else np.array(B)
+        x = np.array(B).flatten() if rhs.ndim == 1 else np.array(B)
         return x.conj() if trans == 'T' else x
