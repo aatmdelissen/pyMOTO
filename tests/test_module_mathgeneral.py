@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+import numpy.testing as npt
 import pymoto as pym
 
 
@@ -183,6 +184,53 @@ class TestMath(unittest.TestCase):
         def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
         pym.finite_difference(mod, test_fn=tfn)
 
+    def test_numpy_arrays_with_broadcasting(self):
+        """ Check if broadcasting works for sensitivity calculation """
+        np.random.seed(0)
+        sv1 = pym.Signal("vec", np.random.rand(15))
+        sv2 = pym.Signal("vec", np.random.rand(2, 15))
+        sv3 = pym.Signal("vec", np.random.rand(2, 2, 15))
+        s_scalar = pym.Signal("scalar", 3.5)
+
+        sRes = pym.Signal("result")
+
+        mod = pym.MathGeneral([sv1, sv2, sv3, s_scalar], sRes, expression="inp0*inp1*inp2*inp3")
+        mod.response()
+
+        # Check value of response
+        self.assertEqual(sRes.state.shape, (2, 2, 15))
+        npt.assert_allclose(sRes.state, sv1.state * sv2.state * sv3.state * s_scalar.state)
+
+        # Check sensitivities
+        sRes.sensitivity = np.random.rand(*sRes.state.shape)
+        mod.sensitivity()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
+        pym.finite_difference(mod, test_fn=tfn)
+
+    def test_numpy_arrays_with_broadcasting1(self):
+        """ Broadcast with singleton axes """
+        np.random.seed(0)
+        sv1 = pym.Signal("vec", np.random.rand(36, 1, 15))
+        sv2 = pym.Signal("vec", np.random.rand(2, 1, 1, 15))
+        sv3 = pym.Signal("vec", np.random.rand(2, 1, 2, 15))
+        s_scalar = pym.Signal("scalar", 3.5)
+
+        sRes = pym.Signal("result")
+
+        mod = pym.MathGeneral([sv1, sv2, sv3, s_scalar], sRes, expression="inp0*inp1*inp2*inp3")
+        mod.response()
+
+        # Check value of response
+        self.assertEqual(sRes.state.shape, (2, 36, 2, 15))
+        npt.assert_allclose(sRes.state, sv1.state * sv2.state * sv3.state * s_scalar.state)
+
+        # Check sensitivities
+        sRes.sensitivity = np.random.rand(*sRes.state.shape)
+        mod.sensitivity()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
+        pym.finite_difference(mod, test_fn=tfn)
 
 if __name__ == '__main__':
     unittest.main()

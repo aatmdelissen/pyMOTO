@@ -105,10 +105,21 @@ class MathGeneral(Module):
             if np.isrealobj(dg_dx[i]) and np.iscomplexobj(dg_dx_add):
                 dg_dx_add = np.real(dg_dx_add)
 
-            # Add the contribution
+            # Add the contribution according to broadcasting rules of NumPy
+            # https://numpy.org/doc/stable/user/basics.broadcasting.html
             if (not hasattr(dg_dx[i], '__len__')) or (hasattr(dg_dx[i], 'ndim') and dg_dx[i].ndim == 0):
                 # Scalar type or 0-dimensional array
                 dg_dx[i] += np.sum(dg_dx_add)
+            elif dg_dx[i].shape != dg_dx_add.shape:
+                # Reverse broadcast https://stackoverflow.com/questions/76002989/numpy-is-there-a-reverse-broadcast
+                n_leading_dims = dg_dx_add.ndim - dg_dx[i].ndim
+                broadcasted_dims = tuple(range(n_leading_dims))
+                for ii in range(dg_dx_add.ndim - n_leading_dims):
+                    if dg_dx[i].shape[ii] == 1 and dg_dx_add.shape[ii+n_leading_dims] != 1:
+                        broadcasted_dims = (*broadcasted_dims, n_leading_dims+ii)
+
+                dg_dx_add1 = np.add.reduce(dg_dx_add, axis=broadcasted_dims, keepdims=True)  # Sum broadcasted axis
+                dg_dx[i] += np.squeeze(dg_dx_add1, axis=tuple(range(n_leading_dims)))  # Squeeze out singleton axis
             else:
                 dg_dx[i] += dg_dx_add
 
