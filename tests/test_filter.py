@@ -157,6 +157,49 @@ class TestConvolutionFilter(unittest.TestCase):
                 for k in range(3):
                     npt.assert_allclose(y[domain.get_elemnumber(ix-1+i, iy-1+j, iz-1+k)], w[i,j,k])
 
+    def test_3D_dot_symm_at_zmin(self):
+        np.random.seed(0)
+        domain = pym.DomainDefinition(10, 11, 12)
+
+        ix, iy, iz = 5, 6, 0
+
+        x = np.zeros(domain.nel)
+        x[domain.get_elemnumber(ix, iy, iz)] = 1.0
+        sx = pym.Signal('x', state=x)
+
+        m = pym.FilterConv(sx, domain=domain, radius=2, relative_units=True)
+        m.response()
+
+        y = m.sig_out[0].state
+        w = m.weights
+        ysel = y[domain.elements[ix + np.arange(-1, 2), :, :][:, iy + np.arange(-1, 2), :][:, :, :2]]
+
+        # Layer affected by symmetry
+        npt.assert_allclose(ysel[0, 0, 0], w[0, 0, 1] + w[0, 0, 0])
+        npt.assert_allclose(ysel[1, 0, 0], w[1, 0, 1] + w[1, 0, 0])
+        npt.assert_allclose(ysel[2, 0, 0], w[2, 0, 1] + w[2, 0, 0])
+
+        npt.assert_allclose(ysel[0, 1, 0], w[0, 1, 1] + w[0, 1, 0])
+        npt.assert_allclose(ysel[1, 1, 0], w[1, 1, 1] + w[1, 1, 0])
+        npt.assert_allclose(ysel[2, 1, 0], w[2, 1, 1] + w[2, 1, 0])
+
+        npt.assert_allclose(ysel[0, 2, 0], w[0, 2, 1] + w[0, 2, 0])
+        npt.assert_allclose(ysel[1, 2, 0], w[1, 2, 1] + w[1, 2, 0])
+        npt.assert_allclose(ysel[2, 2, 0], w[2, 2, 1] + w[2, 2, 0])
+
+        # Layer unaffected by symmetry
+        npt.assert_allclose(ysel[0, 0, 1], w[0, 0, 2])
+        npt.assert_allclose(ysel[1, 0, 1], w[1, 0, 2])
+        npt.assert_allclose(ysel[2, 0, 1], w[2, 0, 2])
+
+        npt.assert_allclose(ysel[0, 1, 1], w[0, 1, 2])
+        npt.assert_allclose(ysel[1, 1, 1], w[1, 1, 2])
+        npt.assert_allclose(ysel[2, 1, 1], w[2, 1, 2])
+
+        npt.assert_allclose(ysel[0, 2, 1], w[0, 2, 2])
+        npt.assert_allclose(ysel[1, 2, 1], w[1, 2, 2])
+        npt.assert_allclose(ysel[2, 2, 1], w[2, 2, 2])
+
     def test_3D_symmetric(self):
         np.random.seed(0)
         domain = pym.DomainDefinition(10, 12, 13, unitx=0.5, unity=1.0, unitz=1.2)
