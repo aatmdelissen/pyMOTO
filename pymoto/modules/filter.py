@@ -32,8 +32,8 @@ class FilterConv(Module):
         self.el3d_orig = self.domain.get_elemnumber(el_x, el_y, el_z)
 
         padx = self._process_padding(self.el3d_orig, xmin_bc, xmax_bc, 0, self.pad_sizes[0])
-        pady = self._process_padding(padx, ymax_bc, ymax_bc, 1, self.pad_sizes[1])
-        self.el3d_pad = self._process_padding(pady, zmax_bc, zmax_bc, 2, self.pad_sizes[2])
+        pady = self._process_padding(padx, ymin_bc, ymax_bc, 1, self.pad_sizes[1])
+        self.el3d_pad = self._process_padding(pady, zmin_bc, zmax_bc, 2, self.pad_sizes[2])
         # # Process padding of the domain
         # if left == 'wrap' and right == 'wrap':
         #     pad1a = np.pad(self.el3d_orig, [(self.pad_sizes[0], self.pad_sizes[0]), (0, 0), (0, 0)], mode='wrap')
