@@ -285,15 +285,13 @@ class WriteToVTI(Module):
 
 
 class ScalarToFile(Module):
-    def _prepare(self, path=".", filename="log.txt"):
-        self.path = path
-        self.filename = filename
-        self.file = os.path.join(self.path, self.filename)
+    def _prepare(self, saveto="log.txt"):
+        self.file = saveto
 
-        if self.filename.find(".csv") > 0:
+        if self.file.find(".csv") > 0:
             self.separator = ", "
         else:
-            self.separator = "\t\t"
+            self.separator = "\t"
 
         newline = ["#iter",] + [s.tag for s in self.sig_in]
         with open(self.file, "w+") as f:
@@ -308,7 +306,7 @@ class ScalarToFile(Module):
             data.append(s.state)
         with open(self.file, "a+") as f:
             f.write("{:04d}".format(self.iter) + self.separator)
-            f.write(self.separator.join(['%.5f' % d for d in data]))
+            f.write(self.separator.join(['%.4E' % d for d in data]))
             f.write("\n")
 
         self.iter += 1
