@@ -245,9 +245,6 @@ becomes
 
 $$\frac{\partial f}{\partial z} = 2 \text{Re}\left( \frac{\partial f}{\partial s}\frac{\partial s}{\partial r} \right)\text{.}$$
 
-### Adjoint method with complex values
-TODO
-
 **References and further reading**
   - [Wirtinger derivatives, Wikipedia](https://en.wikipedia.org/wiki/Wirtinger_derivatives)
   - Sarason (2007). *Complex function theory*. American Mathematical Society.

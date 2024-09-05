@@ -34,15 +34,14 @@ automatically calculated.
 4. Run the example by typing `python ex_....py` in the console
 
 
-A local installation for development in `pyMOTO` can be done by first downloading the entire git repo, and then calling 
+For development, a local installation of `pyMOTO` can be done by first downloading/cloning the entire git repo, and then calling 
 `pip install -e .` in the `pyMOTO` folder (of course from within your virtual environment).
 
 ## Dependencies
-* **NumPy** - Dense linear algebra and solvers
-* **SciPy** - Sparse linear algebra and solvers
-* **SymPy** - Symbolic differentiation for `MathGeneral` module
-* **Matplotlib** - Plotting and visualisation
-* (optional) **SAO** - Sequential approximated optimizers
+* [**numpy**](https://numpy.org/doc/stable/) - Dense linear algebra and solvers
+* [**scipy**](https://docs.scipy.org/doc/scipy/) - Sparse linear algebra and solvers
+* [**sympy**](https://docs.sympy.org/latest/index.html) - Symbolic differentiation for `MathGeneral` module
+* [**Matplotlib**](https://matplotlib.org/stable/) - Plotting and visualisation
 * (optional) [**opt_einsum**](https://optimized-einsum.readthedocs.io/en/stable/install.html) - Optimized function for `EinSum` module
 
 For fast linear solvers for sparse matrices:
