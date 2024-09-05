@@ -373,7 +373,7 @@ class DyadCarrier(object):
 
         return val
 
-    def contract_multi(self, mats: list[spmatrix], dtype=None):
+    def contract_multi(self, mats: List[spmatrix], dtype=None):
         """ Faster version of contraction for a list of sparse matrices """
         if dtype is None:
             dtype = np.result_type(self.dtype, mats[0].dtype)
