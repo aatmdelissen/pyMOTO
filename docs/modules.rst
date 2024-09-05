@@ -39,7 +39,6 @@ Constraint Aggregation
    pymoto.KSFunction
 
 Helper objects
-
 .. autosummary::
    :toctree: stubs
    :nosignatures:
@@ -113,33 +112,31 @@ Linear Solvers
    :toctree: stubs
    :nosignatures:
 
-   pymoto.LinearSolver
-   pymoto.LDAWrapper
-   pymoto.SolverDiagonal
-   pymoto.SolverDenseQR
-   pymoto.SolverDenseLU
-   pymoto.SolverDenseCholesky
-   pymoto.SolverDenseLDL
-   pymoto.SolverSparseLU
-   pymoto.SolverSparsePardiso
-   pymoto.SolverSparseCholeskyScikit
-   pymoto.SolverSparseCholeskyCVXOPT
+   pymoto.solvers.LinearSolver
+   pymoto.solvers.LDAWrapper
+   pymoto.solvers.SolverDiagonal
+   pymoto.solvers.SolverDenseQR
+   pymoto.solvers.SolverDenseLU
+   pymoto.solvers.SolverDenseCholesky
+   pymoto.solvers.SolverDenseLDL
+   pymoto.solvers.SolverSparseLU
+   pymoto.solvers.SolverSparsePardiso
+   pymoto.solvers.SolverSparseCholeskyScikit
+   pymoto.solvers.SolverSparseCholeskyCVXOPT
 
 Preconditioners
-
 .. autosummary::
    :toctree: stubs
    :nosignatures:
 
-   pymoto.Preconditioner
-   pymoto.DampedJacobi
-   pymoto.SOR
-   pymoto.ILU
-   pymoto.GeometricMultigrid
+   pymoto.solvers.Preconditioner
+   pymoto.solvers.DampedJacobi
+   pymoto.solvers.SOR
+   pymoto.solvers.ILU
+   pymoto.solvers.GeometricMultigrid
 
 Iterative solvers
-
 .. autosummary::
    :toctree: stubs
    :nosignatures:
-   pymoto.CG
+   pymoto.solvers.CG
