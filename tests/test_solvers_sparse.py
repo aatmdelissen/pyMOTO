@@ -5,6 +5,7 @@ import unittest
 from math import isclose
 
 import numpy as np
+import numpy.testing as npt
 import scipy as sp
 import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
@@ -49,7 +50,7 @@ def generate_symm_indef():
     sigma = -0.1  # To prevent exact singularity
     As = A - sigma*spsp.eye(A.shape[0])
     # Calculate eigenvalues
-    # solver = pym.SolverSparseLU().update(As)
+    # solver = pym.solvers.SolverSparseLU().update(As)
     # opinv = spspla.LinearOperator(A.shape, matvec=solver.solve, rmatvec=solver.adjoint)
     # w, _ = spspla.eigsh(A, sigma=sigma, k=100, OPinv=opinv, ncv=200)]
     return As.tocoo()
@@ -59,8 +60,8 @@ def generate_dynamic(complex=False, indef=False):
     """ Generate a dynamic stiffness matrix, either complex or not, and indefinite or not"""
     K = load_matrix("bcsstk26.mtx.gz")
     M = load_matrix("bcsstm26.mtx.gz")
-    solver = pym.SolverSparseLU().update(K.tocsc())
-    opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=solver.adjoint)
+    solver = pym.solvers.SolverSparseLU().update(K.tocsc())
+    opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=lambda b: solver.adjoint(b, trans='H'))
     w, _ = spspla.eigsh(K, M=M, sigma=0, k=100, OPinv=opinv, ncv=200)
     eigfreqs = np.sqrt(w)
     if indef:
@@ -77,8 +78,8 @@ def generate_dynamic(complex=False, indef=False):
 def generate_saddlepoint():
     K = load_matrix("bcsstk26.mtx.gz")
     M = load_matrix("bcsstm26.mtx.gz")
-    solver = pym.SolverSparseLU().update(K.tocsc())
-    opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=solver.adjoint)
+    solver = pym.solvers.SolverSparseLU().update(K.tocsc())
+    opinv = spspla.LinearOperator(K.shape, matvec=solver.solve, rmatvec=lambda b: solver.adjoint(b, trans='H'))
     w, V = spspla.eigsh(K, M=M, sigma=0, k=100, OPinv=opinv, ncv=200)
     wi, vi = w[0], V[:, [0]]
     Mv = M@vi
@@ -172,7 +173,7 @@ class TestGenericUtility(unittest.TestCase):
 
 
 class TestIsComplex(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_complex)
+    fn = staticmethod(pym.solvers.matrix_is_complex)
     data = [
         (mat_real_diagonal, False),
         (mat_real_spdiag, False),
@@ -192,7 +193,7 @@ class TestIsComplex(TestGenericUtility):
 
 
 class TestIsDiagonal(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_diagonal)
+    fn = staticmethod(pym.solvers.matrix_is_diagonal)
     data = [
         (mat_real_diagonal, True),
         (mat_real_spdiag, True),
@@ -212,7 +213,7 @@ class TestIsDiagonal(TestGenericUtility):
 
 
 class TestIsSymmetric(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_symmetric)
+    fn = staticmethod(pym.solvers.matrix_is_symmetric)
     data = [
         (mat_real_diagonal, True),
         (mat_real_spdiag, True),
@@ -232,7 +233,7 @@ class TestIsSymmetric(TestGenericUtility):
 
 
 class TestIsHermitian(TestGenericUtility):
-    fn = staticmethod(pym.matrix_is_hermitian)
+    fn = staticmethod(pym.solvers.matrix_is_hermitian)
     data = [
         (mat_real_diagonal, True),
         (mat_real_spdiag, True),
@@ -263,6 +264,7 @@ class GenericTestSolvers(unittest.TestCase):
     """ Generic test runner for any solver and list of matrices """
     solver = None  # The solver to use
     matrices = []  # The list of matrices the solver should be able to handle
+    kwargs = dict()
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -278,30 +280,40 @@ class GenericTestSolvers(unittest.TestCase):
         start = src.find('matrices')
         start += src[start:].find('=') + 1
         finish = start + src[start:].find(']')
-        return [t.strip(' ').replace('\n', '').replace(' ', '') for t in src[start:finish].strip(' []').split(',')]
+        tags_orig = src[start:finish].strip(' []').split(',')
+        tags_proc = [t.strip(' ').replace('\n', '').replace(' ', '') for t in tags_orig]
+        # Remove commented or empty
+        tags_final = []
+        for t in tags_proc:
+            if len(t) == 0:
+                continue
+            if t[0] == '#':
+                continue
+            tags_final.append(t)
+        return tags_final
 
     def run_solver(self, solver, A, b):
         """ Run the actual test for given solver, matrix and right-hand-side """
         # Reference solution
-        x_ref = pym.SolverSparseLU(A).solve(b)
-        xadj_ref = pym.SolverSparseLU(A.conj().T).solve(b)
-
-        # Calculate the solution and the adjoint solution
+        mats = dict()
+        mats['N'] = A
+        mats['T'] = A.T
+        mats['H'] = A.conj().T
         solver.update(A)
-        x = solver.solve(b)
-        xadj = solver.adjoint(b)
 
-        # Check residual and solution
-        residual = A @ x - b
-        r = np.linalg.norm(residual) / np.linalg.norm(b)
-        self.assertTrue(r < 1e-4, msg=f"Residual is {r}")
-        self.assertTrue(np.allclose(x, x_ref))
+        for k, Ai in mats.items():
+            print(f'Run mode = {k}')
+            xref = pym.solvers.SolverSparseLU(Ai).solve(b)
 
-        # Check adjoint residual and solution
-        residual_adj = (A.conj().T) @ xadj - b
-        r_adj = np.linalg.norm(residual_adj) / np.linalg.norm(b)
-        self.assertTrue(r_adj < 1e-4, msg=f"Adjoint residual is {r_adj} (normal residual = {r})")
-        self.assertTrue(np.allclose(xadj, xadj_ref))
+            # Calculate the solution and the adjoint solution
+            x = solver.solve(b, trans=k)
+
+            # Check residual and solution
+            r = np.linalg.norm(Ai @ x - b) / np.linalg.norm(b)
+            self.assertTrue(r < 1e-4, msg=f"Residual is {r}")
+            npt.assert_allclose(np.real(x), np.real(xref), atol=1e-10, rtol=1e-5)
+            if np.iscomplexobj(x) or np.iscomplexobj(xref):
+                npt.assert_allclose(np.imag(x), np.imag(xref), atol=1e-8, rtol=1e-5)
 
     def run_sparse_tests(self, solver, Acoo, rhs):
         """ Run the sparse tests for different matrix types """
@@ -318,24 +330,28 @@ class GenericTestSolvers(unittest.TestCase):
             N = A.shape[0]
             with self.subTest(msg=f"{t}.real-rhs"):
                 b = np.random.rand(N)
-                self.run_sparse_tests(self.solver(), A, b)
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
             with self.subTest(msg=f"{t}.multi-real-rhs"):
                 b = np.random.rand(N, 3)
-                self.run_sparse_tests(self.solver(), A, b)
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
+            with self.subTest(msg=f"{t}.multi-real-rhs-lineardependent"):
+                b = np.random.rand(N, 3)
+                b[:, 1] = b[:, 2]
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
 
-            if not pym.matrix_is_complex(A):
+            if not pym.solvers.matrix_is_complex(A):
                 continue
 
             with self.subTest(msg=f"{t}.complex-rhs"):
                 b = np.random.rand(N) + 1j * np.random.rand(N)
-                self.run_sparse_tests(self.solver(), A, b)
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
             with self.subTest(msg=f"{t}.multi-complex-rhs"):
                 b = np.random.rand(N, 3) + 1j * np.random.rand(N, 3)
-                self.run_sparse_tests(self.solver(), A, b)
+                self.run_sparse_tests(self.solver(**self.kwargs), A, b)
 
 
 class TestSparseDiagonal(GenericTestSolvers):
-    solver = pym.SolverDiagonal
+    solver = pym.solvers.SolverDiagonal
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -345,7 +361,7 @@ class TestSparseDiagonal(GenericTestSolvers):
 
 
 class TestSparseLU(GenericTestSolvers):
-    solver = pym.SolverSparseLU
+    solver = pym.solvers.SolverSparseLU
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -367,7 +383,7 @@ class TestSparseLU(GenericTestSolvers):
 
 class TestCholeskyScikit(GenericTestSolvers):
     # I don't know why, but scikit is able to solve indefinite matrix as well. Maybe they do some LDL inside?
-    solver = pym.SolverSparseCholeskyScikit
+    solver = pym.solvers.SolverSparseCholeskyScikit
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -380,7 +396,7 @@ class TestCholeskyScikit(GenericTestSolvers):
 
 
 class TestCholeskyCVXOPT(GenericTestSolvers):
-    solver = pym.SolverSparseCholeskyCVXOPT
+    solver = pym.solvers.SolverSparseCholeskyCVXOPT
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -392,7 +408,7 @@ class TestCholeskyCVXOPT(GenericTestSolvers):
 
 
 class TestPardiso(GenericTestSolvers):
-    solver = pym.SolverSparsePardiso
+    solver = pym.solvers.SolverSparsePardiso
     matrices = [
         mat_real_diagonal,
         mat_real_spdiag,
@@ -407,6 +423,30 @@ class TestPardiso(GenericTestSolvers):
         # mat_complex_symm_pos_def_dynamic,
         # mat_complex_symm_indef_dynamic,
         # mat_complex_hermitian_1,
+    ]
+
+
+class TestSparseCG(GenericTestSolvers):
+    solver = pym.solvers.CG
+    # kwargs = dict(preconditioner=pym.solvers.ILU(), verbosity=1, tol=1e-9)
+    kwargs = dict(preconditioner=pym.solvers.SOR(w=1.0), verbosity=1, tol=1e-9)
+    # kwargs = dict(preconditioner=pym.solvers.DampedJacobi(), verbosity=1, tol=1e-9)
+    matrices = [
+        mat_real_diagonal,
+        mat_real_spdiag,
+        mat_real_symm_pos_def,
+        mat_real_symm_pos_def_dynamic,
+        # mat_real_symm_indef,
+        # mat_real_symm_indef_dynamic,
+        # mat_real_asymm,
+        # mat_real_symm_saddle,
+        mat_complex_diagonal,
+        mat_complex_spdiag,
+        # mat_complex_symm_pos_def_dynamic, # Works but needs many iterations
+        # mat_complex_symm_indef_dynamic,
+        mat_complex_hermitian_1,
+        # mat_complex_hermitian_indef,
+        mat_complex_hermitian_pos_def,
     ]
 
 

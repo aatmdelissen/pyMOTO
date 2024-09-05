@@ -73,7 +73,7 @@ class MakeComplex(Module):
 
 
 class RealPart(Module):
-    """ Takes the real part of a complex value :math:`x = \\text{Re}(z)`
+    r""" Takes the real part of a complex value :math:`x = \text{Re}(z)`
 
     Input Signal:
         - ``z``: Complex value
@@ -89,7 +89,7 @@ class RealPart(Module):
 
 
 class ImagPart(Module):
-    """ Takes the imaginary part of a complex value :math:`y = \\text{Im}(z)`
+    r""" Takes the imaginary part of a complex value :math:`y = \text{Im}(z)`
 
     Input Signal:
         - ``z``: Complex value
@@ -105,7 +105,7 @@ class ImagPart(Module):
 
 
 class ComplexNorm(Module):
-    """ Takes the complex norm :math:`A = z z^*`
+    r""" Takes the complex norm :math:`A = \sqrt(z z^*)`
 
     Input Signal:
         - ``z``: Complex value

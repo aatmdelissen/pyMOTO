@@ -1,9 +1,11 @@
-from typing import Union, List, Any
+import sys
 import warnings
 import inspect
 import time
-from .utils import _parse_to_list, _concatenate_to_array, _split_from_array
+import copy
+from typing import Union, List, Any
 from abc import ABC, abstractmethod
+from .utils import _parse_to_list, _concatenate_to_array, _split_from_array
 
 
 # Local helper functions
@@ -11,7 +13,7 @@ def err_fmt(*args):
     """ Format error strings for locating Modules and Signals"""
     err_str = ""
     for a in args:
-        err_str += f"\n\t[ {a} ]"
+        err_str += f"\n\t| {a}"
     return err_str
 
 
@@ -76,16 +78,20 @@ class Signal:
     >> Signal(tag='x2')
 
     """
-    def __init__(self, tag: str = "", state: Any = None, sensitivity: Any = None):
+    def __init__(self, tag: str = "", state: Any = None, sensitivity: Any = None, min: Any = None, max: Any = None):
         """
-
-        :param tag: The name of the signal (string)
-        :param state: The initialized state (optional)
-        :param sensitivity: The initialized sensitivity (optional)
+        Keyword Args:
+            tag: The name of the signal
+            state: The initialized state
+            sensitivity: The initialized sensitivity
+            min: Minimum allowed value
+            max: Maximum allowed value
         """
         self.tag = tag
         self.state = state
         self.sensitivity = sensitivity
+        self.min = min
+        self.max = max
         self.keep_alloc = sensitivity is not None
 
         # Save error string to location where it is initialized
@@ -95,11 +101,12 @@ class Signal:
         return err_fmt(f"Signal \'{self.tag}\', initialized in {self._init_loc}")
 
     def add_sensitivity(self, ds: Any):
+        """ Add a new term to internal sensitivity """
         try:
             if ds is None:
                 return
             if self.sensitivity is None:
-                self.sensitivity = ds
+                self.sensitivity = copy.deepcopy(ds)
             else:
                 self.sensitivity += ds
             return self
@@ -116,8 +123,12 @@ class Signal:
     def reset(self, keep_alloc: bool = None):
         """ Reset the sensitivities to zero or None
         This must be called to clear internal memory of subsequent sensitivity calculations.
-        :param keep_alloc: Keep the sensitivity allocation intact?
-        :return: self
+
+        Args:
+            keep_alloc: Keep the sensitivity allocation intact?
+
+        Returns:
+            self
         """
         if self.sensitivity is None:
             return self
@@ -138,10 +149,33 @@ class Signal:
 
     def __getitem__(self, item):
         """ Obtain a sliced signal, for using its partial contents.
-        :param item: Slice indices
-        :return: Sliced signal (SignalSlice)
+
+        Args:
+            item: Slice indices
+
+        Returns:
+            Sliced signal (SignalSlice)
         """
         return SignalSlice(self, item)
+
+    def __str__(self):
+        state_msg = f"state {self.state}" if self.state is not None else "empty state"
+        state_msg = state_msg.split('\n')
+        if len(state_msg) > 1:
+            state_msg = state_msg[0] + ' ... ' + state_msg[-1]
+        else:
+            state_msg = state_msg[0]
+        return f"Signal \"{self.tag}\" with {state_msg}"
+
+    def __repr__(self):
+        state_msg = f"state {self.state}" if self.state is not None else "empty state"
+        state_msg = state_msg.split('\n')
+        if len(state_msg) > 1:
+            state_msg = state_msg[0] + ' ... ' + state_msg[-1]
+        else:
+            state_msg = state_msg[0]
+        sens_msg = 'empty sensitivity' if self.sensitivity is None else 'non-empty sensitivity'
+        return f"Signal \"{self.tag}\" with {state_msg} and {sens_msg} at {hex(id(self))}"
 
 
 class SignalSlice(Signal):
@@ -169,7 +203,8 @@ class SignalSlice(Signal):
             return None if self.orig_signal.state is None else self.orig_signal.state[self.slice]
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
-            raise type(e)("SignalSlice.state (getter)" + self._err_str()) from e
+            raise type(e)(str(e) + "\n\t| Above error was raised in SignalSlice.state (getter). Signal details:" +
+                      self._err_str()).with_traceback(sys.exc_info()[2])
 
     @state.setter
     def state(self, new_state):
@@ -177,7 +212,8 @@ class SignalSlice(Signal):
             self.orig_signal.state[self.slice] = new_state
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
-            raise type(e)("SignalSlice.state (setter)" + self._err_str()) from e
+            raise type(e)(str(e) + "\n\t| Above error was raised in SignalSlice.state (setter). Signal details:" +
+                          self._err_str()).with_traceback(sys.exc_info()[2])
 
     @property
     def sensitivity(self):
@@ -185,7 +221,8 @@ class SignalSlice(Signal):
             return None if self.orig_signal.sensitivity is None else self.orig_signal.sensitivity[self.slice]
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
-            raise type(e)("SignalSlice.sensitivity (getter)" + self._err_str()) from e
+            raise type(e)(str(e) + "\n\t| Above error was raised in SignalSlice.sensitivity (getter). Signal details:" +
+                          self._err_str()).with_traceback(sys.exc_info()[2])
 
     @sensitivity.setter
     def sensitivity(self, new_sens):
@@ -207,7 +244,8 @@ class SignalSlice(Signal):
             self.orig_signal.sensitivity[self.slice] = new_sens
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
-            raise type(e)("SignalSlice.sensitivity (setter)" + self._err_str()) from e
+            raise type(e)(str(e) + "\n\t| Above error was raised in SignalSlice.state (setter). Signal details:" +
+                          self._err_str()).with_traceback(sys.exc_info()[2])
 
     def reset(self, keep_alloc: bool = None):
         """ Reset the sensitivities to zero or None
@@ -231,7 +269,7 @@ def make_signals(*args):
     return ret
 
 
-def _check_valid_signal(sig: Any):
+def _is_valid_signal(sig: Any):
     """ Checks if the argument is a valid Signal object
     :param sig: The object to check
     :return: True if it is a valid Signal
@@ -240,10 +278,10 @@ def _check_valid_signal(sig: Any):
         return True
     if all([hasattr(sig, f) for f in ["state", "sensitivity", "add_sensitivity", "reset"]]):
         return True
-    raise TypeError(f"Given argument with type \'{type(sig).__name__}\' is not a valid Signal")
+    return False
 
 
-def _check_valid_module(mod: Any):
+def _is_valid_module(mod: Any):
     """ Checks if the argument is a valid Module object
     :param mod: The object to check
     :return: True if it is a valid Module
@@ -252,7 +290,7 @@ def _check_valid_module(mod: Any):
         return True
     if hasattr(mod, "response") and hasattr(mod, "sensitivity") and hasattr(mod, "reset"):
         return True
-    raise TypeError(f"Given argument with type \'{type(mod).__name__}\' is not a valid Module")
+    return False
 
 
 def _check_function_signature(fn, signals):
@@ -370,60 +408,48 @@ class Module(ABC, RegisteredClass):
     >> Module(sig_in=[inputs], sig_out=[outputs]
     """
 
-    def _err_str(self, init: bool = True, add_signal: bool = True, fn=None):
+    def _err_str(self, module_signature: bool = True, init: bool = True, fn=None):
         str_list = []
-        if init:
-            str_list.append(f"Module \'{type(self).__name__}\', initialized in {self._init_loc}")
-        if add_signal:
+
+        if module_signature:
             inp_str = "Inputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_in]) if len(self.sig_in) > 0 else "No inputs"
             out_str = "Outputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_out]) if len(self.sig_out) > 0 else "No outputs"
-            str_list.append(inp_str + " --> " + out_str)
+            str_list.append(f"Module \'{type(self).__name__}\'( " + inp_str + " ) --> " + out_str)
+        if init:
+            str_list.append(f"Used in {self._init_loc}")
         if fn is not None:
             name = f"{fn.__self__.__class__.__name__}.{fn.__name__}{inspect.signature(fn)}"
             lineno = inspect.getsourcelines(fn)[1]
             filename = inspect.getfile(fn)
-            str_list.append(f"Implemented in File \"{filename}\", line {lineno}, in {name}")
+            str_list.append(f"Implementation in File \"{filename}\", line {lineno}, in {name}")
         return err_fmt(*str_list)
 
     # flake8: noqa: C901
     def __init__(self, sig_in: Union[Signal, List[Signal]] = None, sig_out: Union[Signal, List[Signal]] = None,
                  *args, **kwargs):
-        # TODO: Reduce complexity of this init
         self._init_loc = get_init_str()
 
         self.sig_in = _parse_to_list(sig_in)
         self.sig_out = _parse_to_list(sig_out)
         for i, s in enumerate(self.sig_in):
-            try:
-                _check_valid_signal(s)
-            except Exception as e:
-                earg0 = e.args[0] if len(e.args) > 0 else ''
-                earg1 = e.args[1:] if len(e.args) > 1 else ()
-                raise type(e)(f"Invalid input signal #{i+1} - " + str(earg0) + self._err_str(), *earg1) from None
+            if not _is_valid_signal(s):
+                tag = f" (\'{s.tag}\')" if hasattr(s, 'tag') else ''
+                raise TypeError(f"Input {i}{tag} is not a valid signal, type=\'{type(s).__name__}\'.")
 
         for i, s in enumerate(self.sig_out):
-            try:
-                _check_valid_signal(s)
-            except Exception as e:
-                earg0 = e.args[0] if len(e.args) > 0 else ''
-                earg1 = e.args[1:] if len(e.args) > 1 else ()
-                raise type(e)(f"Invalid output signal #{i+1} - " + str(earg0) + self._err_str(), *earg1) from None
+            if not _is_valid_signal(s):
+                tag = f" (\'{s.tag}\')" if hasattr(s, 'tag') else ''
+                raise TypeError(f"Output {i}{tag} is not a valid signal, type=\'{type(s).__name__}\'.")
 
-        try:
-            # Call preparation of submodule with remaining arguments
-            self._prepare(*args, **kwargs)
-        except Exception as e:
-            earg0 = e.args[0] if len(e.args) > 0 else ''
-            earg1 = e.args[1:] if len(e.args) > 1 else ()
-            raise type(e)("_prepare() - " + str(earg0) + self._err_str(fn=self._prepare), *earg1) from e
+        # Call preparation of submodule with remaining arguments
+        self._prepare(*args, **kwargs)
 
         try:
             # Check if the signals match _response() signature
             _check_function_signature(self._response, self.sig_in)
         except Exception as e:
-            earg0 = e.args[0] if len(e.args) > 0 else ''
-            earg1 = e.args[1:] if len(e.args) > 1 else ()
-            raise type(e)(str(earg0) + self._err_str(fn=self._response), *earg1) from None
+            raise type(e)(str(e) + "\n\t| Module details:" +
+                          self._err_str(fn=self._response)).with_traceback(sys.exc_info()[2])
 
         try:
             # If no output signals are given, but are required, try to initialize them here
@@ -441,9 +467,8 @@ class Module(ABC, RegisteredClass):
             # Check if signals match _sensitivity() signature
             _check_function_signature(self._sensitivity, self.sig_out)
         except Exception as e:
-            earg0 = e.args[0] if len(e.args) > 0 else ''
-            earg1 = e.args[1:] if len(e.args) > 1 else ()
-            raise type(e)(str(earg0) + self._err_str(fn=self._sensitivity), *earg1) from None
+            raise type(e)(str(e) + "\n\t| Module details:" +
+                          self._err_str(fn=self._sensitivity)).with_traceback(sys.exc_info()[2])
 
     def response(self):
         """ Calculate the response from sig_in and output this to sig_out """
@@ -461,9 +486,9 @@ class Module(ABC, RegisteredClass):
                 self.sig_out[i].state = val
             return self
         except Exception as e:
-            earg0 = e.args[0] if len(e.args) > 0 else ''
-            earg1 = e.args[1:] if len(e.args) > 1 else ()
-            raise type(e)("response() - " + str(earg0) + self._err_str(fn=self._response), *earg1) from e
+            # https://stackoverflow.com/questions/6062576/adding-information-to-an-exception
+            raise type(e)(str(e) + "\n\t| Above error was raised when calling response(). Module details:" +
+                          self._err_str(fn=self._response)).with_traceback(sys.exc_info()[2])
 
     def __call__(self):
         return self.response()
@@ -494,9 +519,8 @@ class Module(ABC, RegisteredClass):
 
             return self
         except Exception as e:
-            earg0 = e.args[0] if len(e.args) > 0 else ''
-            earg1 = e.args[1:] if len(e.args) > 1 else ()
-            raise type(e)("sensitivity() - " + str(earg0) + self._err_str(fn=self._sensitivity), *earg1) from e
+            raise type(e)(str(e) + "\n\t| Above error was raised when calling sensitivity(). Module details:" +
+                          self._err_str(fn=self._sensitivity)).with_traceback(sys.exc_info()[2])
 
     def reset(self):
         """ Reset the state of the sensitivities (they are set to zero or to None) """
@@ -506,9 +530,8 @@ class Module(ABC, RegisteredClass):
             self._reset()
             return self
         except Exception as e:
-            earg0 = e.args[0] if len(e.args) > 0 else ''
-            earg1 = e.args[1:] if len(e.args) > 1 else ()
-            raise type(e)("reset() - " + str(earg0) + self._err_str(fn=self._reset), *earg1) from e
+            raise type(e)(str(e) + "\n\t| Above error was raised when calling reset(). Module details:" +
+                          self._err_str(fn=self._response)).with_traceback(sys.exc_info()[2])
 
     # METHODS TO BE DEFINED BY USER
     def _prepare(self, *args, **kwargs):
@@ -542,35 +565,33 @@ class Network(Module):
     """
     def __init__(self, *args, print_timing=False):
         self._init_loc = get_init_str()
-        try:
-            # Obtain the internal blocks
-            self.mods = _parse_to_list(*args)
 
-            # Check if the blocks are initialized, else create them
-            for i, b in enumerate(self.mods):
-                if isinstance(b, dict):
-                    exclude_keys = ['type']
-                    b_ex = {k: b[k] for k in set(list(b.keys())) - set(exclude_keys)}
-                    self.mods[i] = Module.create(b['type'], **b_ex)
+        # Obtain the internal blocks
+        self.mods = _parse_to_list(*args)
 
-            # Check validity of modules
-            [_check_valid_module(m) for m in self.mods]
+        # Check if the blocks are initialized, else create them
+        for i, b in enumerate(self.mods):
+            if isinstance(b, dict):
+                exclude_keys = ['type']
+                b_ex = {k: b[k] for k in set(list(b.keys())) - set(exclude_keys)}
+                self.mods[i] = Module.create(b['type'], **b_ex)
 
-            # Gather all the input and output signals of the internal blocks
-            all_in = set()
-            all_out = set()
-            [all_in.update(b.sig_in) for b in self.mods]
-            [all_out.update(b.sig_out) for b in self.mods]
-            in_unique = all_in - all_out
+        # Check validity of modules
+        for m in self.mods:
+            if not _is_valid_module(m):
+                raise TypeError(f"Argument is not a valid Module, type=\'{type(mod).__name__}\'.")
 
-            # Initialize the parent module, with correct inputs and outputs
-            super().__init__(list(in_unique), list(all_out))
+        # Gather all the input and output signals of the internal blocks
+        all_in = set()
+        all_out = set()
+        [all_in.update(b.sig_in) for b in self.mods]
+        [all_out.update(b.sig_out) for b in self.mods]
+        in_unique = all_in - all_out
 
-            self.print_timing = print_timing
-        except Exception as e:
-            earg0 = e.args[0] if len(e.args) > 0 else ''
-            earg1 = e.args[1:] if len(e.args) > 1 else ()
-            raise type(e)(str(earg0) + self._err_str(add_signal=False), *earg1) from None
+        # Initialize the parent module, with correct inputs and outputs
+        super().__init__(list(in_unique), list(all_out))
+
+        self.print_timing = print_timing
 
     def timefn(self, fn):
         start_t = time.time()
@@ -611,12 +632,9 @@ class Network(Module):
         modlist = _parse_to_list(*newmods)
 
         # Check if the blocks are initialized, else create them
-        for i, b in enumerate(modlist):
-            try:  # Check validity of modules
-                _check_valid_module(b)
-            except Exception as e:
-                raise type(e)("append() - Trying to append invalid module " + str(e.args[0])
-                              + self._err_str(add_signal=False), *e.args[1:]) from None
+        for i, m in enumerate(modlist):
+            if not _is_valid_module(m):
+                raise TypeError(f"Argument #{i} is not a valid module, type=\'{type(mod).__name__}\'.")
 
         # Obtain the internal blocks
         self.mods.extend(modlist)
@@ -624,25 +642,11 @@ class Network(Module):
         # Gather all the input and output signals of the internal blocks
         all_in = set()
         all_out = set()
-        [all_in.update(b.sig_in) for b in self.mods]
-        [all_out.update(b.sig_out) for b in self.mods]
+        [all_in.update(m.sig_in) for m in self.mods]
+        [all_out.update(m.sig_out) for m in self.mods]
         in_unique = all_in - all_out
 
         self.sig_in = _parse_to_list(in_unique)
-        try:
-            [_check_valid_signal(s) for s in self.sig_in]
-        except Exception as e:
-            earg0 = e.args[0] if len(e.args) > 0 else ''
-            earg1 = e.args[1:] if len(e.args) > 1 else ()
-            raise type(e)("append() - Invalid input signals " + str(earg0)
-                          + self._err_str(add_signal=False), *earg1) from None
         self.sig_out = _parse_to_list(all_out)
-        try:
-            [_check_valid_signal(s) for s in self.sig_out]
-        except Exception as e:
-            earg0 = e.args[0] if len(e.args) > 0 else ''
-            earg1 = e.args[1:] if len(e.args) > 1 else ()
-            raise type(e)("append() - Invalid output signals " + str(earg0)
-                          + self._err_str(add_signal=False), *earg1) from None
 
         return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out  # Returns the output signal

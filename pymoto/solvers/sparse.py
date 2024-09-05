@@ -2,7 +2,8 @@ import warnings
 import numpy as np
 import scipy.sparse as sps
 from scipy.sparse import SparseEfficiencyWarning
-from .solvers import matrix_is_hermitian, matrix_is_complex, matrix_is_symmetric, LinearSolver
+from .matrix_checks import matrix_is_hermitian, matrix_is_complex, matrix_is_symmetric
+from .solvers import LinearSolver
 
 # ------------------------------------ Pardiso Solver -----------------------------------
 try:
@@ -126,26 +127,31 @@ class SolverSparsePardiso(LinearSolver):
 
         self._pardiso_solver.factorize(A)
 
-    def solve(self, b):
+    def solve(self, b, x0=None, trans='N'):
         """ solve Ax=b for x
 
         Args:
             A (scipy.sparse.csr.csr_matrix): sparse square CSR matrix , CSC matrix also possible
             b (numpy.ndarray): right-hand side(s), b.shape[0] needs to be the same as A.shape[0]
+            x0 (unused)
+            trans (optional): Indicate which system to solve (Normal, Transposed, or Hermitian transposed)
 
         Returns:
             Solution of the system of linear equations, same shape as input b
         """
-        return self._pardiso_solver.solve(self.A, b)
-
-    def adjoint(self, b):
-        # Cannot use _pardiso_solver.solve because it changes flag 12 internally
-        iparm_prev = self._pardiso_solver.get_iparm(12)
-        self._pardiso_solver.set_iparm(12, int(not iparm_prev))  # Adjoint solver (transpose)
-        b = self._pardiso_solver._check_b(self.A, b)
-        x = self._pardiso_solver._call_pardiso(self.A, b)
-        self._pardiso_solver.set_iparm(12, iparm_prev)  # Revert back to normal solver
-        return x
+        if trans == 'N':
+            return self._pardiso_solver.solve(self.A, b)
+        elif trans == 'T' or trans == 'H':
+            # T and H are the same, because only real matrix is supported
+            # Cannot use _pardiso_solver.solve because it changes flag 12 internally
+            iparm_prev = self._pardiso_solver.get_iparm(12)
+            self._pardiso_solver.set_iparm(12, int(not iparm_prev))  # Adjoint solver (transpose)
+            b = self._pardiso_solver._check_b(self.A, b)
+            x = self._pardiso_solver._call_pardiso(self.A, b)
+            self._pardiso_solver.set_iparm(12, iparm_prev)  # Revert back to normal solver
+            return x
+        else:
+            raise TypeError("Only N, T, or H transposition is possible")
 
     def _print_iparm(self):
         """ Print all iparm settings to console """
@@ -219,17 +225,16 @@ class SolverSparseLU(LinearSolver):
         self.inv = splu(A)
         return self
 
-    def solve(self, rhs):
+    def solve(self, rhs, x0=None, trans='N'):
         r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{L}^{-1}\mathbf{b}`.
-        """
-        return self.inv.solve(rhs)
 
-    def adjoint(self, rhs):
-        r""" Solves the linear system of equations :math:`\mathbf{A}^\text{H}\mathbf{x} = \mathbf{b}` by forward and
-        backward substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{U}^{-\text{H}}\mathbf{b}`.
+        Adjoint system solves the linear system of equations :math:`\mathbf{A}^\text{H}\mathbf{x} = \mathbf{b}` by
+        forward and backward substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{U}^{-\text{H}}\mathbf{b}`
         """
-        return self.inv.solve(rhs, trans=('H' if self.iscomplex else 'T'))
+        if trans not in ['N', 'T', 'H']:
+            raise TypeError("Only N, T, or H transposition is possible")
+        return self.inv.solve(rhs, trans=trans)
 
 
 # ------------------------------------ Cholesky Solver scikit-sparse -----------------------------------
@@ -281,7 +286,7 @@ class SolverSparseCholeskyScikit(LinearSolver):
 
         return self
 
-    def solve(self, rhs):
+    def solve(self, rhs, x0=None, trans='N'):
         r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{L}^{-1}\mathbf{b}` in case of an
         Hermitian matrix.
@@ -290,10 +295,12 @@ class SolverSparseCholeskyScikit(LinearSolver):
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
 
         """
-        return self.inv(rhs)
-
-    def adjoint(self, rhs):
-        return self.solve(rhs)
+        if trans not in ['N', 'T', 'H']:
+            raise TypeError("Only N, T, or H transposition is possible")
+        if trans == 'T':
+            return self.inv(rhs.conj()).conj()
+        else:
+            return self.inv(rhs)
 
 
 # ------------------------------------ Cholesky Solver cvxopt -----------------------------------
@@ -344,15 +351,20 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
 
         return self
 
-    def solve(self, rhs):
+    def solve(self, rhs, x0=None, trans='N'):
         r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{L}^{-1}\mathbf{b}`. """
+        if trans not in ['N', 'T', 'H']:
+            raise TypeError("Only N, T, or H transposition is possible")
         if rhs.dtype != self._dtype:
             warnings.warn(f"{type(self).__name__}: Type warning: rhs value type ({rhs.dtype}) is converted to {self._dtype}")
-        B = cvxopt.matrix(rhs.astype(self._dtype))
+        if trans == 'T':
+            B = cvxopt.matrix(rhs.conj().astype(self._dtype))
+        else:
+            B = cvxopt.matrix(rhs.astype(self._dtype))
         nrhs = 1 if rhs.ndim == 1 else rhs.shape[1]
-        cvxopt.cholmod.solve(self.inv, B, nrhs=nrhs)
-        return np.array(B).flatten() if nrhs == 1 else np.array(B)
 
-    def adjoint(self, rhs):
-        return self.solve(rhs)
+        cvxopt.cholmod.solve(self.inv, B, nrhs=nrhs)
+
+        x = np.array(B).flatten() if rhs.ndim == 1 else np.array(B)
+        return x.conj() if trans == 'T' else x

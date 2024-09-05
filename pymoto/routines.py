@@ -1,8 +1,10 @@
+import warnings
 import numpy as np
 from .utils import _parse_to_list, _concatenate_to_array
 from .core_objects import Signal, SignalSlice, Module, Network
 from .common.mma import MMA
 from typing import List, Iterable, Union, Callable
+from scipy.sparse import issparse
 
 
 def _has_signal_overlap(sig1: List[Signal], sig2: List[Signal]):
@@ -171,7 +173,10 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 fp = Sout.state
 
                 # Finite difference sensitivity
-                df = (fp - f0[Iout])/(dx*sf)
+                if issparse(fp):
+                    df = (fp.toarray() - f0[Iout].toarray()) / (dx * sf)
+                else:
+                    df = (fp - f0[Iout])/(dx*sf)
 
                 dgdx_fd = np.real(np.sum(df*df_an[Iout]))
 
@@ -223,7 +228,10 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                     fp = Sout.state
 
                     # Finite difference sensitivity
-                    df = (fp - f0[Iout])/(dx*1j*sf)
+                    if issparse(fp):
+                        df = (fp.toarray() - f0[Iout].toarray()) / (dx * 1j * sf)
+                    else:
+                        df = (fp - f0[Iout])/(dx*1j*sf)
                     dgdx_fd = np.imag(np.sum(df*df_an[Iout]))
 
                     if dx_an[Iout][Iin] is not None:
@@ -335,8 +343,9 @@ def minimize_oc(function, variables, objective: Signal,
         function.sensitivity()
         dfdx, _ = _concatenate_to_array(obtain_sensitivities(variables))
         maxdfdx = max(dfdx)
-        if maxdfdx > 0:
-            raise RuntimeError(f"OC only works for negative sensitivities: max(dfdx) = {maxdfdx}")
+        if maxdfdx > 1e-15:
+            warnings.warn(f"OC only works for negative sensitivities: max(dfdx) = {maxdfdx}. Clipping positive values.")
+        dfdx = np.minimum(dfdx, 0)
 
         # Do OC update
         l1, l2 = l1init, l2init

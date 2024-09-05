@@ -1,8 +1,8 @@
-from typing import Union, Iterable
+from typing import Union, Iterable, List
 import warnings
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import spmatrix
+from scipy.sparse import spmatrix, coo_matrix
 from ..utils import _parse_to_list
 try:  # Import fast optimized einsum
     from opt_einsum import contract as einsum
@@ -31,7 +31,7 @@ def isnullslice(x):
 
 
 class DyadCarrier(object):
-    """ Efficient storage for dyadic or rank-N matrix
+    r""" Efficient storage for dyadic or rank-N matrix
 
     Stores only the vectors instead of creating a full rank-N matrix
     :math:`\mathbf{A} = \sum_k^N \mathbf{u}_k\otimes\mathbf{v}_k`
@@ -67,7 +67,7 @@ class DyadCarrier(object):
             return self.ulen * self.vlen
 
     def add_dyad(self, u: Iterable, v: Iterable = None, fac: float = None):
-        """ Adds a list of vectors to the dyad carrier
+        r""" Adds a list of vectors to the dyad carrier
 
         Checks for conforming sizes of `u` and `v`. The data inside the vectors are copied.
 
@@ -373,6 +373,31 @@ class DyadCarrier(object):
 
         return val
 
+    def contract_multi(self, mats: List[spmatrix], dtype=None):
+        """ Faster version of contraction for a list of sparse matrices """
+        if dtype is None:
+            dtype = np.result_type(self.dtype, mats[0].dtype)
+        val = np.zeros(len(mats), dtype=dtype)
+
+        if len(self.u) == 0 or len(self.v) == 0:
+            return val
+        U = np.array(self.u).T
+        V = np.array(self.v).T
+
+        for i, m in enumerate(mats):
+            if m is None:
+                vali = 0.0
+            else:
+                try:
+                    if not isinstance(m, coo_matrix):
+                        warnings.warn("Inefficiency: Matrix must be converted to coo_matrix for contraction")
+                    mat_coo = m.tocoo()
+                    vali = np.einsum('ij,i,ij->', U[mat_coo.row, :], mat_coo.data, V[mat_coo.col, :])
+                except AttributeError:
+                    vali = self.contract(m)
+            val[i] = vali
+        return val
+
     def todense(self):
         """ Returns a full (dense) matrix from the DyadCarrier matrix """
         warning_size = 100e+6  # Bytes
@@ -386,6 +411,10 @@ class DyadCarrier(object):
             val += np.outer(ui, vi)
 
         return val
+
+    def toarray(self):
+        """ Convert to array, same as todense(). To be consistent with scipy.sparse """
+        return self.todense()
 
     def iscomplex(self):
         """ Check if the DyadCarrier is of complex type """

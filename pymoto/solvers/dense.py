@@ -1,7 +1,8 @@
 import warnings
 import numpy as np
 import scipy.linalg as spla  # Dense matrix solvers
-from .solvers import matrix_is_hermitian, matrix_is_diagonal, LinearSolver
+from .matrix_checks import matrix_is_hermitian, matrix_is_diagonal
+from .solvers import LinearSolver
 
 
 class SolverDiagonal(LinearSolver):
@@ -11,24 +12,17 @@ class SolverDiagonal(LinearSolver):
         self.diag = A.diagonal()
         return self
 
-    def solve(self, rhs):
+    def solve(self, rhs, x0=None, trans='N'):
         r""" Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}`
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
+        d = self.diag.conj() if trans == 'H' else self.diag
         if rhs.ndim == 1:
-            return rhs / self.diag
+            return rhs / d
         else:
-            return rhs / self.diag[..., None]
-
-    def adjoint(self, rhs):
-        r""" Solve using the diagonal only, by :math:`x_i = b_i / A_{ii}^*`
-
-        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
-        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
-        """
-        return self.solve(rhs.conj()).conj()
+            return rhs / d[..., None]
 
 
 # Dense QR solver
@@ -42,23 +36,31 @@ class SolverDenseQR(LinearSolver):
         self.q, self.r = spla.qr(A)
         return self
 
-    def solve(self, rhs):
-        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by backward substitution of
-        :math:`\mathbf{x} = \mathbf{R}^{-1}\mathbf{Q}^\text{H}\mathbf{b}`.
+    def solve(self, rhs, x0=None, trans='N'):
+        r""" Solves the linear system of equations using the QR factorization.
+
+        ======= ================= =====================
+        `trans`     Equation      Solution of :math:`x`
+        ------- ----------------- ---------------------
+          `N`   :math:`A x = b`   :math:`R^{-1} Q^H b`
+          `T`   :math:`A^T x = b` :math:`Q^* R^{-T} b`
+          `H`   :math:`A^H x = b` :math:`Q R^{-H} b`
+        ======= ================= =====================
 
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
-        return spla.solve_triangular(self.r, self.q.T.conj()@rhs)
-
-    def adjoint(self, rhs):
-        r""" Solves the linear system of equations :math:`\mathbf{A}^\text{H}\mathbf{x} = \mathbf{b}` by
-        forward substitution of :math:`\mathbf{x} = \mathbf{Q}\mathbf{R}^{-H}\mathbf{b}`.
-
-        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
-        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
-        """
-        return self.q@spla.solve_triangular(self.r, rhs, trans='C')
+        if trans == 'N':
+            # A = Q R -> inv(A) = inv(R) inv(Q) = inv(R) Q^H
+            return spla.solve_triangular(self.r, self.q.T.conj() @ rhs)
+        elif trans == 'T':
+            # A^T = R^T Q^T -> inv(A^T) = inv(Q^T) inv(R^T) = conj(Q) inv(R^T)
+            return self.q.conj() @ spla.solve_triangular(self.r, rhs, trans='T')
+        elif trans == 'H':
+            # A^H = R^H Q^H -> inv(A^H) = inv(Q^H) inv(R^H) = Q inv(R^H)
+            return self.q @ spla.solve_triangular(self.r, rhs, trans='C')
+        else:
+            raise TypeError("Only N, T, and H transposition is possible")
 
 
 # Dense LU solver
@@ -71,24 +73,34 @@ class SolverDenseLU(LinearSolver):
         self.p, self.l, self.u = spla.lu(A)
         return self
 
-    def solve(self, rhs):
-        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+    def solve(self, rhs, x0=None, trans='N'):
+        r""" Solves the linear system of equations using the LU factorization.
+
+        :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{L}^{-1}\mathbf{b}`.
 
+        ======= ================= =========================
+        `trans`     Equation        Solution of :math:`x`
+        ------- ----------------- -------------------------
+          `N`   :math:`A x = b`   :math:`x = U^{-1} L^{-1}`
+          `T`   :math:`A^T x = b` :math:`x = L^{-1} U^{-1}`
+          `H`   :math:`A^H x = b` :math:`x = L^{-*} U^{-*}`
+        ======= ================= =========================
+
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
-        return spla.solve_triangular(self.u, spla.solve_triangular(self.l, self.p.T@rhs, lower=True))
-
-    def adjoint(self, rhs):
-        r""" Solves the linear system of equations :math:`\mathbf{A}^\text{H}\mathbf{x} = \mathbf{b}` by forward and
-        backward substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{U}^{-\text{H}}\mathbf{b}`.
-
-        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
-        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
-        """
-        return self.p@spla.solve_triangular(self.l, spla.solve_triangular(self.u, rhs, trans='C'),
-                                            lower=True, trans='C')  # TODO permutation
+        if trans == 'N':
+            # A = P L U -> x = U^-1 L^-1 P^T b
+            return spla.solve_triangular(self.u, spla.solve_triangular(self.l, self.p.T@rhs, lower=True))
+        elif trans == 'T':
+            return self.p @ spla.solve_triangular(self.l, spla.solve_triangular(self.u, rhs, trans='T'),
+                                                  lower=True, trans='T')
+        elif trans == 'H':
+            return self.p @ spla.solve_triangular(self.l, spla.solve_triangular(self.u, rhs, trans='C'),
+                                                  lower=True, trans='C')
+        else:
+            raise TypeError("Only N, T, and H transposition is possible")
 
 
 # Dense Cholesky solver
@@ -106,7 +118,7 @@ class SolverDenseCholesky(LinearSolver):
         upper triangular matrix.
         """
         try:
-            self.u = spla.cholesky(A)
+            self.U = spla.cholesky(A)
             self.success = True
         except np.linalg.LinAlgError as err:
             warnings.warn(f"{type(self).__name__}: {err} -- using {type(self.backup_solver).__name__} instead")
@@ -114,7 +126,7 @@ class SolverDenseCholesky(LinearSolver):
             self.success = False
         return self
 
-    def solve(self, rhs):
+    def solve(self, rhs, x0=None, trans='N'):
         r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{U}^{-\text{H}}\mathbf{b}`.
 
@@ -124,21 +136,16 @@ class SolverDenseCholesky(LinearSolver):
         # TODO When Cholesky factorization A = U^T U is used, symmetric complex matrices can also be solved, but this is
         #  not implemented in scipy
         if self.success:
-            return spla.solve_triangular(self.u, spla.solve_triangular(self.u, rhs, trans='C'))
+            if trans == 'N' or trans == 'H':
+                # A = U^H U -> A^-1 = U^-1 U^-H
+                return spla.solve_triangular(self.U, spla.solve_triangular(self.U, rhs, trans='C'))
+            elif trans == 'T':
+                # A^T = U^T conj(U) -> A^-T = conj(U^-1) U^-T
+                return spla.solve_triangular(self.U, spla.solve_triangular(self.U, rhs, trans='T').conj()).conj()
+            else:
+                raise TypeError("Only N, T, and H transposition is possible")
         else:
-            return self.backup_solver.solve(rhs)
-
-    def adjoint(self, rhs):
-        r""" A Hermitian matrix is self-adjoint (:math:`\mathbf{A}=\mathbf{A}^\text{H}`), so this is equal to the
-        regular solution.
-
-        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
-        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
-        """
-        if self.success:
-            return self.solve(rhs)
-        else:
-            return self.backup_solver.adjoint(rhs)
+            return self.backup_solver.solve(rhs, trans=trans)
 
 
 # Dense LDL solver
@@ -171,23 +178,13 @@ class SolverDenseLDL(LinearSolver):
         self.lp = self.l[self.p, :]
         return self
 
-    def solve(self, rhs):
+    def solve(self, rhs, x0=None, trans='N'):
         r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{D}^{-1}\mathbf{L}^{-1}\mathbf{b}` in the
         Hermitian case or as :math:`\mathbf{x} = \mathbf{L}^{-\text{T}}\mathbf{D}^{-1}\mathbf{L}^{-1}\mathbf{b}` in the
         symmetric case.
 
-        The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
-        :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
-        """
-        u1 = spla.solve_triangular(self.lp, rhs[self.p], lower=True, unit_diagonal=True)
-        u2 = self.dinv(u1)
-        u = np.zeros_like(rhs, dtype=u2.dtype)
-        u[self.p] = spla.solve_triangular(self.lp, u2, trans='C' if self.hermitian else 'T', lower=True, unit_diagonal=True)
-        return u
-
-    def adjoint(self, rhs):
-        r""" Solves the linear system of equations :math:`\mathbf{A}^\text{H} \mathbf{x} = \mathbf{b}` by forward and
+        The adjoint system of equations :math:`\mathbf{A}^\text{H} \mathbf{x} = \mathbf{b}` is solved by forward and
         backward substitution of
         :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{D}^{-\text{H}}\mathbf{L}^{-1}\mathbf{b}` in the  Hermitian
         case or as :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{D}^{-\text{H}}\mathbf{L}^{-*}\mathbf{b}`
@@ -196,11 +193,34 @@ class SolverDenseLDL(LinearSolver):
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
-        if not self.hermitian:
-            u1 = spla.solve_triangular(self.lp, rhs[self.p].conj(), lower=True, unit_diagonal=True).conj()
-        else:
+        if trans == 'N':
+            # Hermitian matrix A: A = L D L^H -> inv(A) = inv(L^H) inv(D) inv(L)
+            # Symmetric matrix A: A = L D L^T -> inv(A) = inv(L^T) inv(D) inv(L)
             u1 = spla.solve_triangular(self.lp, rhs[self.p], lower=True, unit_diagonal=True)
-        u2 = self.dinvH(u1)
-        u = np.zeros_like(rhs, dtype=u2.dtype)
-        u[self.p] = spla.solve_triangular(self.lp, u2, trans='C', lower=True, unit_diagonal=True)
+            u2 = self.dinv(u1)
+            u = np.zeros_like(rhs, dtype=u2.dtype)
+            u[self.p] = spla.solve_triangular(self.lp, u2, trans='C' if self.hermitian else 'T', lower=True, unit_diagonal=True)
+        elif trans == 'T':
+            # Hermitian matrix A^T: A = conj(L) D^T L^T -> inv(A) = inv(L^T) inv(D^T) inv(L^*)
+            # Symmetric matrix A^T: A = L D^T L^T -> inv(A) = inv(L^T) inv(D^T) inv(L)
+            if self.hermitian:
+                u1 = spla.solve_triangular(self.lp, rhs[self.p].conj(), lower=True, unit_diagonal=True).conj()
+            else:
+                u1 = spla.solve_triangular(self.lp, rhs[self.p], lower=True, unit_diagonal=True)
+
+            u2 = self.dinvH(u1.conj()).conj()
+            u = np.zeros_like(rhs, dtype=u2.dtype)
+            u[self.p] = spla.solve_triangular(self.lp, u2, trans='T', lower=True, unit_diagonal=True)
+        elif trans == 'H':
+            # Hermitian matrix A: inv(A^H) = inv(L^H) inv(D^H) inv(L)
+            # Symmetric matrix A: inv(A^H) = inv(L^H) inv(D^H) inv(L^*)
+            if not self.hermitian:
+                u1 = spla.solve_triangular(self.lp, rhs[self.p].conj(), lower=True, unit_diagonal=True).conj()
+            else:
+                u1 = spla.solve_triangular(self.lp, rhs[self.p], lower=True, unit_diagonal=True)
+            u2 = self.dinvH(u1)
+            u = np.zeros_like(rhs, dtype=u2.dtype)
+            u[self.p] = spla.solve_triangular(self.lp, u2, trans='C', lower=True, unit_diagonal=True)
+        else:
+            raise TypeError("Only N, T, and H transposition is possible")
         return u

@@ -5,6 +5,31 @@ import struct
 import warnings
 from typing import Union
 import numpy as np
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
+
+
+def plot_deformed_element(ax, x, y, **kwargs):
+    codes, verts = zip(*[
+        (Path.MOVETO, [x[0], y[0]]),
+        (Path.LINETO, [x[1], y[1]]),
+        (Path.LINETO, [x[3], y[3]]),
+        (Path.LINETO, [x[2], y[2]]),
+        (Path.CLOSEPOLY, [x[0], y[0]])])
+    path = Path(verts, codes)
+    patch = PathPatch(path, **kwargs)
+    ax.add_artist(patch)
+    return patch
+
+
+def get_path(x, y):
+    codes, verts = zip(*[
+        (Path.MOVETO, [x[0], y[0]]),
+        (Path.LINETO, [x[1], y[1]]),
+        (Path.LINETO, [x[3], y[3]]),
+        (Path.LINETO, [x[2], y[2]]),
+        (Path.CLOSEPOLY, [x[0], y[0]])])
+    return Path(verts, codes)
 
 
 class DomainDefinition:
@@ -100,6 +125,13 @@ class DomainDefinition:
         self.conn = np.zeros((self.nel, self.elemnodes), dtype=int)
         self.conn[el, :] = self.get_elemconnectivity(elx, ely, elz)
 
+        # Helper for element slicing
+        eli, elj, elk = np.meshgrid(np.arange(self.nelx), np.arange(self.nely), np.arange(self.nelz), indexing='ij')
+        self.elements = self.get_elemnumber(eli, elj, elk)
+
+        ndi, ndj, ndk = np.meshgrid(np.arange(self.nelx+1), np.arange(self.nely+1), np.arange(self.nelz+1), indexing='ij')
+        self.nodes = self.get_nodenumber(ndi, ndj, ndk)
+
     def get_elemnumber(self, eli: Union[int, np.ndarray], elj: Union[int, np.ndarray], elk: Union[int, np.ndarray] = 0):
         """ Gets the element number(s) for element(s) with given Cartesian indices (i, j, k)
 
@@ -126,7 +158,7 @@ class DomainDefinition:
         """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
-    def get_node_indices(self, nod_idx: Union[int, np.ndarray]):
+    def get_node_indices(self, nod_idx: Union[int, np.ndarray] = None):
         """ Gets the Cartesian index (i, j, k) for given node number(s)
 
         Args:
@@ -135,16 +167,18 @@ class DomainDefinition:
         Returns:
             i, j, k for requested node(s); k is only returned in 3D
         """
+        if nod_idx is None:
+            nod_idx = np.arange(self.nnodes)
         nodi = nod_idx % (self.nelx + 1)
         nodj = (nod_idx // (self.nelx + 1)) % (self.nely + 1)
         if self.dim == 2:
-            return nodi, nodj
+            return np.stack([nodi, nodj], axis=0)
         nodk = nod_idx // ((self.nelx + 1)*(self.nely + 1))
-        return nodi, nodj, nodk
+        return np.stack([nodi, nodj, nodk], axis=0)
 
-    def get_node_position(self, nod_idx: Union[int, np.ndarray]):
+    def get_node_position(self, nod_idx: Union[int, np.ndarray] = None):
         ijk = self.get_node_indices(nod_idx)
-        return [idx * self.element_size[ii] for ii, idx in enumerate(ijk)]
+        return (self.element_size[:self.dim] * ijk.T).T
 
     def get_elemconnectivity(self, i: Union[int, np.ndarray], j: Union[int, np.ndarray], k: Union[int, np.ndarray] = 0):
         """ Get the connectivity for element identified with Cartesian indices (i, j, k)
@@ -229,6 +263,27 @@ class DomainDefinition:
                     dN_dx[i, :] *= np.array([self.element_size[j]/2 + n[j]*pos[j] for n in self.node_numbering])
             dN_dx[i, :] *= np.array([n[i] for n in self.node_numbering])  # Flip +/- signs according to node position
         return dN_dx
+
+    def plot(self, ax, deformation=None, scaling=None):
+        patches = []
+        for e in range(self.nel):
+            n = self.conn[e]
+            x, y = self.get_node_position(n)
+            u, v = deformation[n * 2], deformation[n * 2 + 1]
+            color = (1 - scaling[e], 1 - scaling[e], 1 - scaling[e]) if scaling is not None else 'grey'
+            patch = plot_deformed_element(ax, x + u, v + y, linewidth=0.1, color=color)
+            patches.append(patch)
+        return patches
+
+    def update_plot(self, patches, deformation=None, scaling=None):
+        for e in range(self.nel):
+            patch = patches[e]
+            n = self.conn[e]
+            x, y = self.get_node_position(n)
+            u, v = deformation[n * 2], deformation[n * 2 + 1]
+            color = (1 - scaling[e], 1 - scaling[e], 1 - scaling[e]) if scaling is not None else 'grey'
+            patch.set_color(color)
+            patch.set_path(self.get_path(x + u, y + v))
 
     # flake8: noqa: C901
     def write_to_vti(self, vectors: dict, filename="out.vti", scale=1.0, origin=(0.0, 0.0, 0.0)):

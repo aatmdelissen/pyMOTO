@@ -74,6 +74,7 @@ if __name__ == '__main__':
     z.state = 3.4
 
     # Create the modules
+    # Depending on how the input and output signals are routed between the modules, different behavior can be created
     ordering = 0
     if ordering == 0:
         # A __
@@ -98,14 +99,14 @@ if __name__ == '__main__':
     # Create a network of modules
     func = Network(m1, m2, m3)
 
-    print("\nCurrent interconnection:")
+    print("\nCurrent network:")
     print(" -> ".join([type(m).__name__ for m in func.mods]))
 
     # --- FORWARD ANALYSIS ---
     # Perform forward analysis
     func.response()
 
-    print("\nThe response is  g(x={0}, y={1}, z={2}) = {3}".format(x.state, y.state, z.state, g.state))
+    print(f"\nThe response is  g(x={x.state}, y={y.state}, z={z.state}) = {g.state}")
 
     # --- BACKPROPAGATION ---
     # Clear previous sensitivities
@@ -118,9 +119,9 @@ if __name__ == '__main__':
     func.sensitivity()
 
     print("\nThe sensitivities are:")
-    print("d{0}/d{1} = {2}".format(g.tag, x.tag, x.sensitivity))
-    print("d{0}/d{1} = {2}".format(g.tag, y.tag, y.sensitivity))
-    print("d{0}/d{1} = {2}".format(g.tag, z.tag, z.sensitivity))
+    print(f"d{g.tag}/d{x.tag} = {x.sensitivity}")
+    print(f"d{g.tag}/d{y.tag} = {y.sensitivity}")
+    print(f"d{g.tag}/d{z.tag} = {z.sensitivity}")
 
     # --- Finite difference checks ---
     # On the individual modules

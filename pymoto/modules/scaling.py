@@ -1,12 +1,12 @@
 from pymoto import Module
-
+import numpy as np
 
 class Scaling(Module):
     r""" Scales (scalar) input for different response functions in optimization (objective / constraints).
     This is useful, for instance, for MMA where the objective must be scaled in a certain way for good convergence.
 
-    Objective scaling (`minval` and `maxval` are both undefined):
-    :math:`y^{(i)} = s \frac{x^{(i)}}{x^{(0)}}`
+    Objective scaling using absolute value or vector norm (`minval` and `maxval` are both undefined):
+    :math:`y^{(i)} = s \frac{x^{(i)}}{||x^{(0)}||}`
 
     For the constraints, the negative null-form convention is used, which means the constraint is :math:`y(x) \leq 0`.
 
@@ -39,7 +39,7 @@ class Scaling(Module):
 
     def _response(self, x):
         if not hasattr(self, 'sf'):
-            self.sf = self.scaling/x
+            self.sf = self.scaling/np.linalg.norm(x)
         if self.minval is not None:
             g = 1 - x/self.minval
         elif self.maxval is not None:

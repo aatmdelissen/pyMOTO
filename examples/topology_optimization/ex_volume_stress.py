@@ -28,54 +28,6 @@ scaling_displacement_constraint = 10.0
 max_displacement = 20.0
 
 
-class Stress(pym.Module):
-    def _prepare(self, E=1, nu=0.3, plane='strain', domain=pym.DomainDefinition, *args, **kwargs):
-        siz = domain.element_size
-        self.domain = domain
-
-        # Constitutive model
-        self.D = siz[2] * get_D(E, nu, plane.lower())
-
-        # Numerical integration
-        self.B = np.zeros((3, 8), dtype=float)
-        w = np.prod(siz[:domain.dim] / 2)
-        for n in domain.node_numbering:
-            pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
-            dN_dx = domain.eval_shape_fun_der(pos)
-            self.B += w * get_B(dN_dx)
-
-        self.dofconn = domain.get_dofconnectivity(2)
-
-    def _response(self, u):
-        self.elemental_strain = self.B.dot(u[self.dofconn].transpose())
-        self.elemental_strain[2, :] *= 2  # voigt notation
-        return self.D.dot(self.elemental_strain).transpose()
-
-    def _sensitivity(self, dfdv):
-        dgdsstrainmat = np.einsum('jk,kl->jl', dfdv, self.D)
-        dgdsstrainmat[:, 2] *= 2
-        dgdue = np.einsum('ij,jl->il', dgdsstrainmat, self.B)
-
-        y = np.zeros(self.domain.nnodes * 2)
-        for i in range(0, self.domain.nel):
-            y[self.dofconn[i, :]] += dgdue[i, :]
-        return y
-
-
-class VonMises(pym.Module):
-    def _prepare(self, *args, **kwargs):
-        # Vandermonde matrix
-        self.V = np.array([[1, -0.5, 0], [-0.5, 1, 0], [0, 0, 3]])
-
-    def _response(self, x):
-        self.x = x
-        self.y = (x.dot(self.V) * x).sum(1)
-        return np.sqrt(self.y)
-
-    def _sensitivity(self, dfdv):
-        return dfdv[:, np.newaxis] * (self.y ** (-0.5))[:, np.newaxis] * self.x.dot(self.V)
-
-
 class ConstraintAggregation(pym.Module):
     """
     Unified aggregation and relaxation.
@@ -101,7 +53,7 @@ class ConstraintAggregation(pym.Module):
         self.x = x
         self.y = self.x + 1
         self.z = self.y ** self.P
-        z = ((1 / len(self.x)) * np.sum(self.z)) ** (1 / self.P)  # P-mean aggregation function
+        z = (np.sum(self.z) / self.n) ** (1 / self.P)  # P-mean aggregation function
         return z - 1
 
     def _sensitivity(self, dfdc):
@@ -139,14 +91,18 @@ if __name__ == "__main__":
     s_force = pym.Signal('f', state=f)
     s_displacement = fn.append(pym.LinSolve([s_K, s_force]))
 
-    # Calculate stress
-    s_stress = fn.append(Stress([s_displacement], domain=domain))
-    s_stress_vm = fn.append(VonMises([s_stress]))
-    s_stress_constraints = fn.append(pym.Scaling([s_stress_vm], maxval=maximum_vm_stress, scaling=1.0))
+    # Calculate stress components
+    s_stress = fn.append(pym.Stress(s_displacement, domain=domain))
 
-    s_stress_constraints_scaled = fn.append(
-        pym.EinSum([s_filtered_variables, s_stress_constraints], expression='i,i->i'))
+    # Calculate Von-Mises stress
+    V = np.array([[1, -0.5, 0], [-0.5, 1, 0], [0, 0, 3]])  # Vandermonde matrix
+    s_stress_vm2 = fn.append(pym.EinSum([s_stress, pym.Signal(state=V), s_stress], expression='ij,ik,kj->j'))
+    s_stress_vm = fn.append(pym.MathGeneral(s_stress_vm2, expression='sqrt(inp0)'))
 
+    # Stress constraint
+    s_stress_constraints = fn.append(pym.Scaling(s_stress_vm, maxval=maximum_vm_stress, scaling=1.0))
+    s_stress_constraints_scaled = fn.append(pym.EinSum([s_filtered_variables, s_stress_constraints],
+                                                       expression='i,i->i'))
     s_stress_constraint = fn.append(ConstraintAggregation([s_stress_constraints_scaled], P=10))
     s_stress_constraint.tag = "Stress constraint"
 

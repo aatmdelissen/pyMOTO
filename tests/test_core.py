@@ -553,6 +553,24 @@ class TestModule(unittest.TestCase):
         self.assertRaises(ValueError, m1.sensitivity)
         # m1.sensitivity()
 
+    def test_identical_sensitivity(self):
+        """ Check to see if identically variables returned in _sensitivity are handled correctly """
+        class Add(pym.Module):
+            def _response(self, A, B):
+                return A + B
+            def _sensitivity(self, dC):
+                return dC, dC
+
+        s_A = pym.Signal('A', np.array([1, 2, 3]))
+        s_B = pym.Signal('B', np.array([4, 5, 6]))
+        m = Add([s_A, s_B])
+        m.response()
+        s_C = m.sig_out[0]
+        s_C.sensitivity = np.array([1, 1, 1])
+        m.sensitivity()
+        self.assertFalse(np.may_share_memory(s_A.sensitivity, s_B.sensitivity))
+        self.assertFalse(np.may_share_memory(s_A.sensitivity, s_C.sensitivity))
+
 
 class TestNetwork(unittest.TestCase):
     def test_correct_network(self):

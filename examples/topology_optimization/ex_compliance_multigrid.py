@@ -1,13 +1,13 @@
-""" Minimal example for a compliance topology optimization """
+""" Minimal example for a compliance topology optimization with multigrid preconditioned CG as solver """
 import numpy as np
 
 import pymoto as pym
 
-nx, ny, nz = 120, 40, 0  # Set nz to zero for the 2D problem, nz > 0 runs a 3D problem
+nx, ny, nz = 128, 64, 64  # Set nz to zero for the 2D problem, nz > 0 runs a 3D problem
 xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5
-thermal = True  # True = Static thermal analysis; False = Static mechanical analysis will be done
+thermal = False  # True = Static thermal analysis; False = Static mechanical analysis will be done
 
 if __name__ == "__main__":
     print(__doc__)
@@ -60,14 +60,14 @@ if __name__ == "__main__":
     sx = pym.Signal('x', state=np.ones(domain.nel) * volfrac)
 
     # Start building the modular network
-    func = pym.Network(print_timing=False)
+    func = pym.Network(print_timing=True)
 
     # Filter
-    sxfilt = func.append(pym.DensityFilter(sx, domain=domain, radius=filter_radius))
+    sxfilt = func.append(pym.FilterConv(sx, domain=domain, radius=filter_radius))
     sx_analysis = sxfilt
 
-    # Show the design on the screen as it optimizes
-    func.append(pym.PlotDomain(sx_analysis, domain=domain, saveto="out/design", clim=[0, 1]))
+    # Show the design on the screen as it optimizes (plotting domain in 3D may take significant time)
+    # func.append(pym.PlotDomain(sx_analysis, domain=domain, saveto="out/design", clim=[0, 1]))
 
     # SIMP material interpolation
     sSIMP = func.append(pym.MathGeneral(sx_analysis, expression=f"{xmin} + {1.0 - xmin}*inp0^3"))
@@ -83,6 +83,20 @@ if __name__ == "__main__":
     # solver = pym.solvers.SolverSparsePardiso()  # Requires Intel MKL installed
     # solver = pym.solvers.SolverSparseCholeskyCVXOPT()  # Requires cvxopt installed
     # solver = pym.solvers.SolverSparseCholeskyScikit()  # Requires scikit installed
+
+    ''' Iterative solver: CG with Geometric Multi-grid preconditioning '''
+    # Set up fine level
+    mg1 = pym.solvers.GeometricMultigrid(domain)
+    mgs = [mg1]
+    n_levels = 5  # Number of levels (including fine grid)
+    for i in range(n_levels - 1):  # Setup coarse levels
+        mgs.append(pym.solvers.GeometricMultigrid(mgs[i].sub_domain))
+        mgs[i].inner_level = mgs[i+1]
+
+    # Set up the solver (comment out to use the default factorization, try this to see the difference in time)
+    solver = pym.solvers.CG(preconditioner=mg1, verbosity=1, tol=1e-5)
+
+    ''' From here the rest of the example is identical to ex_compliance.py '''
     su = func.append(pym.LinSolve([sK, sf], hermitian=True, solver=solver))
 
     # Output the design, deformation, and force field to a Paraview file

@@ -219,11 +219,16 @@ class MMA:
         xmin: Minimum design variable (can be a vector)
         xmax: Maximum design variable (can be a vector)
         fn_callback: A function that is called just before calling the response() in each iteration
-        verbosity: 0 - No prints, 1 - Only convergence message, 2 - Convergence and iteration info, 3 - Extended info
+        verbosity: Level of information to print
+          0 - No prints
+          1 - Only convergence message
+          2 - Convergence and iteration info (default)
+          3 - Additional info on variables
+          4 - Additional info on sensitivity information
 
     """
 
-    def __init__(self, function, variables, responses, tolx=1e-4, tolf=0.0, move=0.1, maxit=100, xmin=0.0, xmax=1.0, fn_callback=None, verbosity=0, **kwargs):
+    def __init__(self, function, variables, responses, tolx=1e-4, tolf=0.0, move=0.1, maxit=100, xmin=0.0, xmax=1.0, fn_callback=None, verbosity=2, **kwargs):
         self.funbl = function
         self.verbosity = verbosity
 
@@ -301,8 +306,7 @@ class MMA:
                 self.xmin[self.cumlens[i]:self.cumlens[i+1]] = xminvals[i]
 
         if len(self.xmin) != self.n:
-            raise RuntimeError(
-                "Length of the xmin vector not correct ({} != {})".format(len(self.xmin), self.n))
+            raise RuntimeError(f"Length of the xmin vector ({len(self.xmin)}) should be equal to # design variables ({self.n})")
 
         if not hasattr(self.xmax, '__len__'):
             self.xmax = self.xmax * np.ones_like(xval)
@@ -313,17 +317,19 @@ class MMA:
                 self.xmax[self.cumlens[i]:self.cumlens[i + 1]] = xmaxvals[i]
 
         if len(self.xmax) != self.n:
-            raise RuntimeError("Length of the xmax vector not correct ({} != {})".format(len(self.xmax), self.n))
+            raise RuntimeError(f"Length of the xmax vector ({len(self.xmax)}) should be equal to # design variables ({self.n})")
 
-        # Set movelimit in case of multiple
         if hasattr(self.move, '__len__'):
-            if len(self.move) == len(self.variables):
-                movevals = self.move
+            # Set movelimit in case of multiple are given
+            move_input = np.asarray(self.move).copy()
+            if move_input.size == len(self.variables):
                 self.move = np.zeros_like(xval)
-                for i in range(len(movevals)):
-                    self.move[self.cumlens[i]:self.cumlens[i + 1]] = movevals[i]
+                for i in range(move_input.size):
+                    self.move[self.cumlens[i]:self.cumlens[i + 1]] = move_input[i]
             elif len(self.move) != self.n:
-                raise RuntimeError("Length of the move vector not correct ({} != {})".format(len(self.move), self.n))
+                raise RuntimeError(f"Length of the move vector ({len(self.move)}) should be equal to number of "
+                                   f"design variable signals ({len(self.variables)}) or "
+                                   f"total number of design variables ({self.n}).")
 
         fcur = 0.0
         while self.iter < self.maxIt:
@@ -333,12 +339,9 @@ class MMA:
             # Set the new states
             for i, s in enumerate(self.variables):
                 if self.cumlens[i+1]-self.cumlens[i] == 1:
-                    try:
-                        s.state[:] = xval[self.cumlens[i]]
-                    except TypeError:
-                        s.state = xval[self.cumlens[i]]
+                    s.state = xval[self.cumlens[i]]
                 else:
-                    s.state[:] = xval[self.cumlens[i]:self.cumlens[i+1]]
+                    s.state = xval[self.cumlens[i]:self.cumlens[i+1]]
 
             if self.fn_callback is not None:
                 self.fn_callback()
@@ -346,19 +349,11 @@ class MMA:
             # Calculate response
             self.funbl.response()
 
-            # Update the states
-            for i, s in enumerate(self.variables):
-                if self.cumlens[i+1]-self.cumlens[i] == 1:
-                    try:
-                        xval[self.cumlens[i]] = s.state[:]
-                    except (TypeError, IndexError):
-                        xval[self.cumlens[i]] = s.state
-                else:
-                    xval[self.cumlens[i]:self.cumlens[i+1]] = s.state[:]
-
             # Save response
             f = ()
             for s in self.responses:
+                if not np.isscalar(s.state):
+                    raise TypeError("State of responses must be scalar.")
                 f += (s.state, )
 
             # Check function change convergence criterion
@@ -388,27 +383,48 @@ class MMA:
                 # Reset sensitivities for the next response
                 self.funbl.reset()
 
-            # Display info on variables
             if self.verbosity >= 3:
+                # Display info on variables
+                show_sensitivities = self.verbosity >= 4
+                msg = ""
                 for i, s in enumerate(self.variables):
-                    isscal = self.cumlens[i + 1] - self.cumlens[i] == 1
-                    msg = "{0:>10s} = ".format(s.tag)
-                    if isscal:
-                        try:
-                            msg += "         {0: .3e}         ".format(s.state)
-                        except TypeError:
-                            msg += "         {0: .3e}         ".format(s.state[0])
+                    if show_sensitivities:
+                        msg += "{0:>10s} = ".format(s.tag[:10])
                     else:
-                        msg += "[{0: .3e} ... {1: .3e}] ".format(min(s.state), max(s.state))
-                    for j, s_out in enumerate(self.responses):
-                        msg += "| {0:>10s}/{1:10s} = ".format("d"+s_out.tag, "d"+s.tag)
-                        if isscal:
-                            msg += "         {0: .3e}         ".format(df[j][self.cumlens[i]])
-                        else:
-                            msg += "[{0: .3e} ... {1: .3e}] ".format(min(df[j][self.cumlens[i]:self.cumlens[i+1]]), max(df[j][self.cumlens[i]:self.cumlens[i+1]]))
-                    print(msg)
+                        msg += f"{s.tag} = "
 
-            self.iter += 1
+                    # Display value range
+                    fmt = '% .2e'
+                    minval, maxval = np.min(s.state), np.max(s.state)
+                    mintag, maxtag = fmt % minval, fmt % maxval
+                    if mintag == maxtag:
+                        if show_sensitivities:
+                            msg += f"       {mintag}      "
+                        else:
+                            msg += f" {mintag}"
+                    else:
+                        sep = '…' if len(s.state) > 2 else ','
+                        msg += f"[{mintag}{sep}{maxtag}]"
+                        if show_sensitivities:
+                            msg += " "
+
+                    if show_sensitivities:
+                        # Display info on sensivity values
+                        for j, s_out in enumerate(self.responses):
+                            msg += "| {0:s}/{1:11s} = ".format("d" + s_out.tag, "d" + s.tag[:10])
+                            minval = np.min(df[j][self.cumlens[i]:self.cumlens[i+1]])
+                            maxval = np.max(df[j][self.cumlens[i]:self.cumlens[i+1]])
+                            mintag, maxtag = fmt % minval, fmt % maxval
+                            if mintag == maxtag:
+                                msg += f"       {mintag}      "
+                            else:
+                                sep = '…' if self.cumlens[i + 1] - self.cumlens[i] > 2 else ','
+                                msg += f"[{mintag}{sep}{maxtag}] "
+                        msg += '\n'
+                    elif i != len(self.variables)-1:
+                        msg += ', '
+                print(msg)
+
             xnew, change = self.mmasub(xval.copy(), np.hstack(f), np.vstack(df))
 
             # Stopping criteria on step size
@@ -419,6 +435,7 @@ class MMA:
                 break
 
             xval = xnew
+            self.iter += 1
 
     def mmasub(self, xval, g, dg):
         if self.dx is None:
@@ -535,20 +552,33 @@ class MMA:
         change = np.average(abs(xval - xmma))
 
         if self.verbosity >= 2:
+            # Display iteration status message
             msgs = ["g{0:d}({1:s}): {2:+.4e}".format(i, s.tag, g[i]) for i, s in enumerate(self.responses)]
-            print("It. {0: 4d}, {1}".format(self.iter, ", ".join(msgs)))
+            max_infeasibility = max(g[1:])
+            is_feasible = max_infeasibility <= 0
 
-        if self.verbosity >=3:
-            # Print changes
-            printstr = "Changes: "
+            feasibility_tag = 'f' if is_feasible else ' '
+            print("It. {0: 4d}, [{1:1s}] {2}".format(self.iter, feasibility_tag, ", ".join(msgs)))
+
+        if self.verbosity >= 3:
+            # Report design feasibility
+            iconst_max = np.argmax(g[1:])
+            print(f"  | {np.sum(g[1:]>0)} / {len(g)-1} violated constraints, "
+                  f"max. violation ({self.responses[iconst_max+1].tag}) = {'%.2g'%g[iconst_max+1]}")
+
+            # Print design changes
+            change_msgs = []
             for i, s in enumerate(self.variables):
-                isscal = self.cumlens[i + 1] - self.cumlens[i] == 1
-                if isscal:
-                    chg = abs(xval[self.cumlens[i]] - xmma[self.cumlens[i]])
-                else:
-                    chg = np.average(abs(xval[self.cumlens[i]:self.cumlens[i + 1]] - xmma[self.cumlens[i]:self.cumlens[i + 1]]))
+                minchg = np.min(abs(xval[self.cumlens[i]:self.cumlens[i + 1]] - xmma[self.cumlens[i]:self.cumlens[i + 1]]))
+                maxchg = np.max(abs(xval[self.cumlens[i]:self.cumlens[i + 1]] - xmma[self.cumlens[i]:self.cumlens[i + 1]]))
+                fmt = '%.2g'
+                mintag, maxtag = fmt % minchg, fmt % maxchg
 
-                printstr += "{0:s} = {1:.3e}   ".format("Δ_"+s.tag, chg)
-            print(printstr)
+                if mintag == maxtag:
+                    change_msgs.append(f"Δ({s.tag}) = {mintag}")
+                else:
+                    change_msgs.append(f"Δ({s.tag}) = {mintag}…{maxtag}")
+
+            print(f"  | Changes: {', '.join(change_msgs)}")
 
         return xmma, change

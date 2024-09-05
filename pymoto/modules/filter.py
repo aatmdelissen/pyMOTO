@@ -1,46 +1,247 @@
-from pymoto import Module
-from .assembly import DomainDefinition
+from pymoto import Module, DomainDefinition
 import numpy as np
 from scipy.sparse import coo_matrix
-from scipy.ndimage import convolve
+from scipy.signal import convolve, correlate
+from numbers import Number
 
 
 class FilterConv(Module):
-    def _prepare(self, domain: DomainDefinition, weights: np.ndarray, mode: str = 'reflect'):
+    def _prepare(self, domain: DomainDefinition, radius: float = None, relative_units: bool = True, weights: np.ndarray = None,
+                 xmin_bc='symmetric', xmax_bc='symmetric',
+                 ymin_bc='symmetric', ymax_bc='symmetric',
+                 zmin_bc='symmetric', zmax_bc='symmetric'):
         self.domain = domain
-        self.weights = weights
-        self.mode = mode
+        self.weights = None
+        if (weights is None and radius is None) or (weights is not None and radius is not None):
+            raise ValueError("Only one of arguments 'filter_radius' or 'weights' must be provided.")
+        elif weights is not None:
+            self.weights = weights.copy()
+            while self.weights.ndim < 3:
+                self.weights = np.expand_dims(self.weights, axis=-1)
+            for i in range(self.weights.ndim):
+                assert self.weights.shape[i] % 2 == 1, "Size of weights must be uneven"
+        elif radius is not None:
+            self.set_filter_radius(radius, relative_units)
 
-    def set_filter_radius(self, radius: float, relative_units: bool = False):
+        # Process padding
+        self.overrides = []
+        self.pad_sizes = [v//2 for v in self.weights.shape]
+
+        domain_sizes = [self.domain.nelx, self.domain.nely, self.domain.nelz]
+        el_x, el_y, el_z = np.meshgrid(*[np.arange(max(1, s)) for s in domain_sizes], indexing='ij')
+        self.el3d_orig = self.domain.get_elemnumber(el_x, el_y, el_z)
+
+        padx = self._process_padding(self.el3d_orig, xmin_bc, xmax_bc, 0, self.pad_sizes[0])
+        pady = self._process_padding(padx, ymin_bc, ymax_bc, 1, self.pad_sizes[1])
+        self.el3d_pad = self._process_padding(pady, zmin_bc, zmax_bc, 2, self.pad_sizes[2])
+        # # Process padding of the domain
+        # if left == 'wrap' and right == 'wrap':
+        #     pad1a = np.pad(self.el3d_orig, [(self.pad_sizes[0], self.pad_sizes[0]), (0, 0), (0, 0)], mode='wrap')
+        # elif left == 'wrap':
+        #     pad1a = np.pad(self.el3d_orig, [(self.pad_sizes[0], 0), (0, 0), (0, 0)], mode='wrap')
+        # elif right == 'wrap':
+        #     pad1a = np.pad(self.el3d_orig, [(0, self.pad_sizes[0]), (0, 0), (0, 0)], mode='wrap')
+        # else:
+        #     pad1a = self.el3d_orig
+        #
+        # if right == 'edge':
+        #     pad1b = np.pad(pad1a, [(0, self.pad_sizes[0]), (0, 0), (0, 0)], mode='edge')
+        # elif right == 'symmetric':
+        #     pad1b = np.pad(pad1a, [(0, self.pad_sizes[0]), (0, 0), (0, 0)], mode='symmetric')
+        # elif isinstance(right, Number):
+        #     pad1b = np.pad(pad1a, [(0, self.pad_sizes[0]), (0, 0), (0, 0)], mode='constant', constant_values=0)
+        #     xrange = self.pad_sizes[0] + domain.nelx + np.arange(max(1, self.pad_sizes[0]))
+        #     yrange = np.arange(max(1, domain.nely + 2*self.pad_sizes[1]))
+        #     zrange = np.arange(max(1, domain.nelz + 2*self.pad_sizes[2]))
+        #     el_x, el_y, el_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
+        #     self.override_padded_values((el_x, el_y, el_z), right)
+        # else:
+        #     pad1b = pad1a
+        #
+        # if left == 'edge':
+        #     pad1 = np.pad(pad1b, [(self.pad_sizes[0], 0), (0, 0), (0, 0)], mode='edge')
+        # elif left == 'symmetric':
+        #     pad1 = np.pad(pad1b, [(self.pad_sizes[0], 0), (0, 0), (0, 0)], mode='symmetric')
+        # elif isinstance(left, Number):
+        #     pad1 = np.pad(pad1b, [(self.pad_sizes[0], 0), (0, 0), (0, 0)], mode='constant', constant_values=0)
+        #     xrange = np.arange(max(1, self.pad_sizes[0]))
+        #     yrange = np.arange(max(1, domain.nely + 2 * self.pad_sizes[1]))
+        #     zrange = np.arange(max(1, domain.nelz + 2 * self.pad_sizes[2]))
+        #     el_x, el_y, el_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
+        #     self.override_padded_values((el_x, el_y, el_z), left)
+        # else:
+        #     pad1 = pad1b
+        #
+        # # Y-direction
+        # if bottom == 'wrap' and top == 'wrap':
+        #     pad2a = np.pad(pad1, [(0, 0), (self.pad_sizes[1], self.pad_sizes[1]), (0, 0)], mode='wrap')
+        # elif bottom == 'wrap':
+        #     pad2a = np.pad(pad1, [(0, 0), (self.pad_sizes[1], 0), (0, 0)], mode='wrap')
+        # elif top == 'wrap':
+        #     pad2a = np.pad(pad1, [(0, 0), (0, self.pad_sizes[1]), (0, 0)], mode='wrap')
+        # else:
+        #     pad2a = pad1
+        #
+        # if top == 'edge':
+        #     pad2b = np.pad(pad2a, [(0, 0), (0, self.pad_sizes[1]), (0, 0)], mode='edge')
+        # elif top == 'symmetric':
+        #     pad2b = np.pad(pad2a, [(0, 0), (0, self.pad_sizes[1]), (0, 0)], mode='symmetric')
+        # elif isinstance(top, Number):
+        #     pad2b = np.pad(pad2a, [(0, 0), (0, self.pad_sizes[1]), (0, 0)], mode='constant', constant_values=0)
+        #     xrange = np.arange(max(1, domain.nelx + 2*self.pad_sizes[0]))
+        #     yrange = self.pad_sizes[1] + domain.nely + np.arange(max(1, self.pad_sizes[1]))
+        #     zrange = np.arange(max(1, domain.nelz + 2*self.pad_sizes[2]))
+        #     el_x, el_y, el_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
+        #     self.override_padded_values((el_x, el_y, el_z), top)
+        # else:
+        #     pad2b = pad2a
+        #
+        # if bottom == 'edge':
+        #     pad2 = np.pad(pad2b, [(0, 0), (self.pad_sizes[1], 0), (0, 0)], mode='edge')
+        # elif bottom == 'symmetric':
+        #     pad2 = np.pad(pad2b, [(0, 0), (self.pad_sizes[1], 0), (0, 0)], mode='symmetric')
+        # elif isinstance(bottom, Number):
+        #     pad2 = np.pad(pad2b, [(0, 0), (self.pad_sizes[1], 0), (0, 0)], mode='constant', constant_values=0)
+        #     xrange = np.arange(max(1, domain.nelx + 2 * self.pad_sizes[0]))
+        #     yrange = np.arange(max(1, self.pad_sizes[1]))
+        #     zrange = np.arange(max(1, domain.nelz + 2 * self.pad_sizes[2]))
+        #     el_x, el_y, el_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
+        #     self.override_padded_values((el_x, el_y, el_z), bottom)
+        # else:
+        #     pad2 = pad2b
+
+
+        # if isinstance(left, Number):
+            # mode = 'constant'
+            # mode = 'edge'
+            # mode = 'symmetric'
+            # mode = 'wrap'
+
+
+        # Do wrap first
+
+        # np.pad(..., **bottom)
+        # self.el3d_pad = pad2  #np.pad(self.el3d_orig, [(d, d) for d in pad_sizes], mode='reflect')
+
+    def _process_padding(self, indices, type_edge0, type_edge1, direction: int, pad_size: int):
+        # First process wrapped padding
+        wrap_size = (0, 0)
+        do_wrap = False
+        if type_edge0 == 'wrap':
+            do_wrap = True
+            wrap_size = (pad_size, wrap_size[1])
+        if type_edge1 == 'wrap':
+            do_wrap = True
+            wrap_size = (wrap_size[0], pad_size)
+
+        if do_wrap:
+            pad_width = [(0, 0) for _ in range(indices.ndim)]
+            pad_width[direction] = wrap_size
+            pad1a = np.pad(indices, pad_width, mode='wrap')
+        else:
+            pad1a = indices
+
+        domain_sizes = [self.domain.nelx, self.domain.nely, self.domain.nelz]
+        padded_sizes = [self.domain.nelx + 2 * self.pad_sizes[0],
+                        self.domain.nely + 2 * self.pad_sizes[1],
+                        self.domain.nelz + 2 * self.pad_sizes[2]]
+
+        # Process edge 1
+        pad_width = [(0, 0) for _ in range(indices.ndim)]
+        pad_width[direction] = (0, pad_size)
+        if type_edge1 == 'edge':
+            pad1b = np.pad(pad1a, pad_width, mode='edge')
+        elif type_edge1 == 'symmetric':
+            pad1b = np.pad(pad1a, pad_width, mode='symmetric')
+        elif isinstance(type_edge1, Number):  # Constant
+            value = type_edge1
+            pad1b = np.pad(pad1a, pad_width, mode='constant', constant_values=0)
+
+            n_range = [np.arange(max(1, s)) for s in padded_sizes]
+            n_range[direction] = pad_size + domain_sizes[direction] + np.arange(pad_size)
+
+            el_nos = np.meshgrid(*n_range, indexing='ij')
+            self.override_padded_values(tuple(el_nos), value)
+        else:
+            pad1b = pad1a
+
+        # Process edge 0
+        pad_width = [(0, 0) for _ in range(indices.ndim)]
+        pad_width[direction] = (pad_size, 0)
+        if type_edge0 == 'edge':
+            pad1 = np.pad(pad1b, pad_width, mode='edge')
+        elif type_edge0 == 'symmetric':
+            pad1 = np.pad(pad1b, pad_width, mode='symmetric')
+        elif isinstance(type_edge0, Number):
+            value = type_edge0
+            pad1 = np.pad(pad1b, pad_width, mode='constant', constant_values=0)
+
+            n_range = [np.arange(max(1, s)) for s in padded_sizes]
+            n_range[direction] = np.arange(pad_size)
+
+            el_nos = np.meshgrid(*n_range, indexing='ij')
+            self.override_padded_values(tuple(el_nos), value)
+        else:
+            pad1 = pad1b
+        return pad1
+
+    @property
+    def padded_domain(self):
+        domain_sizes = [self.domain.nelx, self.domain.nely, self.domain.nelz]
+        nx, ny, nz = [n + 2*p for n, p in zip(domain_sizes, self.pad_sizes)]
+        lx, ly, lz = self.domain.element_size
+        return DomainDefinition(nx, ny, nz, unitx=lx, unity=ly, unitz=lz)
+
+    def override_padded_values(self, index, value):
+        if all([np.asarray(i).size == 0 for i in index]):
+            # Don't add empty sets
+            return
+        self.overrides.append((index, value))
+
+    def override_values(self, index, value):
+        # Change index to extended domain
+        xrange = self.pad_sizes[0] + np.arange(max(1, self.domain.nelx))
+        yrange = self.pad_sizes[1] + np.arange(max(1, self.domain.nely))
+        zrange = self.pad_sizes[2] + np.arange(max(1, self.domain.nelz))
+        el_x, el_y, el_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
+        self.overrides.append(((el_x[index], el_y[index], el_z[index]), value))
+
+    def get_padded_vector(self, x):
+        xpad = x[self.el3d_pad]
+        for index, value in self.overrides:
+            xpad[index] = value
+        return xpad
+
+    def set_filter_radius(self, radius: float, relative_units: bool = True):
         if relative_units:
             dx, dy, dz = 1.0, 1.0, 1.0
         else:
             dx, dy, dz = self.domain.element_size
-        delemx, delemy, delemz = int((radius-1e-10*dx)/dx), int((radius-1e-10*dy)/dy), int((radius-1e-10*dz)/dz)
-        if self.domain.dim < 3:
-            delemz = 0
+        nx, ny, nz = self.domain.nelx, self.domain.nely, self.domain.nelz
+        delemx = min(nx, int((radius-1e-10*dx)/dx))
+        delemy = min(ny, int((radius-1e-10*dy)/dy))
+        delemz = min(nz, int((radius-1e-10*dz)/dz))
         xrange = np.arange(-delemx, delemx+1)*dx
         yrange = np.arange(-delemy, delemy+1)*dy
         zrange = np.arange(-delemz, delemz+1)*dz
-        coords_x, coords_y, coords_z = np.meshgrid(xrange, yrange, zrange)
+        coords_x, coords_y, coords_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
         self.weights = np.maximum(0.0, radius - np.sqrt(coords_x*coords_x + coords_y*coords_y + coords_z*coords_z))
         self.weights /= np.sum(self.weights)  # Volume preserving
-        if self.domain.dim < 3:
-            self.weights = self.weights[:, :, 0]
 
     def _response(self, x):
-        domain_sizes = [self.domain.nelx, self.domain.nely]
-        if self.domain.dim >= 3:
-            domain_sizes.append(self.domain.nely)
-        xbox = x.reshape(*domain_sizes, order='F').T  # TODO 3d?
-        return convolve(xbox, self.weights, mode=self.mode).flatten()
+        xpad = self.get_padded_vector(x)
+        y3d = convolve(xpad, self.weights, mode='valid')
+        y = np.zeros_like(x)
+        np.add.at(y, self.el3d_orig, y3d)
+        return y
 
     def _sensitivity(self, dfdv):
-        domain_sizes = [self.domain.nelx, self.domain.nely]
-        if self.domain.dim == 3:
-            domain_sizes.append(self.domain.nely)
-        ybox = dfdv.reshape(*domain_sizes, order='F').T  # TODO 3d
-        return convolve(ybox, self.weights, mode=self.mode).flatten()
+        dx3d = correlate(dfdv[self.el3d_orig], self.weights, mode='full')
+        for index, _ in self.overrides:
+            dx3d[index] = 0
+        dx = np.zeros_like(self.sig_in[0].state)
+        np.add.at(dx, self.el3d_pad, dx3d)
+        return dx
 
 
 class Filter(Module):
@@ -167,6 +368,8 @@ class DensityFilter(Filter):
         nwindy = yupp - ylow + 1
         nwindz = zupp - zlow + 1
         nwind = nwindx * nwindy * nwindz
+        if np.sum(nwind) < 0:
+            raise OverflowError("Filter size too large for this mesh size")
 
         # Total number of window elements
         ncum = np.cumsum(nwind)
