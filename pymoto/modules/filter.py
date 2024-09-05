@@ -6,10 +6,42 @@ from numbers import Number
 
 
 class FilterConv(Module):
+    r""" Density filter based on convolution
+
+    Either the argument filter radius (`radius`) or a filtering kernel `weights` needs to be provided. If a filter
+    radius is passed, the standard linear density filter will be used (see `DensityFilter`).
+
+    For the boundaries, a padded effect can be selected from the following options:
+        'symmetric' (default)
+            Pads with the reflection of the vector mirrored
+            along the edge of the array.
+        value (e.g. `1.0` or `0.0`)
+            Pads with a constant value.
+        'edge'
+            Pads with the edge values of array.
+        'wrap'
+            Pads with the wrap of the vector along the axis.
+            The first values are used to pad the end and the
+            end values are used to pad the beginning.
+
+    Args:
+        domain: The DomainDefinition
+        radius (optional): Filter radius
+        relative_units(optional): Indicate if the filter radius is in relative units with respect to the element-size or
+          is given as an absolute size
+        weights(optional): Filtering kernel (2D or 3D array)
+        xmin_bc(optional): Boundary condition for the boundary at minimum x-value
+        xmax_bc(optional): Boundary condition for the boundary at maximum x-value
+        ymin_bc(optional): Boundary condition at minimum y
+        ymax_bc(optional): Boundary condition at maximum y
+        zmin_bc(optional): Boundary condition at minimum z (only in 3D)
+        zmax_bc(optional): Bounadry condition at maximum z (only in 3D)
+    """
     def _prepare(self, domain: DomainDefinition, radius: float = None, relative_units: bool = True, weights: np.ndarray = None,
                  xmin_bc='symmetric', xmax_bc='symmetric',
                  ymin_bc='symmetric', ymax_bc='symmetric',
                  zmin_bc='symmetric', zmax_bc='symmetric'):
+
         self.domain = domain
         self.weights = None
         if (weights is None and radius is None) or (weights is not None and radius is not None):
@@ -34,94 +66,6 @@ class FilterConv(Module):
         padx = self._process_padding(self.el3d_orig, xmin_bc, xmax_bc, 0, self.pad_sizes[0])
         pady = self._process_padding(padx, ymin_bc, ymax_bc, 1, self.pad_sizes[1])
         self.el3d_pad = self._process_padding(pady, zmin_bc, zmax_bc, 2, self.pad_sizes[2])
-        # # Process padding of the domain
-        # if left == 'wrap' and right == 'wrap':
-        #     pad1a = np.pad(self.el3d_orig, [(self.pad_sizes[0], self.pad_sizes[0]), (0, 0), (0, 0)], mode='wrap')
-        # elif left == 'wrap':
-        #     pad1a = np.pad(self.el3d_orig, [(self.pad_sizes[0], 0), (0, 0), (0, 0)], mode='wrap')
-        # elif right == 'wrap':
-        #     pad1a = np.pad(self.el3d_orig, [(0, self.pad_sizes[0]), (0, 0), (0, 0)], mode='wrap')
-        # else:
-        #     pad1a = self.el3d_orig
-        #
-        # if right == 'edge':
-        #     pad1b = np.pad(pad1a, [(0, self.pad_sizes[0]), (0, 0), (0, 0)], mode='edge')
-        # elif right == 'symmetric':
-        #     pad1b = np.pad(pad1a, [(0, self.pad_sizes[0]), (0, 0), (0, 0)], mode='symmetric')
-        # elif isinstance(right, Number):
-        #     pad1b = np.pad(pad1a, [(0, self.pad_sizes[0]), (0, 0), (0, 0)], mode='constant', constant_values=0)
-        #     xrange = self.pad_sizes[0] + domain.nelx + np.arange(max(1, self.pad_sizes[0]))
-        #     yrange = np.arange(max(1, domain.nely + 2*self.pad_sizes[1]))
-        #     zrange = np.arange(max(1, domain.nelz + 2*self.pad_sizes[2]))
-        #     el_x, el_y, el_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
-        #     self.override_padded_values((el_x, el_y, el_z), right)
-        # else:
-        #     pad1b = pad1a
-        #
-        # if left == 'edge':
-        #     pad1 = np.pad(pad1b, [(self.pad_sizes[0], 0), (0, 0), (0, 0)], mode='edge')
-        # elif left == 'symmetric':
-        #     pad1 = np.pad(pad1b, [(self.pad_sizes[0], 0), (0, 0), (0, 0)], mode='symmetric')
-        # elif isinstance(left, Number):
-        #     pad1 = np.pad(pad1b, [(self.pad_sizes[0], 0), (0, 0), (0, 0)], mode='constant', constant_values=0)
-        #     xrange = np.arange(max(1, self.pad_sizes[0]))
-        #     yrange = np.arange(max(1, domain.nely + 2 * self.pad_sizes[1]))
-        #     zrange = np.arange(max(1, domain.nelz + 2 * self.pad_sizes[2]))
-        #     el_x, el_y, el_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
-        #     self.override_padded_values((el_x, el_y, el_z), left)
-        # else:
-        #     pad1 = pad1b
-        #
-        # # Y-direction
-        # if bottom == 'wrap' and top == 'wrap':
-        #     pad2a = np.pad(pad1, [(0, 0), (self.pad_sizes[1], self.pad_sizes[1]), (0, 0)], mode='wrap')
-        # elif bottom == 'wrap':
-        #     pad2a = np.pad(pad1, [(0, 0), (self.pad_sizes[1], 0), (0, 0)], mode='wrap')
-        # elif top == 'wrap':
-        #     pad2a = np.pad(pad1, [(0, 0), (0, self.pad_sizes[1]), (0, 0)], mode='wrap')
-        # else:
-        #     pad2a = pad1
-        #
-        # if top == 'edge':
-        #     pad2b = np.pad(pad2a, [(0, 0), (0, self.pad_sizes[1]), (0, 0)], mode='edge')
-        # elif top == 'symmetric':
-        #     pad2b = np.pad(pad2a, [(0, 0), (0, self.pad_sizes[1]), (0, 0)], mode='symmetric')
-        # elif isinstance(top, Number):
-        #     pad2b = np.pad(pad2a, [(0, 0), (0, self.pad_sizes[1]), (0, 0)], mode='constant', constant_values=0)
-        #     xrange = np.arange(max(1, domain.nelx + 2*self.pad_sizes[0]))
-        #     yrange = self.pad_sizes[1] + domain.nely + np.arange(max(1, self.pad_sizes[1]))
-        #     zrange = np.arange(max(1, domain.nelz + 2*self.pad_sizes[2]))
-        #     el_x, el_y, el_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
-        #     self.override_padded_values((el_x, el_y, el_z), top)
-        # else:
-        #     pad2b = pad2a
-        #
-        # if bottom == 'edge':
-        #     pad2 = np.pad(pad2b, [(0, 0), (self.pad_sizes[1], 0), (0, 0)], mode='edge')
-        # elif bottom == 'symmetric':
-        #     pad2 = np.pad(pad2b, [(0, 0), (self.pad_sizes[1], 0), (0, 0)], mode='symmetric')
-        # elif isinstance(bottom, Number):
-        #     pad2 = np.pad(pad2b, [(0, 0), (self.pad_sizes[1], 0), (0, 0)], mode='constant', constant_values=0)
-        #     xrange = np.arange(max(1, domain.nelx + 2 * self.pad_sizes[0]))
-        #     yrange = np.arange(max(1, self.pad_sizes[1]))
-        #     zrange = np.arange(max(1, domain.nelz + 2 * self.pad_sizes[2]))
-        #     el_x, el_y, el_z = np.meshgrid(xrange, yrange, zrange, indexing='ij')
-        #     self.override_padded_values((el_x, el_y, el_z), bottom)
-        # else:
-        #     pad2 = pad2b
-
-
-        # if isinstance(left, Number):
-            # mode = 'constant'
-            # mode = 'edge'
-            # mode = 'symmetric'
-            # mode = 'wrap'
-
-
-        # Do wrap first
-
-        # np.pad(..., **bottom)
-        # self.el3d_pad = pad2  #np.pad(self.el3d_orig, [(d, d) for d in pad_sizes], mode='reflect')
 
     def _process_padding(self, indices, type_edge0, type_edge1, direction: int, pad_size: int):
         # First process wrapped padding
