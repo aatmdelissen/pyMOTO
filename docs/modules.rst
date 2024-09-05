@@ -25,6 +25,27 @@ Mathematical Modules
    pymoto.StaticCondensation
    pymoto.EigenSolve
    pymoto.Scaling
+   pymoto.ConcatSignal
+
+Constraint Aggregation
+------------------------------
+.. autosummary::
+   :toctree: stubs
+   :nosignatures:
+
+   pymoto.Aggregation
+   pymoto.PNorm
+   pymoto.SoftMinMax
+   pymoto.KSFunction
+
+Helper objects
+
+.. autosummary::
+   :toctree: stubs
+   :nosignatures:
+
+   pymoto.AggActiveSet
+   pymoto.AggScaling
 
 Finite Element Modules
 ----------------------
@@ -36,6 +57,9 @@ Finite Element Modules
    pymoto.AssembleStiffness
    pymoto.AssembleMass
    pymoto.AssemblePoisson
+   pymoto.ElementOperation
+   pymoto.Strain
+   pymoto.Stress
 
 Filter Modules
 --------------
@@ -43,8 +67,10 @@ Filter Modules
    :toctree: stubs
    :nosignatures:
 
+   pymoto.Filter
    pymoto.DensityFilter
    pymoto.OverhangFilter
+   pymoto.FilterConv
 
 Output Modules
 --------------
@@ -52,6 +78,7 @@ Output Modules
    :toctree: stubs
    :nosignatures:
 
+   pymoto.FigModule
    pymoto.PlotDomain
    pymoto.PlotGraph
    pymoto.PlotIter
@@ -86,6 +113,7 @@ Linear Solvers
    :toctree: stubs
    :nosignatures:
 
+   pymoto.LinearSolver
    pymoto.LDAWrapper
    pymoto.SolverDiagonal
    pymoto.SolverDenseQR
@@ -96,3 +124,22 @@ Linear Solvers
    pymoto.SolverSparsePardiso
    pymoto.SolverSparseCholeskyScikit
    pymoto.SolverSparseCholeskyCVXOPT
+
+Preconditioners
+
+.. autosummary::
+   :toctree: stubs
+   :nosignatures:
+
+   pymoto.Preconditioner
+   pymoto.DampedJacobi
+   pymoto.SOR
+   pymoto.ILU
+   pymoto.GeometricMultigrid
+
+Iterative solvers
+
+.. autosummary::
+   :toctree: stubs
+   :nosignatures:
+   pymoto.CG
