@@ -39,6 +39,7 @@ Constraint Aggregation
    pymoto.KSFunction
 
 Helper objects
+
 .. autosummary::
    :toctree: stubs
    :nosignatures:
@@ -125,6 +126,7 @@ Linear Solvers
    pymoto.solvers.SolverSparseCholeskyCVXOPT
 
 Preconditioners
+
 .. autosummary::
    :toctree: stubs
    :nosignatures:
@@ -136,6 +138,7 @@ Preconditioners
    pymoto.solvers.GeometricMultigrid
 
 Iterative solvers
+
 .. autosummary::
    :toctree: stubs
    :nosignatures:
