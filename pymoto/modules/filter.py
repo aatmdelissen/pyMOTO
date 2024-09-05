@@ -9,7 +9,7 @@ class FilterConv(Module):
     r""" Density filter based on convolution
 
     Either the argument filter radius (`radius`) or a filtering kernel `weights` needs to be provided. If a filter
-    radius is passed, the standard linear density filter will be used (see `DensityFilter`).
+    radius is passed, the standard linear density filter will be used (see :py:class:`pymoto.DensityFilter`).
 
     For the boundaries, a padded effect can be selected from the following options:
         'symmetric' (default)
