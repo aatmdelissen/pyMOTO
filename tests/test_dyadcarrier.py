@@ -442,6 +442,31 @@ class TestDyadCarrier(unittest.TestCase):
 
         self.assertAlmostEqual(a.contract(S), np.sum(u1 * diag * v1 + u2 * diag * v2), delta=1e-10)
 
+    def test_contract_sparse_performance(self):
+        # Test contraction with a sparse matrix
+        np.random.seed(0)
+        n = 10000
+
+        a = pym.DyadCarrier([np.random.rand(n) for _ in range(30)], [np.random.rand(n) for _ in range(30)])
+        diag = np.random.rand(1, n)
+        S = spsp.random(n, n, density=200/(n*n)).tocsc()  # Size must be given for scipy==1.7
+        # for i in range(100):
+        #     a.contract(S)
+
+        # Generate random matrices
+        mats = []
+        for _ in range(500):
+            N = np.random.randint(10, 200)
+            rows = np.random.randint(0, n, N)
+            cols = np.random.randint(0, n, N)
+            data = np.random.rand(N)
+            mats.append(spsp.coo_matrix((data, (rows, cols)), shape=(n, n)).tocoo())
+
+        for _ in range(10):
+            a.contract_multi(mats)
+
+        # self.assertAlmostEqual(a.contract(S), np.sum(u1 * diag * v1 + u2 * diag * v2), delta=1e-10)
+
     def test_contract_sparse_slice(self):
         # Test contraction with a sliced sparse matrix
         n = 10
