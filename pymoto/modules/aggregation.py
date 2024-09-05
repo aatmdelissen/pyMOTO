@@ -53,6 +53,8 @@ class AggScaling:
 
     Args:
         which: Scale to `min` or `max`
+        damping(optional): Damping factor between [0, 1), for a value of 0.0 the aggregation approximation is corrected
+          to the exact maximum or minimum of the input set
     """
     def __init__(self, which: str, damping=0.0):
         self.damping = damping
@@ -87,8 +89,8 @@ class Aggregation(Module):
     """ Generic Aggregation module (cannot be used directly, but can only be used as superclass)
 
     Keyword Args:
-        scaling: Scaling strategy to improve approximation
-        active_set: Active set strategy to improve approximation
+        scaling(optional): Scaling strategy to improve approximation :py:class:`pymoto.AggScaling`
+        active_set(optional): Active set strategy to improve approximation :py:class:`pymoto.AggActiveSet`
     """
     def _prepare(self, scaling: AggScaling = None, active_set: AggActiveSet = None):
         # This prepare function MUST be called in the _prepare function of sub-classes
@@ -138,8 +140,8 @@ class PNorm(Aggregation):
 
     Args:
         p: Power of the p-norm. Approximate maximum for `p>0` and minimum for `p<0`
-        scaling: Scaling strategy to improve approximation
-        active_set: Active set strategy to improve approximation
+        scaling(optional): Scaling strategy to improve approximation :py:class:`pymoto.AggScaling`
+        active_set(optional): Active set strategy to improve approximation :py:class:`pymoto.AggActiveSet`
     """
     def _prepare(self, p=2, scaling: AggScaling = None, active_set: AggActiveSet = None):
         self.p = p
@@ -168,8 +170,8 @@ class SoftMinMax(Aggregation):
 
     Args:
         alpha: Scaling factor of the soft function. Approximate maximum for `alpha>0` and minimum for `alpha<0`
-        scaling: Scaling strategy to improve approximation
-        active_set: Active set strategy to improve approximation
+        scaling(optional): Scaling strategy to improve approximation :py:class:`pymoto.AggScaling`
+        active_set(optional): Active set strategy to improve approximation :py:class:`pymoto.AggActiveSet`
     """
     def _prepare(self, alpha=1.0, scaling: AggScaling = None, active_set: AggActiveSet = None):
         self.alpha = alpha
@@ -190,9 +192,9 @@ class KSFunction(Aggregation):
     :math:`S_\rho(x_1, x_2, \dotsc, x_n) = \frac{1}{\rho} \ln \left( \sum_i \exp(\rho x_i) \right)`
 
     Args:
-        rho: Scaling factor of the KS function. Approximate maximum for `alpha>0` and minimum for `alpha<0`
-        scaling: Scaling strategy to improve approximation
-        active_set: Active set strategy to improve approximation
+        rho: Scaling factor of the KS function. Approximate maximum for `rho>0` and minimum for `rho<0`
+        scaling(optional): Scaling strategy to improve approximation :py:class:`pymoto.AggScaling`
+        active_set(optional): Active set strategy to improve approximation :py:class:`pymoto.AggActiveSet`
     """
     def _prepare(self, rho=1.0, scaling: AggScaling = None, active_set: AggActiveSet = None):
         self.rho = rho
