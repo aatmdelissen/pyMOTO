@@ -372,6 +372,7 @@ class DyadCarrier(object):
             val += einsum(expr, *argums)
 
         return val
+
     def contract_multi(self, mats: list[spmatrix], dtype=None):
         """ Faster version of contraction for a list of sparse matrices """
         if dtype is None:
