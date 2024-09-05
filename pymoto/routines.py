@@ -86,15 +86,15 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
     blk.response()
 
     print("Outputs:")
-    if not verbose:
+    if verbose:
+        [print("{}\t{} = {}".format(i, s.tag, s.state)) for i, s in enumerate(outps)]
+    else:
         print(", ".join([s.tag for s in outps]))
 
     # Get analytical response and sensitivities, by looping over all outputs
     for Iout, Sout in enumerate(outps):
         # Obtain the output state
         output = Sout.state
-        if verbose:
-            print("{}\t{} = {}".format(Iout, Sout.tag, output))
 
         # Store the output value
         f0[Iout] = (output.copy() if hasattr(output, "copy") else output)
@@ -188,7 +188,7 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 else:
                     dgdx_an = 0.0
 
-                if abs(dgdx_an) < tol:
+                if abs(dgdx_an) == 0:
                     error = abs(dgdx_fd - dgdx_an)
                 else:
                     error = abs(dgdx_fd - dgdx_an)/max(abs(dgdx_fd), abs(dgdx_an))
@@ -383,7 +383,12 @@ def minimize_mma(function, variables, responses, **kwargs):
         move: Move limit on relative variable change per iteration
         xmin: Minimum design variable (can be a vector)
         xmax: Maximum design variable (can be a vector)
-        verbosity: 0 - No prints, 1 - Only convergence message, 2 - Convergence and iteration info, 3 - Extended info
+        verbosity: Level of information to print
+          0 - No prints
+          1 - Only convergence message
+          2 - Convergence and iteration info (default)
+          3 - Additional info on variables
+          4 - Additional info on sensitivity information
 
     """
     # Save initial state
