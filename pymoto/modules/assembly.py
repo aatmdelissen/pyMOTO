@@ -106,15 +106,17 @@ class AssembleGeneral(Module):
             return dgdmat.contract(self.elmat, self.dofconn, self.dofconn)
 
 
-def get_B(dN_dx):
+def get_B(dN_dx, voigt=True):
     """ Gets the strain-displacement relation (Cook, eq 3.1-9, P.80)
 
       - 1D : [ε_x]_i = B [u]_i
       - 2D : [ε_x; ε_y; γ_xy]_i = B [u, v]_i
-      - 3D : [ε_x; ε_y; ε_z; γ_xy; γ_yz; γ_zx]_i = B [u, v, w]_i
+      - 3D : [ε_x; ε_y; ε_z; γ_xy; γ_yz; γ_zx]_i = B [u, v, w]_i (standard notation)
+             [ε_x; ε_y; ε_z; γ_yz; γ_zx; γ_xy]_i = B [u, v, w]_i (Voigt notation)
 
     Args:
         dN_dx: Shape function derivatives [dNi_dxj] of size (#shapefn. x #dimensions)
+        voigt(optional): Use Voigt notation for the shear terms [yz, zx, xy] or standard notation [xy, yz, zx]
 
     Returns:
         B strain-displacement relation of size (#strains x #shapefn.*#dimensions)
@@ -132,12 +134,21 @@ def get_B(dN_dx):
                                                   [dN_dx[1, i], dN_dx[0, i]]])
     elif n_dim == 3:
         for i in range(n_shapefn):
-            B[:, i*n_dim:(i+1)*n_dim] = np.array([[dN_dx[0, i], 0,           0],
-                                                  [0,           dN_dx[1, i], 0],
-                                                  [0,           0,           dN_dx[2, i]],
-                                                  [dN_dx[1, i], dN_dx[0, i], 0],
-                                                  [0,           dN_dx[2, i], dN_dx[1, i]],
-                                                  [dN_dx[2, i], 0,           dN_dx[0, i]]])
+            if voigt:
+                B[:, i*n_dim:(i+1)*n_dim] = np.array([[dN_dx[0, i], 0,           0],
+                                                      [0,           dN_dx[1, i], 0],
+                                                      [0,           0,           dN_dx[2, i]],
+                                                      [0,           dN_dx[2, i], dN_dx[1, i]],
+                                                      [dN_dx[2, i], 0,           dN_dx[0, i]],
+                                                      [dN_dx[1, i], dN_dx[0, i], 0],
+                                                      ])
+            else:
+                B[:, i * n_dim:(i + 1) * n_dim] = np.array([[dN_dx[0, i], 0, 0],
+                                                            [0, dN_dx[1, i], 0],
+                                                            [0, 0, dN_dx[2, i]],
+                                                            [dN_dx[1, i], dN_dx[0, i], 0],
+                                                            [0, dN_dx[2, i], dN_dx[1, i]],
+                                                            [dN_dx[2, i], 0, dN_dx[0, i]]])
     else:
         raise ValueError(f"Number of dimensions ({n_dim}) cannot be greater than 3")
     return B
@@ -388,7 +399,7 @@ class Strain(ElementOperation):
 
         if voigt:
             idx_shear = np.count_nonzero(B, axis=1) == 2*domain.elemnodes  # Shear is combination of two displacements
-            B[idx_shear, :] *= 2  # Voigt notation with engineering strain
+            B[idx_shear, :] *= 2  # Use engineering strain
 
         super()._prepare(domain, B)
 
