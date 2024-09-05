@@ -200,10 +200,12 @@ class PlotIter(FigModule):
         overwrite (bool): Overwrite saved image every time the figure is updated, else prefix ``_0000`` is added to the
           filename (default = ``False``)
         show (bool): Show the figure on the screen
+        ylim: Provide y-axis limits for the plot
     """
-    def _prepare(self):
+    def _prepare(self, ylim=None):
         self.minlim = 1e+200
         self.maxlim = -1e+200
+        self.ylim = ylim
 
     def _response(self, *args):
         if not hasattr(self, 'ax'):
@@ -234,7 +236,9 @@ class PlotIter(FigModule):
         dy = max((self.maxlim - self.minlim)*0.05, sys.float_info.min)
 
         self.ax.set_xlim([-0.5, self.iter+0.5])
-        if np.isfinite(self.minlim) and np.isfinite(self.maxlim):
+        if self.ylim is not None:
+            self.ax.set_ylim(self.ylim)
+        elif np.isfinite(self.minlim) and np.isfinite(self.maxlim):
             self.ax.set_ylim([self.minlim - dy, self.maxlim + dy])
 
         self._update_fig()
