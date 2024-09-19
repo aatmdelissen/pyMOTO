@@ -28,20 +28,50 @@ def residual(x, y, z, lam, xsi, eta, mu, zet, s, upp, low, P0, P1, Q0, Q1, epsi,
     ])
 
 
-def subsolv(epsimin, low, upp, alfa, beta, P, Q, a0, a, b, c, d):
-    """ This function subsolv solves the MMA subproblem
-    minimize   SUM[ p0j/(uppj-xj) + q0j/(xj-lowj) ] + a0*z +
-             + SUM[ ci*yi + 0.5*di*(yi)^2 ],
-    subject to SUM[ pij/(uppj-xj) + qij/(xj-lowj) ] - ai*z - yi <= bi,
-               alfaj <=  xj <=  betaj,  yi >= 0,  z >= 0.
-    Input:  m, n, low, upp, alfa, beta, p0, q0, P, Q, a0, a, b, c, d.
-    Output: xmma,ymma,zmma, slack variables and Lagrange multiplers.
+def subsolv(epsimin, low, upp, alfa, beta, P, Q, a0, a, b, c, d, x0=None):
+    r""" This function solves the MMA subproblem
+
+    minimize   f_0(\vec{x}) + a_0*z + \sum_i^m[ c_i*y_i + 1/2*d_i*y_i^2 ],
+    subject to f_i(\vec{x}) - a_i*z - y_i <= b_i,   for i = 1, ..., m
+               alfa_j <=  x_j <=  beta_j,  for j = 1, ..., n
+               y_i >= 0,  for i = 1, ..., m
+               z >= 0.
+
+    where:
+        MMA approximation: :math:`f_i(\vec{x}) = \sum_j\left( p_{ij}/(upp_j-x_j) + q_{ij}/(x_j-low_j) \right)`
+        m: The number of general constraints
+        n: The number of variables in :math:`\vec{x}`
+
+    Args:
+        epsimin: Solution tolerance on maximum residual
+        low: Column vector with the lower asymptotes
+        upp: Column vector with the upper asymptotes
+        alfa: Vector with the lower bounds for the variables :math:`\vec{x}`
+        beta: Vector with the upper bounds for the variables :math:`\vec{x}`
+        P: Upper asymptotic amplitudes
+        Q: Lower asymptotic amplitudes
+        a0: The constants :math:`a_0` in the term :math:`a_0\cdot z`
+        a: Vector with the constants :math:`a_i` in the terms :math:`a_i \cdot z`
+        c: Vector with the constants :math:`c_i` in the terms :math:`c_i \cdot y_i`
+        d: Vector with the constants :math:`d_i` in the terms :math:`0.5 \cdot d_i \cdot y_i^2`
+        x0 (optional): Initial guess, in case not given :math:`x_0 = (\alpha + \beta)/2` is used
+
+    Returns:
+        x: Vector with the optimal values of the variables :math:`\vec{x}` in the current MMA subproblem
+        y: Vector with the optimal values of the variables :math:`y_i` in the current MMA subproblem
+        z: Scalar with the optimal value of the variable :math:`z` in the current MMA subproblem
+        lam: Lagrange multipliers for the :math:`m` general MMA constraints
+        xsi: Lagrange multipliers for the :math:'n' constraints :math:`alfa_j - x_j <= 0`
+        eta: Lagrange multipliers for the :math:'n' constraints :math:`x_j - beta_j <= 0`
+        mu: Lagrange multipliers for the :math:`m` constraints :math:`-y_i <= 0`
+        zet: Lagrange multiplier for the single constraint :math:`-z <= 0`
+        s: Slack variables for the m general MMA constraints
     """
 
     n, m = len(alfa), len(a)
     epsi = 1.0
     maxittt = 400
-    x = 0.5 * (alfa + beta)
+    x = 0.5 * (alfa + beta) if x0 is None else np.clip(x0, alfa+1e-10, beta-1e-10)  # Design variables
     y = np.ones(m)
     z = 1.0
     lam = np.ones(m)
@@ -168,8 +198,7 @@ def subsolv(epsimin, low, upp, alfa, beta, P, Q, a0, a, b, c, d):
             sold = s.copy()
 
             # Do linesearch
-            itto = 0
-            while itto < maxittt:
+            for itto in range(maxittt):
                 # Find new set of variables with stepsize
                 x[:] = xold + steg * dx
                 y[:] = yold + steg * dy
@@ -184,14 +213,13 @@ def subsolv(epsimin, low, upp, alfa, beta, P, Q, a0, a, b, c, d):
                 residu = residual(x, y, z, lam, xsi, eta, mu, zet, s, upp, low, P0, P1, Q0, Q1, epsi, a0, a, b, c, d, alfa, beta)
                 if np.linalg.norm(residu) < residunorm:
                     break
-                itto += 1
                 steg /= 2  # Reduce stepsize
 
             residunorm = np.linalg.norm(residu)
             residumax = np.max(np.abs(residu))
 
         if ittt > maxittt - 2:
-            print(f"MMA Subsolver: itt = {ittt}, at epsi = {epsi}")
+            print(f"MMA Subsolver: itt = {ittt}, at epsi = {'%.3e'%epsi}")
         # decrease epsilon with factor 10
         epsi /= 10
 
@@ -200,8 +228,7 @@ def subsolv(epsimin, low, upp, alfa, beta, P, Q, a0, a, b, c, d):
 
 
 class MMA:
-    """
-    Block for the MMA algorithm
+    r""" Class for the MMA optimization algorithm
     The design variables are set by keyword <variables> accepting a list of variables.
     The responses are set by keyword <responses> accepting a list of signals.
     If none are given, the internal sig_in and sig_out are used.
@@ -251,19 +278,15 @@ class MMA:
 
         self.a0 = kwargs.get("a0", 1.0)
 
-        self.epsimin = kwargs.get("epsimin", 1e-7)  # Or 1e-7 ?? witout sqrt(m+n) or 1e-9
-        self.raa0 = kwargs.get("raa0", 1e-5)
-
+        self.epsimin = kwargs.get("epsimin", 1e-10)  # Or 1e-7 ?? witout sqrt(m+n) or 1e-9
         self.cCoef = kwargs.get("cCoef", 1e3)  # Svanberg uses 1e3 in example? Old code had 1e7
-
-        # Not used
-        self.dxmin = kwargs.get("dxmin", 1e-5)
 
         self.albefa = kwargs.get("albefa", 0.1)
         self.asyinit = kwargs.get("asyinit", 0.5)
         self.asyincr = kwargs.get("asyincr", 1.2)
         self.asydecr = kwargs.get("asydecr", 0.7)
         self.asybound = kwargs.get("asybound", 10.0)
+        self.mmaversion = kwargs.get("mmaversion", "Svanberg2007")  # Options are Svanberg1987, Svanberg2007
 
         self.ittomax = kwargs.get("ittomax", 400)
 
@@ -287,7 +310,6 @@ class MMA:
         self.d = np.ones(self.m)
         self.gold1 = np.zeros(self.m + 1)
         self.gold2 = self.gold1.copy()
-        self.rho = self.raa0 * np.ones(self.m + 1)
 
     def response(self):
         change = 1
@@ -443,57 +465,6 @@ class MMA:
         if self.offset is None:
             self.offset = self.asyinit * np.ones(self.n)
 
-        #      Minimize  f_0(x) + a_0*z + sum( c_i*y_i + 0.5*d_i*(y_i)^2 )
-        #    subject to  f_i(x) - a_i*z - y_i <= 0,  i = 1,...,m
-        #                xmin_j <= x_j <= xmax_j,    j = 1,...,n
-        #                z >= 0,   y_i >= 0,         i = 1,...,m
-        # *** INPUT:
-        #
-        #   m    = The number of general constraints.
-        #   n    = The number of variables x_j.
-        #  iter  = Current iteration number ( =1 the first time mmasub is called).
-        #  xval  = Column vector with the current values of the variables x_j.
-        #  xmin  = Column vector with the lower bounds for the variables x_j.
-        #  xmax  = Column vector with the upper bounds for the variables x_j.
-        #  xold1 = xval, one iteration ago (provided that iter>1).
-        #  xold2 = xval, two iterations ago (provided that iter>2).
-        #  f0val = The value of the objective function f_0 at xval.
-        #  df0dx = Column vector with the derivatives of the objective function
-        #          f_0 with respect to the variables x_j, calculated at xval.
-        #  fval  = Column vector with the values of the constraint functions f_i,
-        #          calculated at xval.
-        #  dfdx  = (m x n)-matrix with the derivatives of the constraint functions
-        #          f_i with respect to the variables x_j, calculated at xval.
-        #          dfdx(i,j) = the derivative of f_i with respect to x_j.
-        #  low   = Column vector with the lower asymptotes from the previous
-        #          iteration (provided that iter>1).
-        #  upp   = Column vector with the upper asymptotes from the previous
-        #          iteration (provided that iter>1).
-        #  a0    = The constants a_0 in the term a_0*z.
-        #  a     = Column vector with the constants a_i in the terms a_i*z.
-        #  c     = Column vector with the constants c_i in the terms c_i*y_i.
-        #  d     = Column vector with the constants d_i in the terms 0.5*d_i*(y_i)^2.
-        #
-
-        # *** OUTPUT:
-        #
-        #  xmma  = Column vector with the optimal values of the variables x_j
-        #          in the current MMA subproblem.
-        #  ymma  = Column vector with the optimal values of the variables y_i
-        #          in the current MMA subproblem.
-        #  zmma  = Scalar with the optimal value of the variable z
-        #          in the current MMA subproblem.
-        #  lam   = Lagrange multipliers for the m general MMA constraints.
-        #  xsi   = Lagrange multipliers for the n constraints alfa_j - x_j <= 0.
-        #  eta   = Lagrange multipliers for the n constraints x_j - beta_j <= 0.
-        #   mu   = Lagrange multipliers for the m constraints -y_i <= 0.
-        #  zet   = Lagrange multiplier for the single constraint -z <= 0.
-        #   s    = Slack variables for the m general MMA constraints.
-        #  low   = Column vector with the lower asymptotes, calculated and used
-        #          in the current MMA subproblem.
-        #  upp   = Column vector with the upper asymptotes, calculated and used
-        #          in the current MMA subproblem.
-
         # # ASYMPTOTES
         # Calculation of the asymptotes low and upp :
         # For iter = 1,2 the asymptotes are fixed depending on asyinit
@@ -536,16 +507,27 @@ class MMA:
         # # APPROXIMATE CONVEX SEPARABLE FUNCTIONS
         # Calculations of p0, q0, P, Q and b.
         # calculate the constant factor in calculations of pij and qij
+        # From: Svanberg(2007) - MMA and GCMMA, two methods for nonlinear optimization
+        dg_plus = np.maximum(+dg, 0)
+        dg_min = np.maximum(-dg, 0)
         dx2 = shift**2
-        P = dx2 * np.maximum(+dg, 0)
-        Q = dx2 * np.maximum(-dg, 0)
+        if '1987' in self.mmaversion:
+            # Original version
+            P = dx2 * dg_plus
+            Q = dx2 * dg_min
+        elif '2007' in self.mmaversion:
+            # Improved version -> Allows to use higher epsimin to get design variables closer to the bound.
+            P = dx2 * (1.001*dg_plus + 0.001*dg_min + 1e-5/self.dx)
+            Q = dx2 * (0.001*dg_plus + 1.001*dg_min + 1e-5/self.dx)
+        else:
+            raise ValueError("Only \"Svanberg1987\" or \"Svanberg2007\" are valid options")
 
         rhs = np.dot(P, 1 / shift) + np.dot(Q, 1 / shift) - g
         b = rhs[1:]
 
         # Solving the subproblem by a primal-dual Newton method
         epsimin_scaled = self.epsimin*np.sqrt(self.m + self.n)
-        xmma, ymma, zmma, lam, xsi, eta, mu, zet, s = subsolv(epsimin_scaled, self.low, self.upp, alfa, beta, P, Q, self.a0, self.a, b, self.c, self.d)
+        xmma, ymma, zmma, lam, xsi, eta, mu, zet, s = subsolv(epsimin_scaled, self.low, self.upp, alfa, beta, P, Q, self.a0, self.a, b, self.c, self.d, x0=xval)
 
         self.gold2, self.gold1 = self.gold1, g.copy()
         self.xold2, self.xold1 = self.xold1, xval.copy()
