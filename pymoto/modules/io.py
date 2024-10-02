@@ -287,26 +287,40 @@ class WriteToVTI(Module):
 class ScalarToFile(Module):
     def _prepare(self, saveto="log.txt"):
         self.file = saveto
+        self.iter = 0
 
         if self.file.find(".csv") > 0:
-            self.separator = ", "
+            self.separator = ","
         else:
             self.separator = "\t"
 
-        newline = ["#iter",] + [s.tag for s in self.sig_in]
-        with open(self.file, "w+") as f:
-            f.write(self.separator.join(newline))
-            f.write("\n")
-
-        self.iter = 0
-
     def _response(self, *args):
-        data = []
+        signaldata = {}
+        names_to_write = []
+        data_to_write = []
+
         for s in self.sig_in:
-            data.append(s.state)
+            signaldata[s.tag] = s.state
+
+        for key, scal in signaldata.items():
+            for i in range(scal.size):
+                scalname = key
+                if scal.size > 1:
+                    names_to_write.append(scalname + f"({i})")
+                    data_to_write.append(scal[i])
+                else:
+                    names_to_write.append(scalname)
+                    data_to_write.append(scal)
+
+        if self.iter == 0:
+            topline = ["#iter", ] + names_to_write
+            with open(self.file, "w+") as f:
+                f.write(self.separator.join(topline))
+                f.write("\n")
+
         with open(self.file, "a+") as f:
             f.write("{:04d}".format(self.iter) + self.separator)
-            f.write(self.separator.join(['%.4E' % d for d in data]))
+            f.write(self.separator.join(['%.4E' % d for d in data_to_write]))
             f.write("\n")
 
         self.iter += 1
