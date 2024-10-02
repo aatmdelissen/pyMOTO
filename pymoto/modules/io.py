@@ -255,7 +255,7 @@ class WriteToVTI(Module):
     accepted, which get the suffixed as ``_00``.
 
     Input Signals:
-      - ``*args`` (`numpy.ndarary`): Vectors to write to VTI. The signal tags are used as name.
+      - ``*args`` (`numpy.ndarray`): Vectors to write to VTI. The signal tags are used as name.
 
     Args:
         domain: The domain layout
@@ -285,8 +285,20 @@ class WriteToVTI(Module):
 
 
 class ScalarToFile(Module):
+    """ Writes scalars to a log file
+
+    This function can also handle small vectors of scalars, i.e. eigenfrequencies or multiple constraints. Scalars are
+    saved in scientific notation with 4 significant digits.
+
+    Input Signals:
+      - ``*args`` (`Numeric or List`): Scalars to write to file. The signal tags are used as name.
+
+    Args:
+        saveto (str): Location to save the log file, supports .txt or .csv
+    """
     def _prepare(self, saveto="log.txt"):
         self.file = saveto
+        Path(saveto).parent.mkdir(parents=True, exist_ok=True)
         self.iter = 0
 
         if self.file.find(".csv") > 0:
