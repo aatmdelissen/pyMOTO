@@ -431,3 +431,25 @@ class Stress(Strain):
         if domain.dim == 2:
             D *= domain.element_size[2]
         self.element_matrix = D @ self.element_matrix
+
+
+class NodalOperation(Module):
+    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray):
+        if element_matrix.shape[-1] % domain.elemnodes != 0:
+            raise IndexError("Size of last dimension of element operator matrix is not compatible with mesh. "
+                             "Must be dividable by the number of nodes.")
+
+        ndof = element_matrix.shape[-1] // domain.elemnodes
+
+        self.element_matrix = element_matrix
+        self.dofconn = domain.get_dofconnectivity(ndof)
+        self.ndofs = ndof*domain.nnodes
+
+    def _response(self, x):
+        dofs_el = einsum('...k, ...l -> lk', self.element_matrix, x, optimize=True)
+        dofs = np.zeros(self.ndofs)
+        np.add.at(dofs, self.dofconn, dofs_el)
+        return dofs
+
+    def _sensitivity(self, dx):
+        return einsum('...k, lk -> ...l', self.element_matrix, dx[self.dofconn], optimize=True)
