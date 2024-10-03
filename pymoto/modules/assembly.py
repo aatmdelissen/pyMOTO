@@ -433,6 +433,13 @@ class Stress(Strain):
         self.element_matrix = D @ self.element_matrix
 
 
+class ElementAverage(ElementOperation):
+    def _prepare(self, domain: DomainDefinition, ndof = 1):
+        shapefuns = domain.eval_shape_fun(pos=np.array([0, 0, 0]))
+        el_mat = np.tile(shapefuns, ndof).reshape(ndof, shapefuns.size)
+        super()._prepare(domain, el_mat)
+
+
 class NodalOperation(Module):
     def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray):
         if element_matrix.shape[-1] % domain.elemnodes != 0:
