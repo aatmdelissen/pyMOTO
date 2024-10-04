@@ -460,3 +460,26 @@ class NodalOperation(Module):
 
     def _sensitivity(self, dx):
         return einsum('...k, lk -> ...l', self.element_matrix, dx[self.dofconn], optimize=True)
+
+
+class ThermoMechanical(NodalOperation):
+    def _prepare(self, domain: DomainDefinition, e_modulus: float = 1.0, alpha: float = 1e-6, poisson_ratio: float = 0.3, plane: str = 'strain'):
+        dim = domain.dim
+        D = get_D(e_modulus, poisson_ratio, '3d' if dim == 3 else plane.lower())
+        if dim == 2:
+            Phi = np.array([1,1,0])
+            D *= domain.element_size[2]
+        elif dim == 3:
+            Phi = np.array([1, 1, 1, 0, 0, 0])
+
+        # Numerical integration
+        BDPhi = np.zeros(domain.elemnodes * dim)
+        siz = domain.element_size
+        w = np.prod(siz[:domain.dim] / 2)
+        for n in domain.node_numbering:
+            pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
+            dN_dx = domain.eval_shape_fun_der(pos)
+            B = get_B(dN_dx)
+            BDPhi += w * B.T @ D @ Phi  # Add contribution
+
+        super()._prepare(domain, alpha*BDPhi)
