@@ -434,6 +434,20 @@ class Stress(Strain):
 
 
 class ElementAverage(ElementOperation):
+    r""" Determine average value in element of input nodal values
+
+    Input Signal:
+       - ``v``: Nodal vector of size ``(#dof per element * #nodes)``
+
+    Output Signal:
+       - ``v_el``: Elemental vector of size ``(#elements)``
+
+    Args:
+        domain: The domain defining element and nodal connectivity
+
+    Keyword Args:
+        ndof: Amount of dofs per node of nodal vector to average
+    """
     def _prepare(self, domain: DomainDefinition, ndof = 1):
         shapefuns = domain.eval_shape_fun(pos=np.array([0, 0, 0]))
         el_mat = np.tile(shapefuns, ndof).reshape(ndof, shapefuns.size)
@@ -441,6 +455,20 @@ class ElementAverage(ElementOperation):
 
 
 class NodalOperation(Module):
+    r""" Generic module for nodal operations based on elemental information
+
+    :math:`u_e = \mathbf{A} x_e`
+
+    Input Signal:
+        - ``x``: Elemental vector of size ``(#elements)``
+
+    Output Signal:
+        - ``u``: nodal output data of size ``(#dof per node * #nodes)``
+
+    Args:
+        domain: The domain defining element and nodal connectivity
+        element_matrix: The element operator matrix :math:`\mathbf{A}` of size ``(..., n_dof_per_element)``
+    """
     def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray):
         if element_matrix.shape[-1] % domain.elemnodes != 0:
             raise IndexError("Size of last dimension of element operator matrix is not compatible with mesh. "
@@ -463,7 +491,24 @@ class NodalOperation(Module):
 
 
 class ThermoMechanical(NodalOperation):
-    def _prepare(self, domain: DomainDefinition, e_modulus: float = 1.0, alpha: float = 1e-6, poisson_ratio: float = 0.3, plane: str = 'strain'):
+    r""" Determine equivalent thermo-mecchanical load from design vector and elemental temperature difference
+
+    :math:`u_e = \mathbf{A} (x*t_delta)_e`
+
+    Input Signal:
+        - ``x*t_delta``: Elemental vector of size ``(#elements)``
+
+    Output Signal:
+        - ``f_thermal``: nodal output data of size ``(#dof per node * #nodes)``
+
+    Args:
+        domain: The domain defining element and nodal connectivity
+        e_modulus: Young's modulus
+        poisson_ratio: Poisson ratio
+        alpha: Coefficient of thermal expansion
+        plane: Plane 'strain' or 'stress'
+    """
+    def _prepare(self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, alpha: float = 1e-6, plane: str = 'strain'):
         dim = domain.dim
         D = get_D(e_modulus, poisson_ratio, '3d' if dim == 3 else plane.lower())
         if dim == 2:
