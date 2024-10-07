@@ -19,15 +19,15 @@ class TestThermoMechanical(unittest.TestCase):
         start = 1.5 + 0.5*(N-1)
         T_avchk = np.arange(start, start+N)
 
-        npt.assert_allclose(T_avchk, T_av.state)
+        npt.assert_allclose(T_avchk, T_av.state[0])
 
     def test_thermal_expansion(self):
-        Lx, Ly, Lz = 0.1, 0.2, 0.3
-        domain = pym.DomainDefinition(50, 50, unitx=Lx/50, unity=Ly/50, unitz=Lz)
+        Lx, Ly, Lz = 2, 1, 1
+        domain = pym.DomainDefinition(10, 10, unitx=Lx/10, unity=Ly/10, unitz=Lz)
 
         # Fixed in the middle for free expansion
-        nodidx_mid = domain.get_nodenumber(domain.nelx//2, np.arange(domain.nely//2 - 1, domain.nely//2 + 2))
-        dofidx_mid = np.concatenate([nodidx_mid*2, np.array([nodidx_mid*2 + 1])])
+        nodidx_mid = domain.get_nodenumber(domain.nelx//2, np.arange(domain.nely//2, domain.nely//2 + 1))
+        dofidx_mid = np.concatenate((nodidx_mid*2, nodidx_mid*2 + 1))
 
         # Define bottom, top, right, left surfaces
         nodidx_bottom = domain.get_nodenumber(domain.nelx//2, 0)
@@ -35,7 +35,7 @@ class TestThermoMechanical(unittest.TestCase):
         nodidx_right = domain.get_nodenumber(domain.nelx, domain.nely//2)
         nodidx_left = domain.get_nodenumber(0, domain.nely//2)
 
-        E, nu, alpha = 200e+9, 0.3, 1e-5
+        E, nu, alpha = 100e+9, 0.0, 1e-5
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
 
@@ -52,13 +52,13 @@ class TestThermoMechanical(unittest.TestCase):
         u = np.linalg.solve(s_K.state.toarray(), s_Fth.state)
 
         # Bottom y displacement should be -alpha*Ly/2
-        npt.assert_allclose(u[nodidx_bottom + 1], -alpha * Ly / 2, atol=1e-10)
+        npt.assert_allclose(u[2*nodidx_bottom + 1], -alpha * Ly / 2, atol=1e-10)
 
         # Top y displacement should be alpha*Ly/2
-        npt.assert_allclose(u[nodidx_top + 1], -alpha * Ly / 2, atol=1e-10)
+        npt.assert_allclose(u[2*nodidx_top + 1], alpha * Ly / 2, atol=1e-10)
 
         # Right x displacement should be alpha*Lx/2
-        npt.assert_allclose(u[nodidx_right], alpha * Lx / 2, atol=1e-10)
+        npt.assert_allclose(u[2*nodidx_right], alpha * Lx / 2, atol=1e-10)
 
         # Left x displacement should be -alpha*Lx/2
-        npt.assert_allclose(u[nodidx_left], -alpha * Lx / 2, atol=1e-10)
+        npt.assert_allclose(u[2*nodidx_left], -alpha * Lx / 2, atol=1e-10)
