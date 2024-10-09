@@ -19,7 +19,7 @@ class TestThermoMechanical(unittest.TestCase):
         start = 1.5 + 0.5*(N-1)
         T_avchk = np.arange(start, start+N)
 
-        npt.assert_allclose(T_avchk, T_av.state[0])
+        npt.assert_allclose(T_avchk, T_av.state)
 
     def test_thermal_expansion(self):
         Lx, Ly, Lz = 2, 1, 1
