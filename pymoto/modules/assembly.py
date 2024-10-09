@@ -450,7 +450,10 @@ class ElementAverage(ElementOperation):
     """
     def _prepare(self, domain: DomainDefinition, ndof = 1):
         shapefuns = domain.eval_shape_fun(pos=np.array([0, 0, 0]))
-        el_mat = np.tile(shapefuns, ndof).reshape(ndof, shapefuns.size)
+        if ndof == 1:
+            el_mat = shapefuns
+        else:
+            el_mat = np.tile(shapefuns, ndof).reshape(ndof, shapefuns.size)
         super()._prepare(domain, el_mat)
 
 
@@ -491,15 +494,16 @@ class NodalOperation(Module):
 
 
 class ThermoMechanical(NodalOperation):
-    r""" Determine equivalent thermo-mecchanical load from design vector and elemental temperature difference
+    r""" Determine equivalent thermo-mechanical load from design vector and elemental temperature difference
 
-    :math:`u_e = \mathbf{A} (x*t_delta)_e`
+    :math:`f_thermal = \mathbf{A} (x*t_delta)_e`
 
     Input Signal:
-        - ``x*t_delta``: Elemental vector of size ``(#elements)``
+        - ``x*t_delta``: Elemental vector of size ``(#elements)`` containing elemental densities multiplied by
+                         elemental temperature difference
 
     Output Signal:
-        - ``f_thermal``: nodal output data of size ``(#dof per node * #nodes)``
+        - ``f_thermal``: nodal equivalent thermo-mechanical load of size ``(#dof per node * #nodes)``
 
     Args:
         domain: The domain defining element and nodal connectivity
@@ -512,7 +516,7 @@ class ThermoMechanical(NodalOperation):
         dim = domain.dim
         D = get_D(e_modulus, poisson_ratio, '3d' if dim == 3 else plane.lower())
         if dim == 2:
-            Phi = np.array([1,1,0])
+            Phi = np.array([1, 1, 0])
             D *= domain.element_size[2]
         elif dim == 3:
             Phi = np.array([1, 1, 1, 0, 0, 0])
