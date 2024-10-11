@@ -431,3 +431,104 @@ class Stress(Strain):
         if domain.dim == 2:
             D *= domain.element_size[2]
         self.element_matrix = D @ self.element_matrix
+
+
+class ElementAverage(ElementOperation):
+    r""" Determine average value in element of input nodal values
+
+    Input Signal:
+       - ``v``: Nodal vector of size ``(#dof per element * #nodes)``
+
+    Output Signal:
+       - ``v_el``: Elemental vector of size ``(#elements)``
+
+    Args:
+        domain: The domain defining element and nodal connectivity
+
+    Keyword Args:
+        ndof: Amount of dofs per node of nodal vector to average
+    """
+    def _prepare(self, domain: DomainDefinition, ndof = 1):
+        shapefuns = domain.eval_shape_fun(pos=np.array([0, 0, 0]))
+        if ndof == 1:
+            el_mat = shapefuns
+        else:
+            el_mat = np.tile(shapefuns, ndof).reshape(ndof, shapefuns.size)
+        super()._prepare(domain, el_mat)
+
+
+class NodalOperation(Module):
+    r""" Generic module for nodal operations based on elemental information
+
+    :math:`u_e = \mathbf{A} x_e`
+
+    Input Signal:
+        - ``x``: Elemental vector of size ``(#elements)``
+
+    Output Signal:
+        - ``u``: nodal output data of size ``(#dof per node * #nodes)``
+
+    Args:
+        domain: The domain defining element and nodal connectivity
+        element_matrix: The element operator matrix :math:`\mathbf{A}` of size ``(..., n_dof_per_element)``
+    """
+    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray):
+        if element_matrix.shape[-1] % domain.elemnodes != 0:
+            raise IndexError("Size of last dimension of element operator matrix is not compatible with mesh. "
+                             "Must be dividable by the number of nodes.")
+
+        ndof = element_matrix.shape[-1] // domain.elemnodes
+
+        self.element_matrix = element_matrix
+        self.dofconn = domain.get_dofconnectivity(ndof)
+        self.ndofs = ndof*domain.nnodes
+
+    def _response(self, x):
+        dofs_el = einsum('...k, ...l -> lk', self.element_matrix, x, optimize=True)
+        dofs = np.zeros(self.ndofs)
+        np.add.at(dofs, self.dofconn, dofs_el)
+        return dofs
+
+    def _sensitivity(self, dx):
+        return einsum('...k, lk -> ...l', self.element_matrix, dx[self.dofconn], optimize=True)
+
+
+class ThermoMechanical(NodalOperation):
+    r""" Determine equivalent thermo-mechanical load from design vector and elemental temperature difference
+
+    :math:`f_thermal = \mathbf{A} (x*t_delta)_e`
+
+    Input Signal:
+        - ``x*t_delta``: Elemental vector of size ``(#elements)`` containing elemental densities multiplied by
+                         elemental temperature difference
+
+    Output Signal:
+        - ``f_thermal``: nodal equivalent thermo-mechanical load of size ``(#dof per node * #nodes)``
+
+    Args:
+        domain: The domain defining element and nodal connectivity
+        e_modulus: Young's modulus
+        poisson_ratio: Poisson ratio
+        alpha: Coefficient of thermal expansion
+        plane: Plane 'strain' or 'stress'
+    """
+    def _prepare(self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, alpha: float = 1e-6, plane: str = 'strain'):
+        dim = domain.dim
+        D = get_D(e_modulus, poisson_ratio, '3d' if dim == 3 else plane.lower())
+        if dim == 2:
+            Phi = np.array([1, 1, 0])
+            D *= domain.element_size[2]
+        elif dim == 3:
+            Phi = np.array([1, 1, 1, 0, 0, 0])
+
+        # Numerical integration
+        BDPhi = np.zeros(domain.elemnodes * dim)
+        siz = domain.element_size
+        w = np.prod(siz[:domain.dim] / 2)
+        for n in domain.node_numbering:
+            pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
+            dN_dx = domain.eval_shape_fun_der(pos)
+            B = get_B(dN_dx)
+            BDPhi += w * B.T @ D @ Phi  # Add contribution
+
+        super()._prepare(domain, alpha*BDPhi)

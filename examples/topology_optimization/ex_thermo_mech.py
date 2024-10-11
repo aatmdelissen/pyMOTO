@@ -2,6 +2,7 @@
 Example of the design of a thermoelastic structure.
 
 Implementation by @artofscience (s.koppen@tudelft.nl) based on:
+Adapted by @JoranZwet to incorporate thermal analysis and expansion based on non-uniform temperature
 
 Gao, T., & Zhang, W. (2010).
 Topology optimization involving thermo-elastic stress loads.
@@ -18,31 +19,11 @@ nx, ny = 60, 80  # Domain size
 xmin, filter_radius = 1e-9, 2
 
 load = -100.0  # point load
-
+heatload = 1.0
 scaling_objective = 10.0
 
 volfrac = 0.25
 scaling_volume_constraint = 1.0
-
-
-class ThermalExpansionLoading(pym.Module):
-    def _prepare(self, alpha=10, domain=pym.DomainDefinition):
-        self.alpha = alpha
-        self.dofconn = domain.get_dofconnectivity(2)
-        self.f = np.zeros(domain.nnodes * 2, dtype=float)
-        self.dfdx = np.zeros(domain.nel, dtype=float)
-
-    def _response(self, x, *args):
-        self.f[:] = 0.0
-        np.add.at(self.f, self.dofconn[:, [0, 1, 3, 4]].flatten(), -self.alpha * np.kron(x, np.ones(4)) / 4)
-        np.add.at(self.f, self.dofconn[:, [2, 5, 6, 7]].flatten(), self.alpha * np.kron(x, np.ones(4)) / 4)
-        return self.f
-
-    def _sensitivity(self, dfdv):
-        self.dfdx[:] = 0.0
-        self.dfdx[:] -= dfdv[self.dofconn[:, [0, 1, 3, 4]]].sum(1) * self.alpha / 4
-        self.dfdx[:] += dfdv[self.dofconn[:, [2, 5, 6, 7]]].sum(1) * self.alpha / 4
-        return self.dfdx
 
 
 if __name__ == "__main__":
@@ -64,7 +45,9 @@ if __name__ == "__main__":
 
     # Setup rhs for loadcase
     f = np.zeros(domain.nnodes * 2)  # Generate a force vector
-    f[2 * domain.get_nodenumber(1, 0) + 1] = load
+    f[2 * domain.get_nodenumber(0, 0) + 1] = load
+    q = np.zeros(domain.nnodes) # Generate a heat vector
+    q[domain.get_nodenumber(0, 0)] = heatload
 
     # Initial design
     s_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
@@ -75,17 +58,25 @@ if __name__ == "__main__":
     # Filtering
     s_filtered_variables = fn.append(pym.DensityFilter(s_variables, domain=domain, radius=filter_radius))
 
-    # RAMP with q = 1
+    # RAMP with q = 2
     s_penalized_variables = fn.append(
-        pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(inp0 / (2 - inp0))"))
+        pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(inp0 / (3 - 2*inp0))"))
 
-    # Assemble stiffness matrix
-    s_K = fn.append(pym.AssembleStiffness(s_penalized_variables, domain=domain, bc=None))
+    # Assemble stiffness and conductivity matrix
+    s_K = fn.append(pym.AssembleStiffness(s_penalized_variables, domain=domain, bc=prescribed_dofs))
+    s_KT = fn.append(pym.AssemblePoisson(s_penalized_variables, domain=domain, bc=nodes_right))
 
-    # Solve
+    # Solve for temperature
+    s_heat = pym.Signal('q', state=q)
+    s_temperature = fn.append(pym.LinSolve([s_KT, s_heat]))
+
+    # Determine thermo-mechanical load
+    s_TE = fn.append(pym.ElementAverage(s_temperature, domain=domain))
+    s_xT = fn.append(pym.MathGeneral([s_TE, s_filtered_variables], expression="inp0 * inp1"))
+    s_gravity = fn.append(pym.ThermoMechanical(s_xT, domain=domain, alpha=1.0))
+
+    # Solve for displacements
     s_force = pym.Signal('f', state=f)
-    s_gravity = fn.append(ThermalExpansionLoading([s_filtered_variables], domain=domain))
-
     s_load = fn.append(pym.MathGeneral([s_force, s_gravity], expression="inp0 + inp1"))
 
     s_up = pym.Signal('up', state=np.zeros(len(prescribed_dofs), dtype=float))
