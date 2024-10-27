@@ -1,6 +1,7 @@
 from pymoto import Module
 import numpy as np
 
+
 class Scaling(Module):
     r""" Scales (scalar) input for different response functions in optimization (objective / constraints).
     This is useful, for instance, for MMA where the objective must be scaled in a certain way for good convergence.
@@ -25,7 +26,7 @@ class Scaling(Module):
     Keyword Args:
         scaling: Value :math:`s` to scale with
         minval: Minimum value :math:`x_\text{min}` for negative-null-form constraint
-        minval: Maximum value :math:`x_\text{max}` for negative-null-form constraint
+        maxval: Maximum value :math:`x_\text{max}` for negative-null-form constraint
     """
     def _prepare(self, scaling: float = 100.0, minval: float = None, maxval: float = None):
         self.minval = minval
