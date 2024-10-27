@@ -325,29 +325,47 @@ class ElementOperation(Module):
 
     :math:`y_e = \mathbf{B} \mathbf{u}_e`
 
+    This module is the reverse of :py:class:`pymoto.NodalOperation`.
+
     Input Signal:
-        - ``u``: Nodal vector of size ``(n_dof_per_element * #nodes)``
+        - ``u``: Nodal vector of size ``(#dofs_per_node * #nodes)``
 
     Output Signal:
-        - ``y``: Elemental output data of size ``(..., #elements)``
+        - ``y``: Elemental output data of size ``(..., #elements)`` or ``(#dofs, ..., #elements)``
 
     Args:
         domain: The domain defining element and nodal connectivity
-        element_matrix: The element operator matrix :math:`\mathbf{B}` of size ``(..., n_dof_per_element)``
+        element_matrix: The element operator matrix :math:`\mathbf{B}` of size ``(..., #dofs_per_element)`` or ``(..., #nodes_per_element)``
     """
     def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray):
         if element_matrix.shape[-1] % domain.elemnodes != 0:
-            raise IndexError("Size of last dimension of element operator matrix is not compatible with mesh. "
-                             "Must be dividable by the number of nodes.")
-
-        ndof = element_matrix.shape[-1] // domain.elemnodes
-
+            raise IndexError(
+                f"Size of last dimension of element operator matrix ({element_matrix.shape[-1]}) is not compatible "
+                f"with mesh. Must be dividable by the number of nodes per element ({domain.elemnodes})."
+            )
+        self.domain = domain
         self.element_matrix = element_matrix
-        self.dofconn = domain.get_dofconnectivity(ndof)
-        self.usiz = ndof * domain.nnodes
+        self.dofconn = None
 
     def _response(self, u):
-        assert u.size == self.usiz
+        if u.size % self.domain.nnodes != 0:
+            raise IndexError(f"Size of input vector ({u.size}) does not match number of nodes ({self.domain.nnodes})")
+        ndof = u.size // self.domain.nnodes
+
+        if self.element_matrix.shape[-1] != self.domain.elemnodes * ndof:
+            # Initialize only after first call to response(), because the number of dofs may not yet be known
+            em = self.element_matrix.copy()
+            assert em.shape[-1] == self.domain.elemnodes, f"Size of element matrix must match #dofs_per_element ({ndof*self.domain.elemnodes}) or #nodes_per_element ({self.domain.elemnodes})."
+
+            # Element matrix is repeated for each dof
+            self.element_matrix = np.zeros((ndof, *self.element_matrix.shape[:-1], ndof * self.domain.elemnodes))
+            for i in range(ndof):
+                self.element_matrix[i, ..., i::ndof] = em
+
+        if self.dofconn is None:
+            self.dofconn = self.domain.get_dofconnectivity(ndof)
+
+        assert self.element_matrix.shape[-1] == ndof * self.domain.elemnodes
         return einsum('...k, lk -> ...l', self.element_matrix, u[self.dofconn], optimize=True)
 
     def _sensitivity(self, dy):
@@ -372,10 +390,10 @@ class Strain(ElementOperation):
     in case ``voigt = True``, for which :math:`\gamma_{xy}=2\epsilon_{xy}`.
 
     Input Signal:
-       - ``u``: Nodal vector of size ``(#dof per element * #nodes)``
+       - ``u``: Nodal vector of size ``(#dofs_per_node * #nodes)``
 
     Output Signal:
-       - ``e``: Strain matrix of size ``(#strains per element, #elements)``
+       - ``e``: Strain matrix of size ``(#strains_per_element, #elements)``
 
     Args:
         domain: The domain defining element and nodal connectivity
@@ -408,10 +426,10 @@ class Stress(Strain):
     """ Calculate the average stresses per element
 
     Input Signal:
-       - ``u``: Nodal vector of size ``(#dof per element * #nodes)``
+       - ``u``: Nodal vector of size ``(#dofs_per_node * #nodes)``
 
     Output Signal:
-       - ``s``: Stress matrix of size ``(#stresses per element, #elements)``
+       - ``s``: Stress matrix of size ``(#stresses_per_element, #elements)``
 
     Args:
         domain: The domain defining element and nodal connectivity
@@ -437,24 +455,17 @@ class ElementAverage(ElementOperation):
     r""" Determine average value in element of input nodal values
 
     Input Signal:
-       - ``v``: Nodal vector of size ``(#dof per element * #nodes)``
+       - ``v``: Nodal vector of size ``(#dofs_per_node * #nodes)``
 
     Output Signal:
-       - ``v_el``: Elemental vector of size ``(#elements)``
+       - ``v_el``: Elemental vector of size ``(#elements)`` or ``(#dofs, #elements)`` if ``#dofs_per_node>1``
 
     Args:
         domain: The domain defining element and nodal connectivity
-
-    Keyword Args:
-        ndof: Amount of dofs per node of nodal vector to average
     """
-    def _prepare(self, domain: DomainDefinition, ndof = 1):
+    def _prepare(self, domain: DomainDefinition):
         shapefuns = domain.eval_shape_fun(pos=np.array([0, 0, 0]))
-        if ndof == 1:
-            el_mat = shapefuns
-        else:
-            el_mat = np.tile(shapefuns, ndof).reshape(ndof, shapefuns.size)
-        super()._prepare(domain, el_mat)
+        super()._prepare(domain, shapefuns)
 
 
 class NodalOperation(Module):
@@ -462,15 +473,17 @@ class NodalOperation(Module):
 
     :math:`u_e = \mathbf{A} x_e`
 
+    This module is the reverse of :py:class:`pymoto.ElementOperation`.
+
     Input Signal:
         - ``x``: Elemental vector of size ``(#elements)``
 
     Output Signal:
-        - ``u``: nodal output data of size ``(#dof per node * #nodes)``
+        - ``u``: nodal output data of size ``(..., #dofs_per_node * #nodes)``
 
     Args:
         domain: The domain defining element and nodal connectivity
-        element_matrix: The element operator matrix :math:`\mathbf{A}` of size ``(..., n_dof_per_element)``
+        element_matrix: The element operator matrix :math:`\mathbf{A}` of size ``(..., #dofs_per_element)``
     """
     def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray):
         if element_matrix.shape[-1] % domain.elemnodes != 0:
@@ -503,14 +516,14 @@ class ThermoMechanical(NodalOperation):
                          elemental temperature difference
 
     Output Signal:
-        - ``f_thermal``: nodal equivalent thermo-mechanical load of size ``(#dof per node * #nodes)``
+        - ``f_thermal``: nodal equivalent thermo-mechanical load of size ``(#dofs_per_node * #nodes)``
 
     Args:
         domain: The domain defining element and nodal connectivity
-        e_modulus: Young's modulus
-        poisson_ratio: Poisson ratio
-        alpha: Coefficient of thermal expansion
-        plane: Plane 'strain' or 'stress'
+        e_modulus (optional): Young's modulus
+        poisson_ratio (optional): Poisson ratio
+        alpha (optional): Coefficient of thermal expansion
+        plane (optional): Plane 'strain' or 'stress'
     """
     def _prepare(self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, alpha: float = 1e-6, plane: str = 'strain'):
         dim = domain.dim

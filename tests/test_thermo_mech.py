@@ -5,7 +5,7 @@ import numpy.testing as npt
 
 
 class TestThermoMechanical(unittest.TestCase):
-    def test_elemental_average(self):
+    def test_elemental_average_1dof(self):
         N = 10
         Lx, Ly, Lz = 1, 1, 1
         lx, ly, lz = Lx / N, Ly, Lz
@@ -20,6 +20,63 @@ class TestThermoMechanical(unittest.TestCase):
         T_avchk = np.arange(start, start+N)
 
         npt.assert_allclose(T_avchk, T_av.state)
+
+    def test_elemental_average_2dof(self):
+        domain = pym.DomainDefinition(10, 3)
+
+        T = pym.Signal("T", state=np.arange(2*domain.nnodes))
+        m_avg = pym.ElementAverage(T, domain=domain)
+        T_av = m_avg.sig_out[0]
+        m_avg.response()
+
+        T_avchk1 = np.average(np.arange(2 * domain.nnodes)[domain.get_dofconnectivity(2)[:, ::2]], axis=-1)
+        T_avchk2 = np.average(np.arange(2 * domain.nnodes)[domain.get_dofconnectivity(2)[:, 1::2]], axis=-1)
+
+        npt.assert_allclose(T_avchk1, T_av.state[0])
+        npt.assert_allclose(T_avchk2, T_av.state[1])
+
+    def test_elemental_average_3dof(self):
+        domain = pym.DomainDefinition(10, 11)
+
+        T = pym.Signal("T", state=np.arange(3*domain.nnodes))
+        m_avg = pym.ElementAverage(T, domain=domain)
+        T_av = m_avg.sig_out[0]
+        m_avg.response()
+
+        T_avchk1 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, ::3]], axis=-1)
+        T_avchk2 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, 1::3]], axis=-1)
+        T_avchk3 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, 2::3]], axis=-1)
+
+        npt.assert_allclose(T_avchk1, T_av.state[0])
+        npt.assert_allclose(T_avchk2, T_av.state[1])
+        npt.assert_allclose(T_avchk3, T_av.state[2])
+
+    def test_elemental_average_3D_1dof(self):
+        domain = pym.DomainDefinition(10, 11, 12)
+
+        T = pym.Signal("T", state=np.arange(domain.nnodes))
+        m_avg = pym.ElementAverage(T, domain=domain)
+        T_av = m_avg.sig_out[0]
+        m_avg.response()
+
+        T_avchk = np.average(np.arange(domain.nnodes)[domain.get_dofconnectivity(1)], axis=-1)
+        npt.assert_allclose(T_avchk, T_av.state)
+
+    def test_elemental_average_3D_3dof(self):
+        domain = pym.DomainDefinition(10, 11, 12)
+
+        T = pym.Signal("T", state=np.arange(3*domain.nnodes))
+        m_avg = pym.ElementAverage(T, domain=domain)
+        T_av = m_avg.sig_out[0]
+        m_avg.response()
+
+        T_avchk1 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, ::3]], axis=-1)
+        T_avchk2 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, 1::3]], axis=-1)
+        T_avchk3 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, 2::3]], axis=-1)
+
+        npt.assert_allclose(T_avchk1, T_av.state[0])
+        npt.assert_allclose(T_avchk2, T_av.state[1])
+        npt.assert_allclose(T_avchk3, T_av.state[2])
 
     def test_thermal_expansion(self):
         Lx, Ly, Lz = 2, 1, 1
