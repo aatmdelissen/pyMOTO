@@ -102,6 +102,10 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
         # Get the output state shape
         shape = (output.shape if hasattr(output, "shape") else ())
 
+        if output is None:
+            warnings.warn(f"Output {Iout} of {Sout.tag} is None")
+            continue
+
         # Generate a (random) sensitivity for output signal
         if use_df is not None:
             df_an[Iout] = use_df[Iout]
@@ -171,6 +175,9 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
             for Iout, Sout in enumerate(outps):
                 # Obtain perturbed response
                 fp = Sout.state
+                if fp is None:
+                    warnings.warn(f"Output {Iout} of {Sout.tag} is None")
+                    continue
 
                 # Finite difference sensitivity
                 if issparse(fp):
@@ -226,6 +233,10 @@ def finite_difference(blk: Module, fromsig: Union[Signal, Iterable[Signal]] = No
                 for Iout, Sout in enumerate(outps):
                     # Obtain perturbed response
                     fp = Sout.state
+
+                    if fp is None:
+                        warnings.warn(f"Output {Iout} of {Sout.tag} is None")
+                        continue
 
                     # Finite difference sensitivity
                     if issparse(fp):
