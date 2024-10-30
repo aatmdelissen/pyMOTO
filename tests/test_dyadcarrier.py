@@ -122,6 +122,13 @@ class TestDyadCarrier(unittest.TestCase):
         self.assertTrue(np.allclose(dyad7.u[1], u2))
         self.assertTrue(np.allclose(dyad7.v[1], v2))
 
+        # with shape
+        dyad7a = pym.DyadCarrier(shape=(n, n))
+        self.assertEqual(dyad7a.shape, (n, n))
+        dyad7.add_dyad(u1)
+        self.assertEqual(dyad7a.shape, (n, n))
+        self.assertRaises(TypeError, dyad7.add_dyad, uf, vf)
+
         dyad8 = pym.DyadCarrier(u1)
         self.assertEqual(len(dyad8.u), 1)
         self.assertEqual(len(dyad8.v), 1)

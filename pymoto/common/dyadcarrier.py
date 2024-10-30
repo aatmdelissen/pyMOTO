@@ -37,19 +37,20 @@ class DyadCarrier(object):
     :math:`\mathbf{A} = \sum_k^N \mathbf{u}_k\otimes\mathbf{v}_k`
     or in index notation :math:`A_{ij} = \sum_k^N u_{ki} v_{kj}`. This saves a lot of memory for low :math:`N`.
 
-    Args:
-        u : (optional) List of vectors
-        v : (optional) List of vectors (if ``u`` is given and ``v`` not, a symmetric dyad is assumed with ``v = u``)
+    Keyword Args:
+        u: List of vectors
+        v: List of vectors (if ``u`` is given and ``v`` not, a symmetric dyad is assumed with ``v = u``)
+        shape: Shape of the matrix
     """
 
     __array_priority__ = 11.0  # For overriding numpy's ufuncs
     ndim = 2  # Number of dimensions
 
-    def __init__(self, u: Iterable = None, v: Iterable = None):
+    def __init__(self, u: Iterable = None, v: Iterable = None, shape: tuple[int, int] = (-1, -1)):
         self.u = []
         self.v = []
-        self.ulen = -1
-        self.vlen = -1
+        self.ulen = shape[0]
+        self.vlen = shape[1]
         self.dtype = np.dtype('float64')  # Standard data type
         self.add_dyad(u, v)
 
