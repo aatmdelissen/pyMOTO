@@ -21,7 +21,7 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
     :param ispositivedefinite: Manual override for positive definiteness
     :return: LinearSolver which should be 'best' for the matrix
     """
-    issparse = sps.issparse(A)  # Check if the matrix is sparse
+    issparse = matrix_is_sparse(A)  # Check if the matrix is sparse
     issquare = A.shape[0] == A.shape[1]  # Check if the matrix is square
 
     if not issquare:

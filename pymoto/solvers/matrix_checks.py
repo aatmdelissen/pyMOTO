@@ -12,6 +12,10 @@ def is_cvxopt_spmatrix(A):
     return isinstance(A, cvxopt.spmatrix) if _has_cvxopt else False
 
 
+def matrix_is_sparse(A):
+    return sps.issparse(A)
+
+
 def matrix_is_complex(A):
     """ Checks if the matrix is complex """
     if is_cvxopt_spmatrix(A):
@@ -22,7 +26,7 @@ def matrix_is_complex(A):
 
 def matrix_is_diagonal(A):
     """ Checks if the matrix is diagonal"""
-    if sps.issparse(A):
+    if matrix_is_sparse(A):
         if isinstance(A, sps.dia_matrix):
             return len(A.offsets) == 1 and A.offsets[0] == 0
         else:
@@ -35,7 +39,7 @@ def matrix_is_diagonal(A):
 
 def matrix_is_symmetric(A):
     """ Checks whether a matrix is numerically symmetric """
-    if sps.issparse(A):
+    if matrix_is_sparse(A):
         return np.allclose((A-A.T).data, 0)
     elif is_cvxopt_spmatrix(A):
         return np.isclose(max(abs(A-A.T)), 0.0)
@@ -46,7 +50,7 @@ def matrix_is_symmetric(A):
 def matrix_is_hermitian(A):
     """ Checks whether a matrix is numerically Hermitian """
     if matrix_is_complex(A):
-        if sps.issparse(A):
+        if matrix_is_sparse(A):
             return np.allclose((A-A.T.conj()).data, 0)
         elif is_cvxopt_spmatrix(A):
             return np.isclose(max(abs(A-A.ctrans())), 0.0)

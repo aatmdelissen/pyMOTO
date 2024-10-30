@@ -9,7 +9,7 @@ import scipy.sparse.linalg as spsla
 
 from pymoto import Signal, Module, DyadCarrier
 from pymoto.solvers import auto_determine_solver
-from pymoto.solvers import matrix_is_hermitian, LDAWrapper
+from pymoto.solvers import matrix_is_sparse, matrix_is_complex, matrix_is_hermitian, LDAWrapper
 
 
 class StaticCondensation(Module):
@@ -251,8 +251,8 @@ class LinSolve(Module):
 
     def _response(self, mat, rhs):
         # Do some detections on the matrix type
-        self.issparse = sps.issparse(mat)  # Check if it is a sparse matrix
-        self.iscomplex = np.iscomplexobj(mat)  # Check if it is a complex-valued matrix
+        self.issparse = matrix_is_sparse(mat)  # Check if it is a sparse matrix
+        self.iscomplex = matrix_is_complex(mat)  # Check if it is a complex-valued matrix
         if not self.iscomplex and self.issymmetric is not None:
             self.ishermitian = self.issymmetric
         if self.ishermitian is None:
@@ -351,7 +351,7 @@ class EigenSolve(Module):
         B = args[0] if len(args) > 0 else None
         if self.is_hermitian is None:
             self.is_hermitian = (matrix_is_hermitian(A) and (B is None or matrix_is_hermitian(B)))
-        self.is_sparse = sps.issparse(A) and (B is None or sps.issparse(B))
+        self.is_sparse =matrix_is_sparse(A) and (B is None or matrix_is_sparse(B))
 
         # Solve the eigenvalue problem
         if self.is_sparse:
