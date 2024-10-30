@@ -1,4 +1,4 @@
-from typing import Union, Iterable, List
+from typing import Union, Iterable, List, Tuple
 import warnings
 import numpy as np
 from numpy.typing import NDArray
@@ -46,7 +46,7 @@ class DyadCarrier(object):
     __array_priority__ = 11.0  # For overriding numpy's ufuncs
     ndim = 2  # Number of dimensions
 
-    def __init__(self, u: Iterable = None, v: Iterable = None, shape: tuple[int, int] = (-1, -1)):
+    def __init__(self, u: Iterable = None, v: Iterable = None, shape: Tuple[int, int] = (-1, -1)):
         self.u = []
         self.v = []
         self.ulen = shape[0]
