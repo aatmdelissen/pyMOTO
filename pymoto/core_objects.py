@@ -107,6 +107,9 @@ class Signal:
                 return
             if self.sensitivity is None:
                 self.sensitivity = copy.deepcopy(ds)
+            elif hasattr(self.sensitivity, "add_sensitivity"):
+                # Allow user to implement a custom add_sensitivity function instead of __iadd__
+                self.sensitivity.add_sensitivity(ds)
             else:
                 self.sensitivity += ds
             return self
