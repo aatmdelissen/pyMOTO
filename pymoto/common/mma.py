@@ -374,7 +374,7 @@ class MMA:
             # Save response
             f = ()
             for s in self.responses:
-                if np.ndim(s.state) != 0:
+                if np.size(s.state) != 1:
                     raise TypeError("State of responses must be scalar.")
                 f += (s.state, )
 
