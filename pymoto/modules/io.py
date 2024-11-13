@@ -318,7 +318,7 @@ class ScalarToFile(Module):
             for i in range(scal.size):
                 scalname = key
                 if scal.size > 1:
-                    names_to_write.append(scalname + f"({i})")
+                    names_to_write.append(scalname + f"_{i}")
                     data_to_write.append(scal[i])
                 else:
                     names_to_write.append(scalname)
