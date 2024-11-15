@@ -14,7 +14,7 @@ from .core_objects import Signal, Module, Network, make_signals
 
 # Import modules
 from .modules.assembly import AssembleGeneral, AssembleStiffness, AssembleMass, AssemblePoisson
-from .modules.assembly import ElementOperation, Strain, Stress
+from .modules.assembly import ElementOperation, Strain, Stress, ElementAverage, NodalOperation, ThermoMechanical
 from .modules.autodiff import AutoMod
 from .modules.complex import MakeComplex, RealPart, ImagPart, ComplexNorm
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
@@ -44,7 +44,7 @@ __all__ = [
     "MathGeneral", "EinSum", "ConcatSignal",
     "Inverse", "LinSolve", "EigenSolve", "SystemOfEquations", "StaticCondensation",
     "AssembleGeneral", "AssembleStiffness", "AssembleMass", "AssemblePoisson",
-    "ElementOperation", "Strain", "Stress",
+    "ElementOperation", "Strain", "Stress", "ElementAverage", "NodalOperation", "ThermoMechanical",
     "FilterConv", "Filter", "DensityFilter", "OverhangFilter",
     "FigModule", "PlotDomain", "PlotGraph", "PlotIter", "WriteToVTI",
     "MakeComplex", "RealPart", "ImagPart", "ComplexNorm",

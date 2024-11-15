@@ -58,8 +58,11 @@ Finite Element Modules
    pymoto.AssembleMass
    pymoto.AssemblePoisson
    pymoto.ElementOperation
+   pymoto.NodalOperation
    pymoto.Strain
    pymoto.Stress
+   pymoto.ElementAverage
+   pymoto.ThermoMechanical
 
 Filter Modules
 --------------
