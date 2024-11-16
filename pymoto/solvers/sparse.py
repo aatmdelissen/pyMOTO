@@ -126,6 +126,7 @@ class SolverSparsePardiso(LinearSolver):
             self._pardiso_solver = PyPardisoSolver(mtype=self._mtype)
 
         self._pardiso_solver.factorize(A)
+        self._pardiso_solver.set_phase(33)
 
     def solve(self, b, x0=None, trans='N'):
         """ solve Ax=b for x

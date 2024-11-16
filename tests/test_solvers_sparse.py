@@ -296,8 +296,8 @@ class GenericTestSolvers(unittest.TestCase):
         """ Run the actual test for given solver, matrix and right-hand-side """
         # Reference solution
         mats = dict()
-        mats['N'] = A
         mats['T'] = A.T
+        mats['N'] = A
         mats['H'] = A.conj().T
         solver.update(A)
 
