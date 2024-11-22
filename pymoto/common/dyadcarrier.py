@@ -67,6 +67,12 @@ class DyadCarrier(object):
         else:
             return self.ulen * self.vlen
 
+    @property
+    def n_dyads(self):
+        """ Number of dyads stored """
+        assert len(self.u) == len(self.v)
+        return len(self.u)
+
     def add_dyad(self, u: Iterable, v: Iterable = None, fac: float = None):
         r""" Adds a list of vectors to the dyad carrier
 
@@ -93,9 +99,7 @@ class DyadCarrier(object):
         if len(ulist) != len(vlist):
             raise TypeError("Number of vectors in u ({}) and v({}) should be equal".format(len(ulist), len(vlist)))
 
-        n = len(ulist)
-
-        for i, ui, vi in zip(range(n), ulist, vlist):
+        for i, (ui, vi) in enumerate(zip(ulist, vlist)):
             # Make sure they are numpy arrays
             if not isinstance(ui, np.ndarray):
                 ui = np.array(ui)
@@ -142,14 +146,22 @@ class DyadCarrier(object):
 
     def __getitem__(self, subscript):
         assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
-        usub = [ui[subscript[0]] for ui in self.u]
-        vsub = [vi[subscript[1]] for vi in self.v]
+        if self.shape[0] < 0 and self.shape[1] < 0:
+            return DyadCarrier()
 
-        is_uni_slice = isscalarlike(usub[0]) or isscalarlike(vsub[0])
+        usample = np.zeros(self.shape[0])[subscript[0]]
+        vsample = np.zeros(self.shape[1])[subscript[1]]
+
+        is_uni_slice = isscalarlike(usample) or isscalarlike(vsample)
         is_np_slice = isinstance(subscript[0], np.ndarray) and isinstance(subscript[1], np.ndarray)
+
         if is_np_slice and subscript[0].shape != subscript[1].shape:
             raise IndexError(f"shape mismatch: indexing arrays could not be broadcast together "
                              f"with shapes {subscript[0].shape} {subscript[1].shape}")
+
+        usub = [ui[subscript[0]] for ui in self.u]
+        vsub = [vi[subscript[1]] for vi in self.v]
+
         if is_uni_slice or is_np_slice:
             res = 0
             for (ui, vi) in zip(usub, vsub):
@@ -157,7 +169,7 @@ class DyadCarrier(object):
 
             return res
         else:
-            return DyadCarrier(usub, vsub)
+            return DyadCarrier(usub, vsub, shape=(np.size(usample), np.size(vsample)))
 
     def __setitem__(self, subscript, value):
         assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
@@ -172,10 +184,10 @@ class DyadCarrier(object):
                 vi[subscript[1]] = value
 
     def __pos__(self):
-        return DyadCarrier(self.u, self.v)
+        return self.copy()
 
     def __neg__(self):
-        return DyadCarrier([-uu for uu in self.u], self.v)
+        return DyadCarrier([-uu for uu in self.u], self.v, shape=self.shape)
 
     def __iadd__(self, other):
         self.add_dyad(other.u, other.v)
@@ -190,7 +202,7 @@ class DyadCarrier(object):
         elif isdyad(other):
             if other.shape != self.shape and (self.size > 0 and other.size > 0):
                 raise ValueError(f"Inconsistent shapes {self.shape} and {other.shape}")
-            return DyadCarrier(self.u, self.v).__iadd__(other)
+            return self.copy().__iadd__(other)
         elif isdense(other):
             other = np.broadcast_to(other, self.shape)
             return other + self.todense()
@@ -220,28 +232,44 @@ class DyadCarrier(object):
             return NotImplemented
 
     def __rmul__(self, other):  # other * self
-        return DyadCarrier([other*ui for ui in self.u], self.v)
+        return DyadCarrier([other*ui for ui in self.u], self.v, shape=self.shape)
 
     def __mul__(self, other):  # self * other
-        return DyadCarrier(self.u, [vi*other for vi in self.v])
+        return DyadCarrier(self.u, [vi*other for vi in self.v], shape=self.shape)
 
     def copy(self):
         """ Returns a deep copy of the DyadCarrier """
-        return DyadCarrier(self.u, self.v)
+        return DyadCarrier(self.u, self.v, shape=self.shape)
 
     def conj(self):
         """ Returns (a deep copied) complex conjugate of the DyadCarrier """
-        return DyadCarrier([u.conj() for u in self.u], [v.conj() for v in self.v])
+        return DyadCarrier([u.conj() for u in self.u], [v.conj() for v in self.v], shape=self.shape)
 
     @property
     def real(self):
         """ Returns a deep copy of the real part of the DyadCarrier """
-        return DyadCarrier([*[u.real for u in self.u], *[-u.imag for u in self.u]], [*[v.real for v in self.v], *[v.imag for v in self.v]])
+        return DyadCarrier([*[u.real for u in self.u], *[-u.imag for u in self.u]], [*[v.real for v in self.v], *[v.imag for v in self.v]], shape=self.shape)
 
     @property
     def imag(self):
         """ Returns a deep copy of the imaginary part of the DyadCarrier """
-        return DyadCarrier([*[u.real for u in self.u], *[u.imag for u in self.u]], [*[v.imag for v in self.v], *[v.real for v in self.v]])
+        return DyadCarrier([*[u.real for u in self.u], *[u.imag for u in self.u]], [*[v.imag for v in self.v], *[v.real for v in self.v]], shape=self.shape)
+
+    def min(self):
+        minval = 0.0
+        for u, v in zip(self.u, self.v):
+            minval += u.min() * v.min()
+        if len(self.u) >= 2:
+            warnings.warn("The minimum is an approximation")
+        return minval
+
+    def max(self):
+        maxval = 0.0
+        for u, v in zip(self.u, self.v):
+            maxval += u.max() * v.max()
+        if len(self.u) >= 2:
+            warnings.warn("The maximum is an approximation")
+        return maxval
 
     # flake8: noqa: C901
     def contract(self, mat: Union[NDArray, spmatrix] = None, rows: NDArray[int] = None, cols: NDArray[int] = None):
@@ -447,7 +475,7 @@ class DyadCarrier(object):
 
     def transpose(self):
         """ Returns a deep copy of the transposed DyadCarrier matrix"""
-        return DyadCarrier(self.v, self.u)
+        return DyadCarrier(self.v, self.u, shape=(self.shape[1], self.shape[0]))
 
     def dot(self, other):
         """ Inner product """
@@ -475,9 +503,9 @@ class DyadCarrier(object):
         if other.ndim == 1:
             return self.__dot__(other)
 
-        return DyadCarrier(self.u, [vi@other for vi in self.v])
+        return DyadCarrier(self.u, [vi@other for vi in self.v], shape=(self.shape[0], other.shape[1]))
 
     def __rmatmul__(self, other):  # other @ self
         if other.ndim == 1:
             return self.__rdot__(other)
-        return DyadCarrier([other@ui for ui in self.u], self.v)
+        return DyadCarrier([other@ui for ui in self.u], self.v, shape=(other.shape[0], self.shape[1]))
