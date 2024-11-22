@@ -126,9 +126,10 @@ class DomainDefinition:
         self.conn[el, :] = self.get_elemconnectivity(elx, ely, elz)
 
         # Helper for element slicing
-        eli, elj, elk = np.meshgrid(np.arange(self.nelx), np.arange(self.nely), np.arange(self.nelz), indexing='ij')
+        eli, elj, elk = np.meshgrid(np.arange(self.nelx), np.arange(self.nely), np.arange(max(self.nelz, 1)), indexing='ij')
         self.elements = self.get_elemnumber(eli, elj, elk)
 
+        # Helper for node slicing
         ndi, ndj, ndk = np.meshgrid(np.arange(self.nelx+1), np.arange(self.nely+1), np.arange(self.nelz+1), indexing='ij')
         self.nodes = self.get_nodenumber(ndi, ndj, ndk)
 

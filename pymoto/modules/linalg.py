@@ -9,7 +9,7 @@ import scipy.sparse.linalg as spsla
 
 from pymoto import Signal, Module, DyadCarrier
 from pymoto.solvers import auto_determine_solver
-from pymoto.solvers import matrix_is_hermitian, LDAWrapper
+from pymoto.solvers import matrix_is_sparse, matrix_is_complex, matrix_is_hermitian, LDAWrapper
 
 
 class StaticCondensation(Module):
@@ -251,8 +251,8 @@ class LinSolve(Module):
 
     def _response(self, mat, rhs):
         # Do some detections on the matrix type
-        self.issparse = sps.issparse(mat)  # Check if it is a sparse matrix
-        self.iscomplex = np.iscomplexobj(mat)  # Check if it is a complex-valued matrix
+        self.issparse = matrix_is_sparse(mat)  # Check if it is a sparse matrix
+        self.iscomplex = matrix_is_complex(mat)  # Check if it is a complex-valued matrix
         if not self.iscomplex and self.issymmetric is not None:
             self.ishermitian = self.issymmetric
         if self.ishermitian is None:
@@ -318,9 +318,6 @@ class EigenSolve(Module):
     Mode tracking algorithms can be implemented by the user by providing the argument ``sorting_func``, which is a
     function with arguments (``λ``, ``Q``).
 
-    Todo:
-        Support for sparse matrix
-
     Input Signal(s):
       - ``A`` (`dense matrix`): The system matrix of size ``(n, n)``
       - ``B`` (`dense matrix, optional`): Second system matrix (must be positive-definite) of size ``(n, n)``
@@ -346,12 +343,14 @@ class EigenSolve(Module):
         self.mode = mode
         self.Ainv = None
         self.do_solve = False
+        self.adjoint_solvers_need_update = True
 
     def _response(self, A, *args):
         B = args[0] if len(args) > 0 else None
         if self.is_hermitian is None:
             self.is_hermitian = (matrix_is_hermitian(A) and (B is None or matrix_is_hermitian(B)))
-        self.is_sparse = sps.issparse(A) and (B is None or sps.issparse(B))
+        self.is_sparse = matrix_is_sparse(A) and (B is None or matrix_is_sparse(B))
+        self.adjoint_solvers_need_update = True
 
         # Solve the eigenvalue problem
         if self.is_sparse:
@@ -364,12 +363,18 @@ class EigenSolve(Module):
         W = W[isort]
         Q = Q[:, isort]
 
-        # Normalize the eigenvectors
+        # Normalize the eigenvectors with the following conditions:
+        # 1) Flip sign such that the average (real) value is positive
+        # 2) Normalize the eigenvector v⋅v or v⋅Bv to unity
         for i in range(W.size):
             qi, wi = Q[:, i], W[i]
-            qi *= np.sign(np.real(qi[np.argmax(abs(qi) > 0)]))  # Set first value positive for orientation
             Bqi = qi if B is None else B@qi
-            qi /= np.sqrt(qi@Bqi)  # Normalize
+
+            normval = np.sqrt(qi @ Bqi)
+            avgval = np.average(qi)/normval
+
+            sf = np.sign(np.real(avgval)) / normval
+            qi *= sf
         return W, Q
 
     def _sensitivity(self, dW, dQ):
@@ -380,7 +385,8 @@ class EigenSolve(Module):
             dA, dB = self._dense_sens(A, B, dW, dQ)
         else:
             if dQ is not None:
-                raise NotImplementedError('Sparse eigenvector sensitivities not implemented')
+                # raise NotImplementedError('Sparse eigenvector sensitivities not implemented')
+                dA, dB = self._sparse_eigvec_sens(A, B, dW, dQ)
             elif dW is not None:
                 dA, dB = self._sparse_eigval_sens(A, B, dW)
 
@@ -388,7 +394,6 @@ class EigenSolve(Module):
             return dA
         elif len(self.sig_in) == 2:
             return dA, dB
-
 
     def _sparse_eigs(self, A, B=None):
         if self.nmodes is None:
@@ -473,3 +478,59 @@ class EigenSolve(Module):
                     dB -= DyadCarrier(dB_u, qi)
         return dA, dB
 
+    def _sparse_eigvec_sens(self, A, B, dW, dQ):
+        """ Calculate eigenvector sensitivities for a sparse eigenvalue problem
+        References:
+             Delissen (2022), Topology optimization for dynamic and controlled systems,
+               doi: https://doi.org/10.4233/uuid:c9ed8f61-efe1-4dc8-bb56-e353546cf247
+
+        Args:
+            A: System matrix
+            B: Mass matrix
+            dW: Adjoint eigenvalue sensitivities
+            dQ: Adjoint eigenvector sensitivities
+
+        Returns:
+            dA: Adjoint system matrix sensitivities
+            dB: Adjoint mass matrix sensitivities
+        """
+        if dQ is None:
+            return self._sparse_eigval_sens(A, B, dW)
+        W, Q = [s.state for s in self.sig_out]
+        if dW is not None:
+            dA, dB = self._sparse_eigval_sens(A, B, dW)
+        else:
+            dA, dB = DyadCarrier(), None if B is None else DyadCarrier()
+        for i in range(W.size):
+            phi = Q[:, i]
+            dphi = dQ[:, i]
+            if dphi.min() == dphi.max() == 0.0:
+                continue
+            lam = W[i]
+
+            alpha = - phi @ dphi
+            r = dphi + alpha * B.T @ phi
+
+            # Solve particular solution
+            if self.adjoint_solvers_need_update or self.solvers[i] is None:
+                Z = A - lam * B
+                if not hasattr(self, 'solvers'):
+                    self.solvers = [None for _ in range(W.size)]
+                if self.solvers[i] is None:  # Solver must be able to solve indefinite system
+                    self.solvers[i] = auto_determine_solver(Z, ispositivedefinite=False)
+                if self.adjoint_solvers_need_update:
+                    self.solvers[i].update(Z)
+
+            vp = self.solvers[i].solve(r, trans='T')
+
+            # Calculate total ajoint by adding homogeneous solution
+            c = - vp @ B @ phi
+            v = vp + c * phi
+
+            # Add to mass and stiffness matrix
+            dAi = - DyadCarrier(v, phi)
+            dA += np.real(dAi) if np.isrealobj(A) else dAi
+            if B is not None:
+                dBi = DyadCarrier(alpha / 2 * phi + lam * v, phi)
+                dB += np.real(dBi) if np.isrealobj(B) else dBi
+        return dA, dB

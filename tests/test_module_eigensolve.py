@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+import numpy.testing as npt
 import pymoto as pym
 np.random.seed(0)
 
@@ -164,6 +165,72 @@ class TestEigenSolverDense_Generalized(unittest.TestCase):
         Q, _ = np.linalg.qr(np.random.rand(N, N) + 1j * np.random.rand(N, N))
         D = np.diag(np.random.rand(N) * 0.9 + 0.1)
         self.use_solver(A, Q@D@Q.T.conj(), hermitian=True)
+
+
+def test_eigenvalue_sparse():
+    np.random.seed(0)
+    nx, ny = 3, 6
+    domain = pym.DomainDefinition(nx, ny)
+    bc = (domain.nodes[0, :]*2 + np.arange(2)[None]).flatten()
+    s_x = pym.Signal('x', state=np.ones(domain.nel)*0.5)
+
+    fn = pym.Network()
+    s_K = fn.append(pym.AssembleStiffness(s_x, domain=domain, bc=bc))
+    s_lam, s_V = fn.append(pym.EigenSolve(s_K))
+
+    def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-5)
+    pym.finite_difference(fn, s_x, s_lam, test_fn=tfn, verbose=True)
+
+
+def test_eigenvalue_sparse_generalized():
+    np.random.seed(0)
+    nx, ny = 3, 6
+    domain = pym.DomainDefinition(nx, ny)
+    bc = (domain.nodes[0, :]*2 + np.arange(2)[None]).flatten()
+    s_x = pym.Signal('x', state=np.ones(domain.nel)*0.5)
+
+    fn = pym.Network()
+    s_K = fn.append(pym.AssembleStiffness(s_x, domain=domain, bc=bc))
+    s_M = fn.append(pym.AssembleMass(s_x, domain=domain, bc=bc, ndof=domain.dim))
+    s_lam, s_V = fn.append(pym.EigenSolve([s_K, s_M]))
+
+    def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-5)
+    pym.finite_difference(fn, s_x, s_lam, test_fn=tfn, verbose=True)
+
+
+def test_eigenvector_sparse():
+    np.random.seed(0)
+    nx, ny = 3, 6
+    domain = pym.DomainDefinition(nx, ny)
+    bc = (domain.nodes[0, :]*2 + np.arange(2)[None]).flatten()
+    s_x = pym.Signal('x', state=np.ones(domain.nel)*0.5)
+
+    fn = pym.Network()
+    s_K = fn.append(pym.AssembleStiffness(s_x, domain=domain, bc=bc))
+    s_lam, s_V = fn.append(pym.EigenSolve(s_K))
+
+    def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-4)
+    for i in range(6):
+        pym.finite_difference(fn, s_x, s_V[:, i], test_fn=None, verbose=True)
+    pym.finite_difference(fn, s_x, s_V, test_fn=tfn, verbose=True)
+
+
+def test_eigenvector_sparse_generalized():
+    np.random.seed(0)
+    nx, ny = 3, 6
+    domain = pym.DomainDefinition(nx, ny)
+    bc = (domain.nodes[0, :]*2 + np.arange(2)[None]).flatten()
+    s_x = pym.Signal('x', state=np.ones(domain.nel)*0.5)
+
+    fn = pym.Network()
+    s_K = fn.append(pym.AssembleStiffness(s_x, domain=domain, bc=bc))
+    s_M = fn.append(pym.AssembleMass(s_x, domain=domain, bc=bc, ndof=domain.dim))
+    s_lam, s_V = fn.append(pym.EigenSolve([s_K, s_M]))
+
+    def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-4)
+    for i in range(6):
+        pym.finite_difference(fn, s_x, s_V[:, i], test_fn=tfn, verbose=True)
+    pym.finite_difference(fn, s_x, s_V, test_fn=tfn, verbose=True)
 
 
 if __name__ == '__main__':

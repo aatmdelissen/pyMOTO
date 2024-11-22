@@ -184,6 +184,29 @@ class TestMath(unittest.TestCase):
         def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
         pym.finite_difference(mod, test_fn=tfn)
 
+    def test_numpy_arrays_without_broadcasting(self):
+        """ Check if broadcasting works for sensitivity calculation """
+        np.random.seed(0)
+        sv1 = pym.Signal("vec", np.random.rand(15))
+        sv2 = pym.Signal("vec", np.random.rand(15))
+
+        sRes = pym.Signal("result")
+
+        mod = pym.MathGeneral([sv1, sv2], sRes, expression="inp0*inp1")
+        mod.response()
+
+        # Check value of response
+        self.assertEqual(sRes.state.shape, (15,))
+        npt.assert_allclose(sRes.state, sv1.state * sv2.state)
+
+        # Check sensitivities
+        sRes.sensitivity = np.random.rand(*sRes.state.shape)
+        mod.sensitivity()
+
+        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
+
+        pym.finite_difference(mod, test_fn=tfn)
+
     def test_numpy_arrays_with_broadcasting(self):
         """ Check if broadcasting works for sensitivity calculation """
         np.random.seed(0)

@@ -3,10 +3,10 @@ import numpy as np
 import pymoto as pym
 import numpy.testing as npt
 
-np.random.seed(0)
 
 def fd_testfn(x0, dx, df_an, df_fd):
     npt.assert_allclose(df_an, df_fd, rtol=1e-7, atol=1e-5)
+
 
 class TestElementOperations(unittest.TestCase):
     def test_0D_output(self):
@@ -135,6 +135,26 @@ class TestElementOperations(unittest.TestCase):
                     npt.assert_allclose(m_avg.sig_out[0].state[(n[0]+1)//2, (n[1]+1)//2, 1, :], u[dofconn[:, i * domain.dim + 1]] * 1.1)
 
                 pym.finite_difference(m_avg, test_fn=fd_testfn)
+
+    def test_element_operation_repeat_multidim(self):
+        np.random.seed(0)
+        domain = pym.DomainDefinition(10, 11)
+        em = np.array([[0.1, 0.2, 0.3, 0.4],  # EM defined on each node per element, not for each dof
+                       [1.1, 1.2, 1.3, 1.4],
+                       [2.1, 2.2, 2.3, 2.4]])
+
+        x = pym.Signal(state=np.random.rand(2 * domain.nnodes))
+        m = pym.ElementOperation(x, domain=domain, element_matrix=em)
+        y = m.sig_out[0]
+        m.response()
+
+        y_chk1 = em @ x.state[domain.get_dofconnectivity(2)[:, ::2]].T
+        y_chk2 = em @ x.state[domain.get_dofconnectivity(2)[:, 1::2]].T
+
+        npt.assert_allclose(y.state[0], y_chk1)
+        npt.assert_allclose(y.state[1], y_chk2)
+
+        pym.finite_difference(m, test_fn=fd_testfn)
 
 
 class TestStressStrain(unittest.TestCase):
