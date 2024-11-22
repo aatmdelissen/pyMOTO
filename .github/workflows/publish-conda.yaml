@@ -5,6 +5,7 @@ on:
     workflows: [ "New release" ]
     types:
       - completed
+  workflow_dispatch:
 
 env:
   ANACONDA_USER: aatmdelissen
