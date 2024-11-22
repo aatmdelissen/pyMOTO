@@ -285,54 +285,62 @@ class WriteToVTI(Module):
 
 
 class ScalarToFile(Module):
-    """ Writes scalars to a log file
+    """ Writes iteration data to a log file
 
-    This function can also handle small vectors of scalars, i.e. eigenfrequencies or multiple constraints. Scalars are
-    saved in scientific notation with 4 significant digits.
+    This function can also handle small vectors of scalars, i.e. eigenfrequencies or multiple constraints.
 
     Input Signals:
-      - ``*args`` (`Numeric or List`): Scalars to write to file. The signal tags are used as name.
+      - ``*args`` (`Numeric` or `np.ndarray`): Values to write to file. The signal tags are used as name.
 
     Args:
-        saveto (str): Location to save the log file, supports .txt or .csv
+        saveto: Location to save the log file, supports .txt or .csv
+        fmt (optional): Value format (e.g. 'e', 'f', '.3e', '.5g', '.3f')
+        separator (optional): Value separator, .csv files will automatically use a comma
     """
-    def _prepare(self, saveto="log.txt"):
-        self.file = saveto
+    def _prepare(self, saveto: str, fmt: str = '.10e', separator: str = '\t'):
+        self.saveto = saveto
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
         self.iter = 0
 
-        if self.file.find(".csv") > 0:
-            self.separator = ","
-        else:
-            self.separator = "\t"
+        # Test the format
+        3.14.__format__(fmt)
+        self.format = fmt
+
+        self.separator = "," if ".csv" in self.saveto else separator
 
     def _response(self, *args):
-        signaldata = {}
-        names_to_write = []
-        data_to_write = []
+        tags = [] if self.iter == 0 else None
 
+        # Add iteration as first column
+        dat = [self.iter.__format__('d')]
+        if tags is not None:
+            tags.append('Iteration')
+
+        # Add all signals
         for s in self.sig_in:
-            signaldata[s.tag] = s.state
+            if np.size(np.asarray(s.state)) > 1:
+                it = np.nditer(s.state, flags=['multi_index'])
+                while not it.finished:
+                    dat.append(it.value.__format__(self.format))
+                    if tags is not None:
+                        tags.append(f"{s.tag}{list(it.multi_index)}")
+                    it.iternext()
+            else:
+                dat.append(s.state.__format__(self.format))
+                if tags is not None:
+                    tags.append(s.tag)
 
-        for key, scal in signaldata.items():
-            for i in range(scal.size):
-                scalname = key
-                if scal.size > 1:
-                    names_to_write.append(scalname + f"_{i}")
-                    data_to_write.append(scal[i])
-                else:
-                    names_to_write.append(scalname)
-                    data_to_write.append(scal)
-
-        if self.iter == 0:
-            topline = ["#iter", ] + names_to_write
-            with open(self.file, "w+") as f:
-                f.write(self.separator.join(topline))
+        # Write to file
+        if tags is not None:
+            assert len(tags) == len(dat)
+            with open(self.saveto, "w+") as f:
+                # Write header line
+                f.write(self.separator.join(tags))
                 f.write("\n")
 
-        with open(self.file, "a+") as f:
-            f.write("{:04d}".format(self.iter) + self.separator)
-            f.write(self.separator.join(['%.4E' % d for d in data_to_write]))
+        with open(self.saveto, "a+") as f:
+            # Write data
+            f.write(self.separator.join(dat))
             f.write("\n")
 
         self.iter += 1

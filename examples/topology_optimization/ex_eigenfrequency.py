@@ -141,7 +141,7 @@ if __name__ == "__main__":
         exit()
 
     func.append(pym.PlotIter([sg0, sg1]))  # Plot iteration history
-    func.append(pym.ScalarToFile([sharm, slams, svol]))
+    func.append(pym.ScalarToFile([sharm, slams, svol], saveto='out/log.csv'))
 
     # Do the optimization with MMA
     pym.minimize_mma(func, [sx], [sg0, sg1], verbosity=2)
