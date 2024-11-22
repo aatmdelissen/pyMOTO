@@ -52,7 +52,7 @@ jobs:
           python-version: ${{ matrix.python }}
           architecture: ${{ matrix.arch }}
           miniconda-version: "latest"
-          conda-build-version: 3.28.3
+          conda-build-version: 24.7.1
 
       - name: Install setuptools-conda (Unix)
         if: runner.os != 'Windows'
