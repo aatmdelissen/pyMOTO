@@ -86,6 +86,7 @@ Output Modules
    pymoto.PlotGraph
    pymoto.PlotIter
    pymoto.WriteToVTI
+   pymoto.ScalarToFile
 
 Complex-value Modules
 ---------------------

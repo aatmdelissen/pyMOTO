@@ -1,6 +1,6 @@
 """ Minimal example for an eigenfrequency topology optimization """
 import numpy as np
-
+import csv
 import pymoto as pym
 
 nx, ny, nz = 50, 30, 0  # Set nz to zero for the 2D problem
@@ -113,12 +113,14 @@ if __name__ == "__main__":
 
     # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
     slams, seigvec = func.append(pym.EigenSolve([sK, sM], hermitian=True, nmodes=3))
+    slams.tag = "eigenfrequency"
 
     # Output the design, deformation, and force field to a Paraview file
     func.append(pym.WriteToVTI([sx_analysis], domain=domain, saveto='out/dat.vti'))
 
     # Get harmonic mean of three lowest eigenvalues
     sharm = func.append(pym.MathGeneral([slams[0], slams[1], slams[2]], expression='1/inp0 + 1/inp1 + 1/inp2'))
+    sharm.tag = "harmonic mean"
 
     # MMA needs correct scaling of the objective
     sg0 = func.append(pym.Scaling(sharm, scaling=100.0))
@@ -139,6 +141,7 @@ if __name__ == "__main__":
         exit()
 
     func.append(pym.PlotIter([sg0, sg1]))  # Plot iteration history
+    func.append(pym.ScalarToFile([sharm, slams, svol], saveto='out/log.csv'))
 
     # Do the optimization with MMA
     pym.minimize_mma(func, [sx], [sg0, sg1], verbosity=2)

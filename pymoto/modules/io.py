@@ -255,7 +255,7 @@ class WriteToVTI(Module):
     accepted, which get the suffixed as ``_00``.
 
     Input Signals:
-      - ``*args`` (`numpy.ndarary`): Vectors to write to VTI. The signal tags are used as name.
+      - ``*args`` (`numpy.ndarray`): Vectors to write to VTI. The signal tags are used as name.
 
     Args:
         domain: The domain layout
@@ -281,4 +281,66 @@ class WriteToVTI(Module):
         else:
             filen = pth[0] + '.{0:04d}'.format(self.iter) + pth[1]
         self.domain.write_to_vti(data, filename=filen, scale=self.scale)
+        self.iter += 1
+
+
+class ScalarToFile(Module):
+    """ Writes iteration data to a log file
+
+    This function can also handle small vectors of scalars, i.e. eigenfrequencies or multiple constraints.
+
+    Input Signals:
+      - ``*args`` (`Numeric` or `np.ndarray`): Values to write to file. The signal tags are used as name.
+
+    Args:
+        saveto: Location to save the log file, supports .txt or .csv
+        fmt (optional): Value format (e.g. 'e', 'f', '.3e', '.5g', '.3f')
+        separator (optional): Value separator, .csv files will automatically use a comma
+    """
+    def _prepare(self, saveto: str, fmt: str = '.10e', separator: str = '\t'):
+        self.saveto = saveto
+        Path(saveto).parent.mkdir(parents=True, exist_ok=True)
+        self.iter = 0
+
+        # Test the format
+        3.14.__format__(fmt)
+        self.format = fmt
+
+        self.separator = "," if ".csv" in self.saveto else separator
+
+    def _response(self, *args):
+        tags = [] if self.iter == 0 else None
+
+        # Add iteration as first column
+        dat = [self.iter.__format__('d')]
+        if tags is not None:
+            tags.append('Iteration')
+
+        # Add all signals
+        for s in self.sig_in:
+            if np.size(np.asarray(s.state)) > 1:
+                it = np.nditer(s.state, flags=['multi_index'])
+                while not it.finished:
+                    dat.append(it.value.__format__(self.format))
+                    if tags is not None:
+                        tags.append(f"{s.tag}{list(it.multi_index)}")
+                    it.iternext()
+            else:
+                dat.append(s.state.__format__(self.format))
+                if tags is not None:
+                    tags.append(s.tag)
+
+        # Write to file
+        if tags is not None:
+            assert len(tags) == len(dat)
+            with open(self.saveto, "w+") as f:
+                # Write header line
+                f.write(self.separator.join(tags))
+                f.write("\n")
+
+        with open(self.saveto, "a+") as f:
+            # Write data
+            f.write(self.separator.join(dat))
+            f.write("\n")
+
         self.iter += 1

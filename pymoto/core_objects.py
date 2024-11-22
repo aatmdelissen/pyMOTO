@@ -596,19 +596,24 @@ class Network(Module):
 
         self.print_timing = print_timing
 
-    def timefn(self, fn):
+    def timefn(self, fn, prefix='Evaluation'):
         start_t = time.time()
         fn()
-        print(f"Evaluating {fn} took {time.time() - start_t} s")
+        duration = time.time() - start_t
+        if duration > .5:
+            print(f"{prefix} {fn} took {time.time() - start_t} s")
 
     def response(self):
         if self.print_timing:
-            [self.timefn(b.response) for b in self.mods]
+            [self.timefn(b.response, prefix='Response') for b in self.mods]
         else:
             [b.response() for b in self.mods]
 
     def sensitivity(self):
-        [b.sensitivity() for b in reversed(self.mods)]
+        if self.print_timing:
+            [self.timefn(b.sensitivity, 'Sensitivity') for b in reversed(self.mods)]
+        else:
+            [b.sensitivity() for b in reversed(self.mods)]
 
     def reset(self):
         [b.reset() for b in reversed(self.mods)]
