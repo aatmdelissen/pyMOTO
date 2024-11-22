@@ -86,7 +86,7 @@ jobs:
 
   release:
 #    if: github.event_name != 'pull_request'
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Release
     runs-on: ubuntu-latest
     needs: build
