@@ -45,7 +45,7 @@ jobs:
       #  run: git tag -d $(git tag --points-at HEAD)
 
       - name: Install Miniconda
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python }}
