@@ -56,7 +56,7 @@ jobs:
       - name: Install conda-build (Unix)
         if: runner.os != 'Windows'
         shell: bash -l {0}
-        run: conda install conda-build==3.28.3
+        run: conda install conda-build==3.28.3  # To fix https://github.com/chrisjbillington/setuptools-conda/issues/18
 
       - name: Install setuptools-conda (Unix)
         if: runner.os != 'Windows'
@@ -119,7 +119,7 @@ jobs:
 
       - name: Publish to Anaconda main label
         shell: bash -l {0}
-        if: github.event_name == 'workflow_run'
+        # if: github.event_name == 'workflow_run'
         run: |
           anaconda \
             --token ${{ secrets.ANACONDA_TOKEN }} \
