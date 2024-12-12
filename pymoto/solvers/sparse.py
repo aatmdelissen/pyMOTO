@@ -201,7 +201,11 @@ class SolverSparsePardiso(LinearSolver):
                 print(f"{i+1}: {v} ({k})")  # i+1 because of 1-based numbering
 
     def __del__(self):
-        self._pardiso_solver.free_memory(everything=True)
+        try:
+            self._pardiso_solver.free_memory(everything=True)
+        except ImportError:
+            # To prevent ImportError: sys.meta_path is None, Python is likely shutting down
+            pass
 
 
 # ------------------------------------ LU Solver -----------------------------------
