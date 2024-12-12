@@ -200,6 +200,9 @@ class SolverSparsePardiso(LinearSolver):
             if v != 0:
                 print(f"{i+1}: {v} ({k})")  # i+1 because of 1-based numbering
 
+    def __del__(self):
+        self._pardiso_solver.free_memory(everything=True)
+
 
 # ------------------------------------ LU Solver -----------------------------------
 try:
