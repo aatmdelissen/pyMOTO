@@ -202,15 +202,16 @@ class PlotIter(FigModule):
         show (bool): Show the figure on the screen
         ylim: Provide y-axis limits for the plot
     """
-    def _prepare(self, ylim=None):
+    def _prepare(self, ylim=None, log_scale=False):
         self.minlim = 1e+200
         self.maxlim = -1e+200
         self.ylim = ylim
+        self.log_scale = log_scale
 
     def _response(self, *args):
         if not hasattr(self, 'ax'):
             self.ax = self.fig.add_subplot(111)
-            self.ax.set_yscale('linear')
+            self.ax.set_yscale('linear' if not self.log_scale else 'log')
             self.ax.set_xlabel("Iteration")
 
         if not hasattr(self, 'line'):
@@ -233,13 +234,24 @@ class PlotIter(FigModule):
             self.minlim = min(self.minlim, np.min(xadd))
             self.maxlim = max(self.maxlim, np.max(xadd))
 
-        dy = max((self.maxlim - self.minlim)*0.05, sys.float_info.min)
-
         self.ax.set_xlim([-0.5, self.iter+0.5])
         if self.ylim is not None:
             self.ax.set_ylim(self.ylim)
         elif np.isfinite(self.minlim) and np.isfinite(self.maxlim):
-            self.ax.set_ylim([self.minlim - dy, self.maxlim + dy])
+            if self.log_scale:
+                dy = (np.log10(self.maxlim) - np.log10(self.minlim))*0.05
+                ll = 10**(np.log10(self.minlim) - dy)
+                ul = 10**(np.log10(self.maxlim) + dy)
+            else:
+                dy = (self.maxlim - self.minlim)*0.05
+                ll = self.minlim - dy
+                ul = self.maxlim + dy
+
+            if ll == ul:
+                dy = np.nextafter(ll, 1) - ll
+                ll = ll - 1e5*dy
+                ul = ul + 1e5*dy
+            self.ax.set_ylim([ll, ul])
 
         self._update_fig()
 
