@@ -248,7 +248,7 @@ class PlotIter(FigModule):
                 ul = self.maxlim + dy
 
             if ll == ul:
-                dy = np.nextafter(ll, 1) - ll
+                dy = abs(np.nextafter(abs(ll), 1) - abs(ll))
                 ll = ll - 1e5*dy
                 ul = ul + 1e5*dy
             self.ax.set_ylim([ll, ul])
