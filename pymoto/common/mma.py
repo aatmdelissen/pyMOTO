@@ -376,6 +376,8 @@ class MMA:
             for s in self.responses:
                 if np.size(s.state) != 1:
                     raise TypeError("State of responses must be scalar.")
+                if np.iscomplexobj(s.state):
+                    raise TypeError("Responses must be real-valued.")
                 f += (s.state, )
 
             # Check function change convergence criterion
