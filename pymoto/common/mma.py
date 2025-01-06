@@ -371,6 +371,8 @@ class MMA:
             # Calculate response
             self.funbl.response()
 
+            xval, _ = _concatenate_to_array([s.state for s in self.variables])
+
             # Save response
             f = ()
             for s in self.responses:
