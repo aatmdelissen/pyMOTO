@@ -371,9 +371,11 @@ class EigenSolve(Module):
             Bqi = qi if B is None else B@qi
 
             normval = np.sqrt(qi @ Bqi)
-            avgval = np.average(qi)/normval
-
-            sf = np.sign(np.real(avgval)) / normval
+            sgn = 1 if np.real(np.average(qi)) >= 0 else -1
+            sf = sgn / normval
+            assert np.isfinite(sf)
+            if sf == 0.0:
+                warnings.warn(f"Scaling factor of mode {i} is zero!")
             qi *= sf
         return W, Q
 
