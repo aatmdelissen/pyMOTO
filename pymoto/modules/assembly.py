@@ -57,11 +57,8 @@ class AssembleGeneral(Module):
         self.bc = bc
         self.bcdiagval = np.max(element_matrix) if bcdiagval is None else bcdiagval
         if bc is not None:
-            self.bcselect = np.argwhere(np.bitwise_not(np.bitwise_or(np.isin(self.rows, self.bc),
-                                                                     np.isin(self.cols, self.bc)))).flatten()
-
-            self.rows = np.concatenate((self.rows[self.bcselect], self.bc))
-            self.cols = np.concatenate((self.cols[self.bcselect], self.bc))
+            bc_inds = np.bitwise_or(np.isin(self.rows, self.bc), np.isin(self.cols, self.bc))
+            self.bcselect = np.argwhere(np.bitwise_not(bc_inds)).flatten()
         else:
             self.bcselect = None
 
@@ -76,11 +73,15 @@ class AssembleGeneral(Module):
         if self.bc is not None:
             # Remove entries that correspond to bc before initializing
             mat_values = np.concatenate((scaled_el[self.bcselect], self.bcdiagval*np.ones(len(self.bc))))
+            rows = np.concatenate((self.rows[self.bcselect], self.bc))
+            cols = np.concatenate((self.cols[self.bcselect], self.bc))
         else:
             mat_values = scaled_el
+            rows = self.rows
+            cols = self.cols
 
         try:
-            mat = self.matrix_type((mat_values, (self.rows, self.cols)), shape=(self.n, self.n))
+            mat = self.matrix_type((mat_values, (rows, cols)), shape=(self.n, self.n))
         except TypeError as e:
             raise type(e)(str(e) + "\n\tInvalid matrix_type={}. Either scipy.sparse.cscmatrix or "
                                    "scipy.sparse.csrmatrix are supported"
