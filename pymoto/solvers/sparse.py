@@ -147,6 +147,9 @@ class SolverSparsePardiso(LinearSolver):
             # Cannot use _pardiso_solver.solve because it changes flag 12 internally
             iparm_prev = self._pardiso_solver.get_iparm(12)
             self._pardiso_solver.set_iparm(12, int(not iparm_prev))  # Adjoint solver (transpose)
+            if b.dtype != np.float64:  # Only float64 is supported --> this is also done in _check_b, but fails for int8
+                warnings.warn(f"Array b's data type was converted from {b.dtype} to float64")
+                b = b.astype(np.float64)
             b = self._pardiso_solver._check_b(self.A, b)
             x = self._pardiso_solver._call_pardiso(self.A, b)
             self._pardiso_solver.set_iparm(12, iparm_prev)  # Revert back to normal solver
