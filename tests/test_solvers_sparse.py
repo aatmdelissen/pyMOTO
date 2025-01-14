@@ -323,6 +323,7 @@ class GenericTestSolvers(unittest.TestCase):
 
     def test_all_matrices(self):
         """ Run the tests on all given matrices """
+        np.random.seed(0)
         tags = self.get_tags()
         for A, t in zip(self.matrices, tags):
             """ Test for different type of right-hand-sides """
