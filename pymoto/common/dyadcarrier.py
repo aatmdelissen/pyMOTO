@@ -393,7 +393,7 @@ class DyadCarrier(object):
         exprvars = (rowvar, colvar) if mat is None else (rowvar, matvar, colvar)
         expr = ','.join(exprvars) + '->' + batchvar
 
-        val = 0.0 if batchsize is None else np.zeros(batchsize)
+        val = 0.0 if batchsize is None else np.zeros(batchsize, dtype=np.result_type(mat, self.dtype))
         for ui, vi in zip(self.u, self.v):
             uarg = ui if rows is None else ui[rows]
             varg = vi if cols is None else vi[cols]

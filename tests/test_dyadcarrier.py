@@ -1,6 +1,8 @@
 import unittest
+import pytest
 import pymoto as pym
 import numpy as np
+import numpy.testing as npt
 import scipy.sparse as spsp
 
 
@@ -341,99 +343,8 @@ class TestDyadCarrier(unittest.TestCase):
         dyad2chk = np.conj(dyad1chk)
         self.assertTrue(np.allclose(dyad2chk, dyad2.todense()))
 
-    def test_contract(self):
-        n = 10
-        u1 = np.random.rand(n)
-        u2 = np.random.rand(n)
-        v1 = np.random.rand(n)
-        v2 = np.random.rand(n)
 
-        a = pym.DyadCarrier([u1, u2], [v1, v2])
 
-        tol = 1e-13
-        self.assertAlmostEqual(a.contract(), np.dot(u1, v1) + np.dot(u2, v2), delta=tol)
-
-        self.assertAlmostEqual(a.contract(np.eye(10)), np.dot(u1, v1) + np.dot(u2, v2), delta=tol)
-
-        a_mat = np.random.rand(n, n)
-        self.assertAlmostEqual(a.contract(a_mat), np.dot(u1, a_mat.dot(v1)) + np.dot(u2, a_mat.dot(v2)), delta=tol)
-
-        a_submat = np.random.rand(3, 4)
-        rows = np.array([3, 5, 5])
-        cols = np.array([0, 1, 2, 8])
-
-        self.assertAlmostEqual(a.contract(a_submat, rows, cols),
-                               u1[rows].dot(a_submat.dot(v1[cols])) + u2[rows].dot(a_submat.dot(v2[cols])), delta=tol)
-        self.assertAlmostEqual(a.contract(rows=cols, cols=cols),
-                               np.dot(u1[cols], v1[cols]) + np.dot(u2[cols], v2[cols]), delta=tol)
-        self.assertRaises(ValueError, a.contract, rows=rows, cols=cols)
-
-        a_submat1 = np.random.rand(3, n)
-        self.assertAlmostEqual(a.contract(a_submat1, rows),
-                               u1[rows].dot(a_submat1.dot(v1)) + u2[rows].dot(a_submat1.dot(v2)), delta=tol)
-
-        self.assertAlmostEqual(a.contract(a_submat1.T, cols=rows),
-                               u1.dot(a_submat1.T.dot(v1[rows])) + u2.dot(a_submat1.T.dot(v2[rows])), delta=tol)
-
-    def test_contract_batch(self):
-        n = 10
-        u1 = np.random.rand(n)
-        u2 = np.random.rand(n)
-        v1 = np.random.rand(n)
-        v2 = np.random.rand(n)
-
-        a = pym.DyadCarrier([u1, u2], [v1, v2])
-
-        tol = 1e-13
-
-        # Batch matrix
-        a_mat = np.random.rand(3, n, n)
-        self.assertEqual(a.contract(a_mat).shape, (3,))
-        self.assertTrue(np.allclose(a.contract(a_mat), np.dot(u1, a_mat.dot(v1).T) + np.dot(u2, a_mat.dot(v2).T)))
-
-        a_mat1 = np.random.rand(3, 4, n, n)
-        self.assertEqual(a.contract(a_mat1).shape, (3, 4))
-        self.assertTrue(np.allclose(a.contract(a_mat1), a_mat1.dot(v1).dot(u1) + a_mat1.dot(v2).dot(u2)))
-
-        a_matfail = np.random.rand(n, n, 3, 4)
-        self.assertRaises(ValueError, a.contract, a_matfail)
-
-        # Batch rows
-        a_submat = np.random.rand(3, 4)
-        rows = np.array([[3, 5, 5], [5, 6, 7], [8, 9, 0]])
-        cols = np.array([0, 1, 2, 8])
-        self.assertEqual(a.contract(a_submat, rows, cols).shape, (3,))
-        self.assertTrue(np.allclose(a.contract(a_submat, rows, cols),
-                                    u1[rows].dot(a_submat.dot(v1[cols])) + u2[rows].dot(a_submat.dot(v2[cols]))))
-
-        self.assertEqual(a.contract(rows=rows, cols=rows).shape, (3,))
-        self.assertTrue(np.allclose(a.contract(rows=rows, cols=rows),
-                                    np.sum(u1[rows] * v1[rows], axis=1) + np.sum(u2[rows] * v2[rows], axis=1)))
-
-        cols_fail = np.array([[0, 1, 2, 8], [3, 4, 7, 8]])
-        self.assertRaises(ValueError, a.contract, rows=rows, cols=cols_fail)
-
-        # Batch cols
-        a_submat1 = np.random.rand(3, 4)
-        rows = np.array([3, 5, 5])
-        cols = np.array([[0, 1, 2, 8], [3, 4, 7, 8], [5, 4, 1, 0]])
-        self.assertEqual(a.contract(a_submat1, rows, cols).shape, (3,))
-        self.assertTrue(np.allclose(a.contract(a_submat1, rows, cols),
-                                    u1[rows].dot(a_submat1.dot(v1[cols].T)) + u2[rows].dot(a_submat1.dot(v2[cols].T))))
-
-        # Batch all
-        rows = np.array([[3, 5, 5], [5, 6, 7], [8, 9, 0]])
-        cols = np.array([[0, 1, 2, 8], [3, 4, 7, 8], [5, 4, 1, 0]])
-        a_submat2 = np.random.rand(3, 3, 4)
-        self.assertAlmostEqual(a.contract(a_submat2, rows, cols)[0],
-                               a.contract(a_submat2[0, :], rows[0, :], cols[0, :]), delta=tol)
-        self.assertAlmostEqual(a.contract(a_submat2, rows, cols)[1],
-                               a.contract(a_submat2[1, :], rows[1, :], cols[1, :]), delta=tol)
-        self.assertAlmostEqual(a.contract(a_submat2, rows, cols)[2],
-                               a.contract(a_submat2[2, :], rows[2, :], cols[2, :]), delta=tol)
-
-        rows_fail = np.array([[3, 5, 5], [5, 6, 7]])
-        self.assertRaises(ValueError, a.contract, a_submat2, rows_fail, cols)
 
     def test_contract_sparse(self):
         # Test contraction with a sparse matrix
@@ -685,6 +596,111 @@ class TestDyadCarrier(unittest.TestCase):
             res = (c[0] * d).todense()
             self.assertTrue(np.allclose(chk, res))
 
+
+@pytest.mark.parametrize("vec_complex", [True, False])
+@pytest.mark.parametrize("mat_complex", [True, False])
+def test_contract(vec_complex, mat_complex):
+    np.random.seed(0)
+    n = 10
+
+    vc = 1j if vec_complex else 0
+    mc = 1j if mat_complex else 0
+
+    u1 = np.random.rand(n) + vc * np.random.rand(n)
+    u2 = np.random.rand(n) + vc * np.random.rand(n)
+    v1 = np.random.rand(n) + vc * np.random.rand(n)
+    v2 = np.random.rand(n) + vc * np.random.rand(n)
+
+    a = pym.DyadCarrier([u1, u2], [v1, v2])
+
+    npt.assert_allclose(a.contract(), np.dot(u1, v1) + np.dot(u2, v2))
+
+    npt.assert_allclose(a.contract(np.eye(10)), np.dot(u1, v1) + np.dot(u2, v2))
+
+    a_mat = np.random.rand(n, n) + mc * np.random.rand(n, n)
+    npt.assert_allclose(a.contract(a_mat), np.dot(u1, a_mat.dot(v1)) + np.dot(u2, a_mat.dot(v2)))
+
+    a_submat = np.random.rand(3, 4) + mc * np.random.rand(3, 4)
+    rows = np.array([3, 5, 5])
+    cols = np.array([0, 1, 2, 8])
+
+    npt.assert_allclose(a.contract(a_submat, rows, cols),
+                        u1[rows].dot(a_submat.dot(v1[cols])) + u2[rows].dot(a_submat.dot(v2[cols])))
+    npt.assert_allclose(a.contract(rows=cols, cols=cols),
+                        np.dot(u1[cols], v1[cols]) + np.dot(u2[cols], v2[cols]))
+    pytest.raises(ValueError, a.contract, rows=rows, cols=cols)
+
+    a_submat1 = np.random.rand(3, n) + mc * np.random.rand(3, n)
+    npt.assert_allclose(a.contract(a_submat1, rows),
+                        u1[rows].dot(a_submat1.dot(v1)) + u2[rows].dot(a_submat1.dot(v2)))
+
+    npt.assert_allclose(a.contract(a_submat1.T, cols=rows),
+                        u1.dot(a_submat1.T.dot(v1[rows])) + u2.dot(a_submat1.T.dot(v2[rows])))
+
+
+@pytest.mark.parametrize("vec_complex", [True, False])
+@pytest.mark.parametrize("mat_complex", [True, False])
+def test_contract_batch(vec_complex, mat_complex):
+    np.random.seed(0)
+    n = 10
+    vc = 1j if vec_complex else 0
+    mc = 1j if mat_complex else 0
+
+    u1 = np.random.rand(n) + vc * np.random.rand(n)
+    u2 = np.random.rand(n) + vc * np.random.rand(n)
+    v1 = np.random.rand(n) + vc * np.random.rand(n)
+    v2 = np.random.rand(n) + vc * np.random.rand(n)
+
+    a = pym.DyadCarrier([u1, u2], [v1, v2])
+
+    # Batch matrix
+    a_mat = np.random.rand(3, n, n) + mc * np.random.rand(3, n, n)
+    assert a.contract(a_mat).shape == (3,)
+    npt.assert_allclose(a.contract(a_mat), np.dot(u1, a_mat.dot(v1).T) + np.dot(u2, a_mat.dot(v2).T))
+
+    a_mat1 = np.random.rand(3, 4, n, n) + mc * np.random.rand(3, 4, n, n)
+    assert a.contract(a_mat1).shape == (3, 4)
+    npt.assert_allclose(a.contract(a_mat1), a_mat1.dot(v1).dot(u1) + a_mat1.dot(v2).dot(u2))
+
+    a_matfail = np.random.rand(n, n, 3, 4) + mc * np.random.rand(n, n, 3, 4)
+    pytest.raises(ValueError, a.contract, a_matfail)
+
+    # Batch rows
+    a_submat = np.random.rand(3, 4) + mc * np.random.rand(3, 4)
+    rows = np.array([[3, 5, 5], [5, 6, 7], [8, 9, 0]])
+    cols = np.array([0, 1, 2, 8])
+    assert a.contract(a_submat, rows, cols).shape == (3,)
+    npt.assert_allclose(a.contract(a_submat, rows, cols),
+                        u1[rows].dot(a_submat.dot(v1[cols])) + u2[rows].dot(a_submat.dot(v2[cols])))
+
+    assert a.contract(rows=rows, cols=rows).shape == (3,)
+    npt.assert_allclose(a.contract(rows=rows, cols=rows),
+                        np.sum(u1[rows] * v1[rows], axis=1) + np.sum(u2[rows] * v2[rows], axis=1))
+
+    cols_fail = np.array([[0, 1, 2, 8], [3, 4, 7, 8]])
+    pytest.raises(ValueError, a.contract, rows=rows, cols=cols_fail)
+
+    # Batch cols
+    a_submat1 = np.random.rand(3, 4) + mc * np.random.rand(3, 4)
+    rows = np.array([3, 5, 5])
+    cols = np.array([[0, 1, 2, 8], [3, 4, 7, 8], [5, 4, 1, 0]])
+    assert a.contract(a_submat1, rows, cols).shape == (3,)
+    npt.assert_allclose(a.contract(a_submat1, rows, cols),
+                        u1[rows].dot(a_submat1.dot(v1[cols].T)) + u2[rows].dot(a_submat1.dot(v2[cols].T)))
+
+    # Batch all
+    rows = np.array([[3, 5, 5], [5, 6, 7], [8, 9, 0]])
+    cols = np.array([[0, 1, 2, 8], [3, 4, 7, 8], [5, 4, 1, 0]])
+    a_submat2 = np.random.rand(3, 3, 4) + mc * np.random.rand(3, 3, 4)
+    npt.assert_allclose(a.contract(a_submat2, rows, cols)[0],
+                        a.contract(a_submat2[0, :], rows[0, :], cols[0, :]))
+    npt.assert_allclose(a.contract(a_submat2, rows, cols)[1],
+                        a.contract(a_submat2[1, :], rows[1, :], cols[1, :]))
+    npt.assert_allclose(a.contract(a_submat2, rows, cols)[2],
+                        a.contract(a_submat2[2, :], rows[2, :], cols[2, :]))
+
+    rows_fail = np.array([[3, 5, 5], [5, 6, 7]])
+    pytest.raises(ValueError, a.contract, a_submat2, rows_fail, cols)
 
 if __name__ == '__main__':
     unittest.main()
