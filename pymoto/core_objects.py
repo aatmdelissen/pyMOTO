@@ -186,14 +186,14 @@ class SignalSlice(Signal):
     The sliced values are referenced to their original source Signal, such that they can be used and updated in modules.
     This means that updating the values in this SignalSlice changes the data in its source Signal.
     """
-    def __init__(self, orig_signal, sl, tag=None):
-        self.orig_signal = orig_signal
+    def __init__(self, base, sl, tag=None):
+        self.base = base
         self.slice = sl
         self.keep_alloc = False  # Allocation must be False because sensitivity cannot be assigned with [] operator
 
         # for s in slice:
         if tag is None:
-            self.tag = f"{self.orig_signal.tag}[{fmt_slice(self.slice)}]"
+            self.tag = f"{self.base.tag}[{fmt_slice(self.slice)}]"
         else:
             self.tag = tag
 
@@ -203,7 +203,7 @@ class SignalSlice(Signal):
     @property
     def state(self):
         try:
-            return None if self.orig_signal.state is None else self.orig_signal.state[self.slice]
+            return None if self.base.state is None else self.base.state[self.slice]
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
             raise type(e)(str(e) + "\n\t| Above error was raised in SignalSlice.state (getter). Signal details:" +
@@ -212,7 +212,7 @@ class SignalSlice(Signal):
     @state.setter
     def state(self, new_state):
         try:
-            self.orig_signal.state[self.slice] = new_state
+            self.base.state[self.slice] = new_state
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
             raise type(e)(str(e) + "\n\t| Above error was raised in SignalSlice.state (setter). Signal details:" +
@@ -221,7 +221,7 @@ class SignalSlice(Signal):
     @property
     def sensitivity(self):
         try:
-            return None if self.orig_signal.sensitivity is None else self.orig_signal.sensitivity[self.slice]
+            return None if self.base.sensitivity is None else self.base.sensitivity[self.slice]
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
             raise type(e)(str(e) + "\n\t| Above error was raised in SignalSlice.sensitivity (getter). Signal details:" +
@@ -230,25 +230,54 @@ class SignalSlice(Signal):
     @sensitivity.setter
     def sensitivity(self, new_sens):
         try:
-            if self.orig_signal.sensitivity is None:
+            if self.base.sensitivity is None:
+                # Initialize sensitivity of base-signal
                 if new_sens is None:
                     return  # Sensitivity doesn't need to be initialized when it is set to None
                 try:
-                    self.orig_signal.sensitivity = self.orig_signal.state * 0  # Make a new copy with 0 values
+                    self.base.sensitivity = self.base.state * 0  # Make a new copy with 0 values
                 except TypeError:
-                    if self.orig_signal.state is None:
+                    if self.base.state is None:
                         raise TypeError("Could not initialize sensitivity because state is not set" + self._err_str())
                     else:
-                        raise TypeError(f"Could not initialize sensitivity for type \'{type(self.orig_signal.state).__name__}\'")
+                        raise TypeError(f"Could not initialize sensitivity for type \'{type(self.base.state).__name__}\'")
 
             if new_sens is None:
                 new_sens = 0  # reset() uses this
 
-            self.orig_signal.sensitivity[self.slice] = new_sens
+            self.base.sensitivity[self.slice] = new_sens
         except Exception as e:
             # Possibilities: Unslicable object (TypeError) or Wrong dimensions or out of range (IndexError)
             raise type(e)(str(e) + "\n\t| Above error was raised in SignalSlice.state (setter). Signal details:" +
                           self._err_str()).with_traceback(sys.exc_info()[2])
+
+    def add_sensitivity(self, ds: Any):
+        """ Add a new term to internal sensitivity """
+        try:
+            if ds is None:
+                return
+            if self.base.sensitivity is None:
+                self.base.sensitivity = self.base.state * 0
+                # self.sensitivity = copy.deepcopy(ds)
+
+            if hasattr(self.sensitivity, "add_sensitivity"):
+                # Allow user to implement a custom add_sensitivity function instead of __iadd__
+                self.sensitivity.add_sensitivity(ds)
+            else:
+                self.sensitivity += ds
+            return self
+        except TypeError:
+            if isinstance(ds, type(self.sensitivity)):
+                raise TypeError(
+                    f"Cannot add to the sensitivity with type '{type(self.sensitivity).__name__}'" + self._err_str())
+            else:
+                raise TypeError(
+                    f"Adding wrong type '{type(ds).__name__}' to the sensitivity '{type(self.sensitivity).__name__}'" + self._err_str())
+        except ValueError:
+            sens_shape = self.sensitivity.shape if hasattr(self.sensitivity, 'shape') else ()
+            ds_shape = ds.shape if hasattr(ds, 'shape') else ()
+            raise ValueError(
+                f"Cannot add argument of shape {ds_shape} to the sensitivity of shape {sens_shape}" + self._err_str()) from None
 
     def reset(self, keep_alloc: bool = None):
         """ Reset the sensitivities to zero or None
@@ -408,7 +437,7 @@ class Module(ABC, RegisteredClass):
     >> Module([inputs])
 
     Using keywords:
-    >> Module(sig_in=[inputs], sig_out=[outputs]
+    >> Module(sig_in=[inputs], sig_out=[outputs])
     """
 
     def _err_str(self, module_signature: bool = True, init: bool = True, fn=None):
@@ -556,67 +585,58 @@ class Module(ABC, RegisteredClass):
 class Network(Module):
     """ Binds multiple Modules together as one Module
 
+    Initialize a network with a number of modules that should be executed consecutively
     >> Network(module1, module2, ...)
 
     >> Network([module1, module2, ...])
 
     >> Network((module1, module2, ...))
 
+    Modules can also be constructed using a dictionary based on strings
     >> Network([ {type="module1", sig_in=[sig1, sig2], sig_out=[sig3]},
                  {type="module2", sig_in=[sig3], sig_out=[sig4]} ])
 
+    Appending modules to a network will output the signals automatically
+    >> fn = Network()
+    >> s_out = fn.append(module1)
+
+    Args:
+        print_timing: Print timing of each module inside this Network
     """
     def __init__(self, *args, print_timing=False):
+        super().__init__()
         self._init_loc = get_init_str()
-
-        # Obtain the internal blocks
-        self.mods = _parse_to_list(*args)
-
-        # Check if the blocks are initialized, else create them
-        for i, b in enumerate(self.mods):
-            if isinstance(b, dict):
-                exclude_keys = ['type']
-                b_ex = {k: b[k] for k in set(list(b.keys())) - set(exclude_keys)}
-                self.mods[i] = Module.create(b['type'], **b_ex)
-
-        # Check validity of modules
-        for m in self.mods:
-            if not _is_valid_module(m):
-                raise TypeError(f"Argument is not a valid Module, type=\'{type(mod).__name__}\'.")
-
-        # Gather all the input and output signals of the internal blocks
-        all_in = set()
-        all_out = set()
-        [all_in.update(b.sig_in) for b in self.mods]
-        [all_out.update(b.sig_out) for b in self.mods]
-        in_unique = all_in - all_out
-
-        # Initialize the parent module, with correct inputs and outputs
-        super().__init__(list(in_unique), list(all_out))
-
+        self.mods = []  # Empty module list
+        self.append(*args)  # Append to module list
         self.print_timing = print_timing
 
-    def timefn(self, fn, prefix='Evaluation'):
+    def timefn(self, fn, name=None):
         start_t = time.time()
         fn()
         duration = time.time() - start_t
-        if duration > .5:
-            print(f"{prefix} {fn} took {time.time() - start_t} s")
+        if name is None:
+            name = f"{fn}"
+        if isinstance(self.print_timing, bool):
+            tmin = 0.0
+        else:
+            tmin = self.print_timing
+        if duration > tmin:
+            print(f"{name} took {time.time() - start_t} s")
 
     def response(self):
-        if self.print_timing:
-            [self.timefn(b.response, prefix='Response') for b in self.mods]
+        if self.print_timing is not False:
+            [self.timefn(m.response, name=f"-- Response of \"{type(m).__name__}\"") for m in self.mods]
         else:
-            [b.response() for b in self.mods]
+            [m.response() for m in self.mods]
 
     def sensitivity(self):
-        if self.print_timing:
-            [self.timefn(b.sensitivity, 'Sensitivity') for b in reversed(self.mods)]
+        if self.print_timing is not False:
+            [self.timefn(m.sensitivity, name=f"-- Sensitivity of \"{type(m).__name__}\"") for m in reversed(self.mods)]
         else:
-            [b.sensitivity() for b in reversed(self.mods)]
+            [m.sensitivity() for m in reversed(self.mods)]
 
     def reset(self):
-        [b.reset() for b in reversed(self.mods)]
+        [m.reset() for m in reversed(self.mods)]
 
     def _response(self, *args):
         pass  # Unused
@@ -636,13 +656,25 @@ class Network(Module):
     def __iter__(self):
         return iter(self.mods)
 
+    def __call__(self, *args):
+        return self.append(*args)
+
     def append(self, *newmods):
         modlist = _parse_to_list(*newmods)
+        if len(modlist) == 0:
+            return
 
         # Check if the blocks are initialized, else create them
         for i, m in enumerate(modlist):
+            if isinstance(m, dict):
+                exclude_keys = ['type']
+                b_ex = {k: m[k] for k in set(list(m.keys())) - set(exclude_keys)}
+                modlist[i] = Module.create(m['type'], **b_ex)
+
+        # Check validity of modules
+        for i, m in enumerate(modlist):
             if not _is_valid_module(m):
-                raise TypeError(f"Argument #{i} is not a valid module, type=\'{type(mod).__name__}\'.")
+                raise TypeError(f"Argument #{i} is not a valid module, type=\'{type(m).__name__}\'.")
 
         # Obtain the internal blocks
         self.mods.extend(modlist)
@@ -657,4 +689,4 @@ class Network(Module):
         self.sig_in = _parse_to_list(in_unique)
         self.sig_out = _parse_to_list(all_out)
 
-        return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out  # Returns the output signal
+        return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out
