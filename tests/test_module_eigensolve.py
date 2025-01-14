@@ -1,4 +1,5 @@
 import unittest
+import pytest
 import numpy as np
 import numpy.testing as npt
 import pymoto as pym
@@ -167,7 +168,10 @@ class TestEigenSolverDense_Generalized(unittest.TestCase):
         self.use_solver(A, Q@D@Q.T.conj(), hermitian=True)
 
 
-def test_eigenvalue_sparse():
+@pytest.mark.parametrize("generalized",
+                         [pytest.param(True, id='generalized'),
+                          pytest.param(False, id='normal')])
+def test_eigensolve_sparse(generalized):
     np.random.seed(0)
     nx, ny = 3, 6
     domain = pym.DomainDefinition(nx, ny)
@@ -176,61 +180,44 @@ def test_eigenvalue_sparse():
 
     fn = pym.Network()
     s_K = fn.append(pym.AssembleStiffness(s_x, domain=domain, bc=bc))
-    s_lam, s_V = fn.append(pym.EigenSolve(s_K))
-
-    def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-5)
-    pym.finite_difference(fn, s_x, s_lam, test_fn=tfn, verbose=True)
-
-
-def test_eigenvalue_sparse_generalized():
-    np.random.seed(0)
-    nx, ny = 3, 6
-    domain = pym.DomainDefinition(nx, ny)
-    bc = (domain.nodes[0, :]*2 + np.arange(2)[None]).flatten()
-    s_x = pym.Signal('x', state=np.ones(domain.nel)*0.5)
-
-    fn = pym.Network()
-    s_K = fn.append(pym.AssembleStiffness(s_x, domain=domain, bc=bc))
-    s_M = fn.append(pym.AssembleMass(s_x, domain=domain, bc=bc, ndof=domain.dim))
-    s_lam, s_V = fn.append(pym.EigenSolve([s_K, s_M]))
-
-    def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-5)
-    pym.finite_difference(fn, s_x, s_lam, test_fn=tfn, verbose=True)
-
-
-def test_eigenvector_sparse():
-    np.random.seed(0)
-    nx, ny = 3, 6
-    domain = pym.DomainDefinition(nx, ny)
-    bc = (domain.nodes[0, :]*2 + np.arange(2)[None]).flatten()
-    s_x = pym.Signal('x', state=np.ones(domain.nel)*0.5)
-
-    fn = pym.Network()
-    s_K = fn.append(pym.AssembleStiffness(s_x, domain=domain, bc=bc))
-    s_lam, s_V = fn.append(pym.EigenSolve(s_K))
+    input_signals = [s_K, ]
+    if generalized:
+        s_M = fn.append(pym.AssembleMass(s_x, domain=domain, bc=bc, ndof=domain.dim))
+        input_signals.append(s_M)
+    s_lam, s_V = fn.append(pym.EigenSolve(input_signals))
+    s_lam.tag, s_V.tag = 'lam', 'V'
 
     def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-4)
+    # Test eigenvalue sensitivities
+    pym.finite_difference(fn, s_x, s_lam, test_fn=tfn, verbose=True)
+    # Test eigenvector sensitivities
     for i in range(6):
         pym.finite_difference(fn, s_x, s_V[:, i], test_fn=None, verbose=True)
     pym.finite_difference(fn, s_x, s_V, test_fn=tfn, verbose=True)
 
 
-def test_eigenvector_sparse_generalized():
+@pytest.mark.parametrize("complex_matrix", [True, False])
+def test_eigensolve_sparse_generalized(complex_matrix):
     np.random.seed(0)
     nx, ny = 3, 6
     domain = pym.DomainDefinition(nx, ny)
     bc = (domain.nodes[0, :]*2 + np.arange(2)[None]).flatten()
-    s_x = pym.Signal('x', state=np.ones(domain.nel)*0.5)
+    xvec = np.ones(domain.nel)*0.5 #+ (1j if complex_matrix else 0) * np.ones(domain.nel)*0.5
+    s_x = pym.Signal('x', state=xvec)
 
     fn = pym.Network()
-    s_K = fn.append(pym.AssembleStiffness(s_x, domain=domain, bc=bc))
+    s_K = fn.append(pym.AssembleStiffness(s_x, domain=domain, bc=bc, e_modulus=1. + 1j))
     s_M = fn.append(pym.AssembleMass(s_x, domain=domain, bc=bc, ndof=domain.dim))
     s_lam, s_V = fn.append(pym.EigenSolve([s_K, s_M]))
+    s_lam.tag, s_V.tag = 'lam', 'V'
 
     def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-4)
+
+    pym.finite_difference(fn, s_x, s_lam, test_fn=tfn, verbose=True)
     for i in range(6):
         pym.finite_difference(fn, s_x, s_V[:, i], test_fn=tfn, verbose=True)
     pym.finite_difference(fn, s_x, s_V, test_fn=tfn, verbose=True)
+
 
 
 if __name__ == '__main__':

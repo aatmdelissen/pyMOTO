@@ -97,14 +97,16 @@ class AssembleGeneral(Module):
         if self.bc is not None:
             dgdmat[self.bc, :] = 0.0
             dgdmat[:, self.bc] = 0.0
+        dx = np.zeros_like(self.sig_in[0].state)
         if isinstance(dgdmat, np.ndarray):
-            dx = np.zeros_like(self.sig_in[0].state)
             for i in range(len(dx)):
                 indu, indv = np.meshgrid(self.dofconn[i], self.dofconn[i], indexing='ij')
-                dx[i] = einsum("ij,ij->", self.elmat, dgdmat[indu, indv])
-            return dx
+                dxi = einsum("ij,ij->", self.elmat, dgdmat[indu, indv])
+                dx[i] = np.real(dxi) if np.isrealobj(dx) else dxi
         elif isinstance(dgdmat, DyadCarrier):
-            return dgdmat.contract(self.elmat, self.dofconn, self.dofconn)
+            dxi = dgdmat.contract(self.elmat, self.dofconn, self.dofconn)
+            dx[:] = np.real(dxi) if np.isrealobj(dx) else dxi
+        return dx
 
 
 def get_B(dN_dx, voigt=True):
@@ -124,7 +126,7 @@ def get_B(dN_dx, voigt=True):
     """
     n_dim, n_shapefn = dN_dx.shape
     n_strains = int((n_dim * (n_dim+1))/2)  # Triangular number: ndim=3 -> nstrains = 3+2+1
-    B = np.zeros((n_strains, n_shapefn*n_dim))
+    B = np.zeros((n_strains, n_shapefn*n_dim), dtype=dN_dx.dtype)
     if n_dim == 1:
         for i in range(n_shapefn):
             B[i, 0] = dN_dx[i, 0]
@@ -223,7 +225,8 @@ class AssembleStiffness(AssembleGeneral):
         ndof = nnode*domain.dim
 
         # Element stiffness matrix
-        self.stiffness_element = np.zeros((ndof, ndof))
+        dtype = np.result_type(D, domain.element_size.dtype)
+        self.stiffness_element = np.zeros((ndof, ndof), dtype=dtype)
 
         # Numerical integration
         siz = domain.element_size

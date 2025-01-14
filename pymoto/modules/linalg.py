@@ -268,7 +268,7 @@ class LinSolve(Module):
         if not isinstance(self.solver, LDAWrapper) and self.use_lda_solver:
             lda_kwargs = dict(hermitian=self.ishermitian, symmetric=self.issymmetric)
             if hasattr(self.solver, 'tol'):
-                lda_kwargs['tol'] = self.solver.tol * 2
+                lda_kwargs['tol'] = self.solver.tol * 5
             self.solver = LDAWrapper(self.solver, **lda_kwargs)
 
         # Update solver with new matrix
@@ -425,8 +425,9 @@ class EigenSolve(Module):
         if self.is_hermitian:
             return spsla.eigsh(A, M=B, k=self.nmodes, OPinv=AinvOp, sigma=self.sigma, mode=self.mode)
         else:
-            # TODO
-            raise NotImplementedError('Non-Hermitian sparse matrix not supported')
+            if self.mode.lower() not in ['normal']:
+                raise NotImplementedError('Only `normal` mode can be selected for non-hermitian matrix')
+            return spsla.eigs(A, M=B, k=self.nmodes, OPinv=AinvOp, sigma=self.sigma)
 
     def _dense_sens(self, A, B, dW, dQ):
         """ Calculates all (eigenvector and eigenvalue) sensitivities for dense matrix """
@@ -467,17 +468,14 @@ class EigenSolve(Module):
             qi = Q[:, i]
             qmq = qi@qi if B is None else qi @ (B @ qi)
             dA_u = (dwi/qmq) * qi
-            if np.isrealobj(A):
-                dA += DyadCarrier([np.real(dA_u), -np.imag(dA_u)], [np.real(qi), np.imag(qi)])
-            else:
-                dA += DyadCarrier(dA_u, qi)
+            dAi = DyadCarrier(dA_u, qi)
+            dA += np.real(dAi) if np.isrealobj(A) else dAi
 
             if dB is not None:
                 dB_u = (wi*dwi/qmq) * qi
-                if np.isrealobj(B):
-                    dB -= DyadCarrier([np.real(dB_u), -np.imag(dB_u)], [np.real(qi), np.imag(qi)])
-                else:
-                    dB -= DyadCarrier(dB_u, qi)
+                dBi = DyadCarrier(dB_u, qi)
+                dB -= np.real(dBi) if np.isrealobj(B) else dBi
+
         return dA, dB
 
     def _sparse_eigvec_sens(self, A, B, dW, dQ):

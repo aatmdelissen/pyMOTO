@@ -247,7 +247,10 @@ class GenericTestDenseSolvers(unittest.TestCase):
         x_N = LDAsolver.solve(b, trans='N')
         npt.assert_allclose(x_N, xref_N)
         npt.assert_allclose(A_N @ x_N - b, 0.0, atol=atol)
-        self.assertTrue(np.all(LDAsolver._did_solve))  # the solution must have been done here
+        if len(LDAsolver.nondiagonal_idx) > 0:
+            self.assertTrue(np.all(LDAsolver._did_solve))  # the solution must have been done here
+        else:
+            self.assertFalse(np.any(LDAsolver._did_solve))
 
         # Second solve
         x_N = LDAsolver.solve(2.5*b, trans='N')
@@ -259,7 +262,7 @@ class GenericTestDenseSolvers(unittest.TestCase):
         x_T = LDAsolver.solve(3.8*b, trans='T')
         npt.assert_allclose(x_T, 3.8*xref_T)
         npt.assert_allclose(A_T @ x_T - 3.8*b, 0.0, atol=atol)
-        if (is_herm and not is_complex) or is_symm:
+        if (is_herm and not is_complex) or is_symm or len(LDAsolver.nondiagonal_idx) == 0:
             self.assertFalse(np.any(LDAsolver._did_solve))
         else:
             self.assertTrue(np.all(LDAsolver._did_solve))
@@ -274,7 +277,7 @@ class GenericTestDenseSolvers(unittest.TestCase):
         x_H = LDAsolver.solve(5.3*b, trans='H')
         npt.assert_allclose(x_H, 5.3*xref_H)
         npt.assert_allclose(A_H @ x_H - 5.3*b, 0.0, atol=atol)
-        if (is_herm and not is_symm) or (is_symm and not is_complex) or not is_complex:
+        if (is_herm and not is_symm) or (is_symm and not is_complex) or not is_complex or len(LDAsolver.nondiagonal_idx) == 0:
             self.assertFalse(np.any(LDAsolver._did_solve))
         else:
             self.assertTrue(np.all(LDAsolver._did_solve))
@@ -291,14 +294,16 @@ class GenericTestDenseSolvers(unittest.TestCase):
         x_N = LDAsolver.solve((6.3 + 1j*3.1) * b, trans='N')
         npt.assert_allclose(x_N, (6.3 + 1j*3.1) * xref_N)
         npt.assert_allclose(A_N @ x_N - (6.3 + 1j*3.1) * b, 0.0, atol=atol)
-        self.assertTrue(np.all(LDAsolver._did_solve))
+        if len(LDAsolver.nondiagonal_idx) == 0:
+            self.assertFalse(np.all(LDAsolver._did_solve))
+        else:
+            self.assertTrue(np.all(LDAsolver._did_solve))
 
         # Normal solve with real scaling again
         x_N = LDAsolver.solve(0.9 * b, trans='N')
         npt.assert_allclose(x_N, 0.9 * xref_N)
         npt.assert_allclose(A_N @ x_N - 0.9 * b, 0.0, atol=atol)
         self.assertFalse(np.any(LDAsolver._did_solve))
-
 
     def test_all_matrices(self):
         """ Run the tests on all given matrices """

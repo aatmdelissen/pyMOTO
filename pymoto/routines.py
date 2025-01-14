@@ -10,10 +10,10 @@ from scipy.sparse import issparse
 def _has_signal_overlap(sig1: List[Signal], sig2: List[Signal]):
     for s1 in sig1:
         while isinstance(s1, SignalSlice):
-            s1 = s1.orig_signal
+            s1 = s1.base
         for s2 in sig2:
             while isinstance(s2, SignalSlice):
-                s2 = s2.orig_signal
+                s2 = s2.base
             if s1 == s2:
                 return True
     return False

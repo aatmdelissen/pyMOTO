@@ -3,7 +3,7 @@ import numpy as np
 
 import pymoto as pym
 
-nx, ny, nz = 128, 64, 64  # Set nz to zero for the 2D problem, nz > 0 runs a 3D problem
+nx, ny, nz = 32, 64, 64  # Set nz to zero for the 2D problem, nz > 0 runs a 3D problem
 xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5

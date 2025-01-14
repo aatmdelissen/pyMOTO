@@ -132,7 +132,7 @@ class GeometricMultigrid(Preconditioner):
         assert cycle.lower() in self._available_cycles, f"Cycle ({cycle}) is not available. Options are {self._available_cycles}"
         self.cycle = cycle
         self.inner_level = None if inner_level is None else inner_level
-        self.smoother = DampedJacobi(w=0.5) if smoother is None else None
+        self.smoother = DampedJacobi(w=0.5) if smoother is None else smoother
         self.smooth_steps = smooth_steps
         self.R = None
         self.sub_domain = DomainDefinition(domain.nelx // 2, domain.nely // 2, domain.nelz // 2,

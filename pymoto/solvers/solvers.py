@@ -75,6 +75,17 @@ class LinearSolver:
         return np.linalg.norm(mat@x - b, axis=0) / np.linalg.norm(b, axis=0)
 
 
+def get_diagonal_indices(mat):
+    """ Get the row/column indices for entries in the matrix that are diagonal (has all zeros in its row and column) """
+    assert mat.ndim == 2, "Not a matrix"
+    n = min(*mat.shape)  # Matrix size
+    bmat = mat != 0
+    has_diag = bmat.diagonal()
+    nnz_rows = np.array(bmat.sum(axis=0)).flatten()[:n]
+    nnz_cols = np.array(bmat.sum(axis=1)).flatten()[:n]
+    return np.logical_and(has_diag, nnz_rows <= 1, nnz_cols <= 1)
+
+
 class LDAWrapper(LinearSolver):
     r""" Linear dependency aware solver (LDAS)
 
@@ -105,6 +116,8 @@ class LDAWrapper(LinearSolver):
         self.xadj_stored = []
         self.badj_stored = []
         self.A = None
+        self.diagonal_idx = []
+        self.nondiagonal_idx = slice(None)
         self._did_solve = False  # For debugging purposes
         self._last_rtol = 0.
         self.hermitian = hermitian
@@ -123,6 +136,9 @@ class LDAWrapper(LinearSolver):
             self.hermitian = matrix_is_hermitian(A)
 
         self.A = A
+        diags = get_diagonal_indices(A)
+        self.diagonal_idx = np.argwhere(diags).flatten()
+        self.nondiagonal_idx = np.argwhere(~diags).flatten()
         self.x_stored.clear()
         self.b_stored.clear()
         self.xadj_stored.clear()
@@ -130,6 +146,9 @@ class LDAWrapper(LinearSolver):
         self.solver.update(A)
 
     def _do_solve_1rhs(self, A, rhs, x_data, b_data, solve_fn, x0=None):
+        isel = self.nondiagonal_idx
+        idia = self.diagonal_idx
+
         dtype = np.result_type(A, rhs)
         if rhs.ndim == 1:
             rhs_loc = np.zeros((rhs.size, 1), dtype=dtype)
@@ -139,11 +158,16 @@ class LDAWrapper(LinearSolver):
             rhs_loc[:] = rhs
         sol = np.zeros_like(rhs_loc, dtype=dtype)
 
-        # Check linear dependencies in the rhs using modified Gram-Schmidt
+        # Diagonal part of the matrix
+        sol[idia, ...] = rhs_loc[idia, ...] / A.diagonal()[idia, None]
+        rhs_loc[idia, ...] = 0
+
+        # Non-diagonal part of the matrix
+        # Reconstruct using the database using modified Gram-Schmidt
         for (x, b) in zip(x_data, b_data):
             assert x.ndim == b.ndim == 1
-            assert x.size == b.size == rhs_loc.shape[0]
-            alpha = rhs_loc.T @ b.conj() / (b.conj() @ b)
+            # assert x.size == b.size == rhs_loc.shape[0]
+            alpha = rhs_loc[isel, ...].T @ b.conj() / (b.conj() @ b)
 
             rem_rhs = alpha * b[:, None]
             add_sol = alpha * x[:, None]
@@ -162,34 +186,41 @@ class LDAWrapper(LinearSolver):
                     warnings.warn('LDAS: Complex vector cannot be added to real solution')
                     continue
 
-            rhs_loc -= rem_rhs
-            sol += add_sol
+            rhs_loc[isel, ...] -= rem_rhs
+            sol[isel, ...] += add_sol
+
+        assert np.all(rhs_loc[idia, ...] == 0)
 
         # Check tolerance
-        self._last_rtol = np.ones(rhs_loc.shape[-1]) if len(x_data) == 0 else self.residual(A, sol, rhs if rhs.ndim > 1 else rhs.reshape(-1, 1))
+        self._last_rtol = self.residual(A, sol, rhs if rhs.ndim > 1 else rhs.reshape(-1, 1))
         self._did_solve = self._last_rtol > self.tol
+        # If tolerance too large, use the solver for new values
         if np.any(self._did_solve):
             if x0 is not None:
                 if x0.ndim == 1:
                     x0_loc = x0.reshape(-1, 1).copy()
                 else:
                     x0_loc = x0[..., self._did_solve].copy()
+                x0_loc[idia, ...] = 0
                 for x in x_data:
-                    beta = x0_loc.T @ x.conj() / (x.conj() @ x)
-                    x0_loc -= beta * x
+                    beta = x0_loc[isel, ...].T @ x.conj() / (x.conj() @ x)
+                    x0_loc[isel, ...] -= beta * x
             else:
                 x0_loc = None
 
-            # Calculate a new solution
+            # Calculate a new solution (for the vectors that have too high residual)
             xnew = solve_fn(rhs_loc[..., self._did_solve], x0_loc)
-            self.residual(A, xnew, rhs_loc[..., self._did_solve])
-            sol[..., self._did_solve] += xnew
+
+            if isinstance(isel, slice):
+                sol[isel, self._did_solve] += xnew[isel, ...]
+            else:
+                sol[np.ix_(isel, self._did_solve)] += xnew[isel, ...]
 
             # Add to database
             for i in range(xnew.shape[-1]):
                 # Remove all previous components that are already in the database (orthogonalize)
-                xadd = xnew[..., i]
-                badd = A @ xadd
+                xadd = xnew[isel, i]
+                badd = (A @ xnew[..., i])[isel, ...]
                 for x, b in zip(x_data, b_data):
                     beta = badd @ b.conj() / (b.conj() @ b)
                     badd -= beta * b
