@@ -305,8 +305,12 @@ class MMA:
 
         # Setting up for constriants
         self.m = len(self.responses) - 1
-        self.a = np.zeros(self.m)
-        self.c = self.cCoef * np.ones(self.m)
+        self.a = kwargs.get("a", np.zeros(self.m))
+        if len(self.a) != self.m:
+            raise RuntimeError(f"Length of the a vector ({len(self.a)}) should be equal to # constraints ({self.m}).")
+        self.c = kwargs.get("c", np.full(self.m, self.cCoef, dtype=float))
+        if len(self.c) != self.m:
+            raise RuntimeError(f"Length of the c vector ({len(self.c)}) should be equal to # constraints ({self.m}).")
         self.d = np.ones(self.m)
         self.gold1 = np.zeros(self.m + 1)
         self.gold2 = self.gold1.copy()
