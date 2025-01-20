@@ -625,13 +625,29 @@ class Network(Module):
 
     def response(self):
         if self.print_timing is not False:
+            start_t = time.time()
             [self.timefn(m.response, name=f"-- Response of \"{type(m).__name__}\"") for m in self.mods]
+            duration = time.time() - start_t
+            if isinstance(self.print_timing, bool):
+                tmin = 0.0
+            else:
+                tmin = self.print_timing
+            if duration > tmin:
+                print(f"-- TOTAL Response took {time.time() - start_t} s")
         else:
             [m.response() for m in self.mods]
 
     def sensitivity(self):
         if self.print_timing is not False:
+            start_t = time.time()
             [self.timefn(m.sensitivity, name=f"-- Sensitivity of \"{type(m).__name__}\"") for m in reversed(self.mods)]
+            duration = time.time() - start_t
+            if isinstance(self.print_timing, bool):
+                tmin = 0.0
+            else:
+                tmin = self.print_timing
+            if duration > tmin:
+                print(f"-- TOTAL Sensitivity took {time.time() - start_t} s")
         else:
             [m.sensitivity() for m in reversed(self.mods)]
 
