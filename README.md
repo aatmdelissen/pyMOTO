@@ -24,7 +24,7 @@ automatically calculated.
 
 # Quick start installation
 1. Make sure you have Python running in some kind of virtual environment (e.g. 
-[conda](https://docs.conda.io/projects/conda/en/stable/), [miniconda](https://docs.conda.io/en/latest/miniconda.html),
+[uv](https://docs.astral.sh/uv/guides/install-python/), [conda](https://docs.conda.io/projects/conda/en/stable/), [miniconda](https://docs.conda.io/en/latest/miniconda.html),
 [venv](https://realpython.com/python-virtual-environments-a-primer/))
 2. Install the pymoto Python package (and its dependencies)
    - Option A (conda): If you are working with Conda, install by `conda install -c aatmdelissen pymoto`
