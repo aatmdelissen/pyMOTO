@@ -59,29 +59,29 @@ class AssembleGeneral(Module):
         if bc is not None:
             bc_inds = np.bitwise_or(np.isin(self.rows, self.bc), np.isin(self.cols, self.bc))
             self.bcselect = np.argwhere(np.bitwise_not(bc_inds)).flatten()
+            self.bcrows = np.concatenate((self.rows[self.bcselect], self.bc))
+            self.bccols = np.concatenate((self.cols[self.bcselect], self.bc))
         else:
             self.bcselect = None
+            self.bcrows = self.rows
+            self.bccols = self.cols
 
         self.add_constant = add_constant
 
     def _response(self, xscale: np.ndarray):
         nel = self.dofconn.shape[0]
         assert xscale.size == nel, f"Input vector wrong size ({xscale.size}), must be of size #nel ({nel})"
-        scaled_el = ((self.elmat.flatten()[np.newaxis]).T * xscale).flatten(order='F')
+        scaled_el = (self.elmat.flatten() * xscale[..., np.newaxis]).flatten()
 
         # Set boundary conditions
         if self.bc is not None:
             # Remove entries that correspond to bc before initializing
             mat_values = np.concatenate((scaled_el[self.bcselect], self.bcdiagval*np.ones(len(self.bc))))
-            rows = np.concatenate((self.rows[self.bcselect], self.bc))
-            cols = np.concatenate((self.cols[self.bcselect], self.bc))
         else:
             mat_values = scaled_el
-            rows = self.rows
-            cols = self.cols
 
         try:
-            mat = self.matrix_type((mat_values, (rows, cols)), shape=(self.n, self.n))
+            mat = self.matrix_type((mat_values, (self.bcrows, self.bccols)), shape=(self.n, self.n))
         except TypeError as e:
             raise type(e)(str(e) + "\n\tInvalid matrix_type={}. Either scipy.sparse.cscmatrix or "
                                    "scipy.sparse.csrmatrix are supported"
