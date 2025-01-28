@@ -91,6 +91,7 @@ class DomainDefinition:
         if self.nelz is None:
             self.nelz = 0
         self.unitx, self.unity, self.unitz = unitx, unity, unitz
+        self.origin = np.array([0.0, 0.0, 0.0])
 
         self.dim = 1 if (self.nelz == 0 and self.nely == 0) else (2 if self.nelz == 0 else 3)
 
