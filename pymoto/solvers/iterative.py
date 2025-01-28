@@ -299,7 +299,7 @@ class CG(LinearSolver):
         self.A = A
         self.preconditioner.update(A)
         if self.verbosity >= 1:
-            print(f"Preconditioner set up in {np.round(time.perf_counter() - tstart,3)}s")
+            print(f"CG Preconditioner set up in {np.round(time.perf_counter() - tstart, 3)}s")
 
     def solve(self, rhs, x0=None, trans='N'):
         if trans == 'N':
@@ -321,10 +321,18 @@ class CG(LinearSolver):
             x = x.reshape((x.size, 1))
 
         r = b - A@x
+        tval = np.linalg.norm(r, axis=0) / np.linalg.norm(b, axis=0)
+        if self.verbosity >= 2:
+            print(f"CG Initial (max) residual = {tval.max()}")
+
+        if tval.max() <= self.tol:
+            if self.verbosity >= 1:
+                print(f"CG Converged in 0 iterations and {np.round(time.perf_counter() - tstart, 3)}s, with final (max) residual {tval.max()}")
+
+            return x.flatten() if rhs.ndim == 1 else x
+
         z = self.preconditioner.solve(r, trans=trans)
         p = orth(z, normalize=True)
-        if self.verbosity >= 2:
-            print(f"Initial residual = {np.linalg.norm(r, axis=0) / np.linalg.norm(b, axis=0)}")
 
         for i in range(self.maxit):
             q = A @ p
@@ -333,16 +341,15 @@ class CG(LinearSolver):
             alpha = pq_inv @ (p.conj().T @ r)
 
             x += p @ alpha
-            if i % 50 == 0:  # Explicit restart
+            if i % self.restart == 0:  # Explicit restart
                 r = b - A@x
             else:
                 r -= q @ alpha
 
+            tval = np.linalg.norm(r, axis=0)/np.linalg.norm(b, axis=0)
             if self.verbosity >= 2:
-                print(f"i = {i}, residuals = {np.linalg.norm(r, axis=0) / np.linalg.norm(b, axis=0)}")
-
-            tval = np.linalg.norm(r)/np.linalg.norm(b)
-            if tval <= self.tol:
+                print(f"CG i = {i}, residuals = {tval}")
+            if tval.max() <= self.tol:
                 break
 
             z = self.preconditioner.solve(r, trans=trans)
@@ -350,12 +357,9 @@ class CG(LinearSolver):
             beta = -pq_inv @ (q.conj().T @ z)
             p = orth(z + p@beta, normalize=False)
 
-        if tval > self.tol:
-            warnings.warn(f'Maximum iterations ({self.maxit}) reached, with final residual {tval}')
+        if tval.max() > self.tol:
+            warnings.warn(f'CG Maximum iterations ({self.maxit}) reached, with final residuals {tval}')
         elif self.verbosity >= 1:
-            print(f"Converged in {i} iterations and {np.round(time.perf_counter() - tstart, 3)}s, with final residuals {np.linalg.norm(r, axis=0) / np.linalg.norm(b, axis=0)}")
+            print(f"CG Converged in {i} iterations and {np.round(time.perf_counter() - tstart, 3)}s, with final (max) residual {tval.max()}")
 
-        if rhs.ndim == 1:
-            return x.flatten()
-        else:
-            return x
+        return x.flatten() if rhs.ndim == 1 else x
