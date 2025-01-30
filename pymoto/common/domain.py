@@ -288,7 +288,7 @@ class DomainDefinition:
             patch.set_path(self.get_path(x + u, y + v))
 
     # flake8: noqa: C901
-    def write_to_vti(self, vectors: dict, filename="out.vti", scale=1.0, origin=(0.0, 0.0, 0.0)):
+    def write_to_vti(self, vectors: dict, filename="out.vti", scale=1.0):
         """ Write all given vectors to a Paraview (VTI) file
 
         The size of the vectors should be a multiple of ``nel`` or ``nnodes``. Based on their size they are marked as
@@ -300,7 +300,6 @@ class DomainDefinition:
             vectors: A dictionary of vectors to write. Keys are used as vector names.
             filename (str): The file loction
             scale: Uniform scaling of the gridpoints
-            origin: Origin of the domain
         """
         ext = '.vti'
         if ext not in os.path.splitext(filename)[-1].lower():
@@ -337,7 +336,7 @@ class DomainDefinition:
             file.write(f"<ImageData WholeExtent=\"0 {self.nelx} 0 {self.nely} 0 {self.nelz}\"".encode())
 
             # Origin of domain
-            file.write(f" Origin=\"{origin[0]*scale} {origin[1]*scale} {origin[2]*scale}\"".encode())
+            file.write(f" Origin=\"{self.origin[0]*scale} {self.origin[1]*scale} {self.origin[2]*scale}\"".encode())
 
             # Spacing of points (dx, dy, dz)
             dx, dy, dz = self.element_size[0:3]*scale
