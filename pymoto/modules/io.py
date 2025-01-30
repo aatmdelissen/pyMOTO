@@ -1,13 +1,9 @@
 import os
-import platform
 import numbers
-import sys
 from pathlib import Path
 import numpy as np
-if platform.system() == 'Darwin':  # Avoid "Python is not installed as a framework (Mac OS X)" error
-    # Change backend
-    import matplotlib
-    matplotlib.use('TkAgg')
+import matplotlib
+matplotlib.use('TkAgg')  # Change default backend -- TkAgg does not freeze during calculations
 import matplotlib.pyplot as plt
 
 from pymoto import Module
