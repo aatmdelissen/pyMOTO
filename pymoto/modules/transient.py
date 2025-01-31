@@ -12,11 +12,11 @@ class TransientThermal(Module):
 
     def _response(self, K, C, Q):
         # prepare matrices for solve
-        Cstep = C.multiply(1 / self.dt)
+        C_step = C.multiply(1 / self.dt)
         K_forward = K.multiply(self.theta)
         K_backward = K.multiply(1 - self.theta)
-        self.mat_forward = K_forward + Cstep
-        self.mat_backward = K_backward - Cstep
+        self.mat_forward = K_forward + C_step
+        self.mat_backward = K_backward - C_step
         self.module_LinSolve.sig_in[0].state = self.mat_forward
 
         # initialize temperatures
