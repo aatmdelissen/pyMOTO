@@ -47,9 +47,8 @@ class TransientThermal(Module):
             lams[:, i] = self.module_LinSolve.sig_out[0].state
 
         # sensitivities to system matrices
-        tempsK = self.theta*self.temperature
-        tempsK[:, 1:] += (1-self.theta)*self.temperature[:, :-1]
-        dK = DyadCarrier(list(lams.T), list(tempsK.T))
+        tempsK = self.theta*self.temperature[:, 1:] + (1-self.theta)*self.temperature[:, :-1]
+        dK = DyadCarrier(list(lams[:, 1:].T), list(tempsK.T))
         dC = DyadCarrier(list(lams[:, 1:].T), list((1/self.dt)*np.diff(self.temperature).T))
 
         # sensitivities to input heat
