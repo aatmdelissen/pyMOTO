@@ -7,6 +7,7 @@ class TransientThermal(Module):
         self.steps = end/dt
         self.dt = dt
         self.theta = theta
+        assert 0.0 <= self.theta <= 1.0, "theta must be between 0.0 and 1.0"
         self.module_LinSolve = LinSolve([Signal(), Signal()], **kwargs)
 
     def _response(self, K, C, Q):
