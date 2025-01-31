@@ -4,7 +4,7 @@ from pymoto import Module, DyadCarrier, Signal, LinSolve
 class TransientThermal(Module):
     def _prepare(self, T_0, end, dt, theta = 1.0, **kwargs):
         self.T_0 = T_0
-        self.steps = end/dt
+        self.steps = int(end/dt)
         self.dt = dt
         self.theta = theta
         assert 0.0 <= self.theta <= 1.0, "theta must be between 0.0 and 1.0"
@@ -52,7 +52,7 @@ class TransientThermal(Module):
         dC = DyadCarrier(list(lams[:, 1:].T), list((1/self.dt)*np.diff(self.temperature).T))
 
         # sensitivities to input heat
-        dQ = np.zeros_like(self.sig_in[2])
+        dQ = np.zeros_like(self.sig_in[2].state)
         dQ[:, 1:] -= self.theta*lams[:, 1:]
         dQ[:, :-1] += -(1-self.theta)*lams[:, 1:]
 
