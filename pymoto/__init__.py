@@ -25,6 +25,7 @@ from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, 
 from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations, StaticCondensation
 from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, SoftMinMax, KSFunction
 from .modules.scaling import Scaling
+from .modules.transient import TransientThermal
 
 # Further helper routines
 from .routines import finite_difference, minimize_oc, minimize_mma, minimize_slp
@@ -93,6 +94,7 @@ __all__ = [
     "SoftMinMax",
     "KSFunction",
     "Scaling",
+    "TransientThermal",
 ]
 
 ## Deprecations (https://stackoverflow.com/a/55139609/11702471)
