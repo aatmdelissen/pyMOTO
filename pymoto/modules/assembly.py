@@ -766,11 +766,10 @@ class NodalOperation(Module):
 class ThermoMechanical(NodalOperation):
     r"""Determine equivalent thermo-mechanical load from design vector and elemental temperature difference
 
-    :math:`f_thermal = \mathbf{A} (x*t_delta)_e`
+    :math:`f_\text{thermal} = \mathbf{A} (x\Delta T)_e`
 
     Input Signal:
-        - ``x*t_delta``: Elemental vector of size ``(#elements)`` containing elemental densities multiplied by
-                         elemental temperature difference
+        - ``x*T_delta``: Elemental vector of size ``(#elements)`` containing elemental densities multiplied by elemental temperature difference
 
     Output Signal:
         - ``f_thermal``: nodal equivalent thermo-mechanical load of size ``(#dofs_per_node * #nodes)``
