@@ -341,7 +341,7 @@ class CG(LinearSolver):
             alpha = pq_inv @ (p.conj().T @ r)
 
             x += p @ alpha
-            if i % self.restart == 0:  # Explicit restart
+            if (i+1) % self.restart == 0:  # Explicit restart
                 r = b - A@x
             else:
                 r -= q @ alpha
@@ -351,6 +351,8 @@ class CG(LinearSolver):
                 print(f"CG i = {i}, residuals = {tval}")
             if tval.max() <= self.tol:
                 break
+            elif not np.all(np.isfinite(tval)):
+                raise RuntimeError(f"CG Diverged with residuals {tval}")
 
             z = self.preconditioner.solve(r, trans=trans)
 
@@ -361,5 +363,124 @@ class CG(LinearSolver):
             warnings.warn(f'CG Maximum iterations ({self.maxit}) reached, with final residuals {tval}')
         elif self.verbosity >= 1:
             print(f"CG Converged in {i} iterations and {np.round(time.perf_counter() - tstart, 3)}s, with final (max) residual {tval.max()}")
+
+        return x.flatten() if rhs.ndim == 1 else x
+
+
+class BiCGSTAB(LinearSolver):
+    """ Preconditioned biconjugate gradient stabilized method
+    Works for non-symmetric matrices
+
+    References:
+        van der Vorst (1992), Bi-CGSTAB: A fast and smoothly converging variant of Bi-CG for the solution of
+          nonsymmetric linear systems. https://doi.org/10.1137/0913035
+
+
+    Args:
+        A: The matrix
+        preconditioner: Preconditioner to use
+        tol: Convergence tolerance
+        maxit: Maximum number of iterations
+        restart: Restart every Nth iteration
+        verbosity: Log level
+    """
+    def __init__(self, A=None, preconditioner=Preconditioner(), tol=1e-7, maxit=10000, restart=50, verbosity=0):
+        self.preconditioner = preconditioner
+        self.A = A
+        self.tol = tol
+        self.maxit = maxit
+        self.restart = restart
+        self.verbosity = verbosity
+        super().__init__(A)
+
+    def update(self, A):
+        tstart = time.perf_counter()
+        self.A = A
+        self.preconditioner.update(A)
+        if self.verbosity >= 1:
+            print(f"BiCGSTAB Preconditioner set up in {np.round(time.perf_counter() - tstart, 3)}s")
+
+    def solve(self, rhs, x0=None, trans='N'):
+        if trans == 'N':
+            A = self.A
+        elif trans == 'T':
+            A = self.A.T
+        elif trans == 'H':
+            A = self.A.conj().T
+        else:
+            raise TypeError("Only N, T, or H transposition is possible")
+        if rhs.min() == rhs.max() == 0:
+            return np.zeros_like(rhs)
+        tstart = time.perf_counter()
+        if rhs.ndim == 1:
+            b = rhs.reshape((rhs.size, 1))
+        else:
+            b = rhs
+        x = np.zeros_like(rhs, dtype=np.result_type(rhs, A)) if x0 is None else x0.copy()
+        if x.ndim == 1:
+            x = x.reshape((x.size, 1))
+
+        r = b - A@x
+        tval = np.linalg.norm(r, axis=0) / np.linalg.norm(b, axis=0)
+        if self.verbosity >= 2:
+            print(f"BiCGSTAB Initial (max) residual = {tval.max()}")
+
+        if tval.max() <= self.tol:
+            if self.verbosity >= 1:
+                print(f"BiCGSTAB Converged in 0 iterations and {np.round(time.perf_counter() - tstart, 3)}s, with final (max) residual {tval.max()}")
+
+            return x.flatten() if rhs.ndim == 1 else x
+        rhat = np.random.rand(*r.shape)
+        if np.iscomplexobj(r):
+            rhat = rhat + 1j * np.random.rand(*r.shape)
+        rhat = orth(rhat, normalize=True)
+        p = orth(r, normalize=True)
+
+        def dot(u, v):
+            return u.conj().T @ v
+
+        for i in range(self.maxit):
+            y = self.preconditioner.solve(p, trans=trans)
+            v = A @ y
+
+            alpha = np.linalg.inv(dot(rhat[:, :p.shape[-1]], v)) @ dot(rhat[:, :p.shape[-1]], r)
+
+            x += y @ alpha
+            r -= v @ alpha
+
+            tval = np.linalg.norm(r, axis=0)/np.linalg.norm(b, axis=0)
+            if self.verbosity >= 2:
+                print(f"BiCGSTAB i = {i}a, residuals = {tval}")
+            if tval.max() <= self.tol:
+                break
+            elif not np.all(np.isfinite(tval)):
+                raise RuntimeError(f"BiCGSTAB Diverged with residuals {tval}")
+
+            z = self.preconditioner.solve(r, trans=trans)
+            t = A @ z
+            w = np.linalg.norm(dot(t, r)) / np.linalg.norm(dot(r, r))
+
+            x += z * w
+            if (i+1) % self.restart == 0:  # Explicit restart
+                r = b - A@x
+            else:
+                r -= t * w
+
+            tval = np.linalg.norm(r, axis=0) / np.linalg.norm(b, axis=0)
+            if self.verbosity >= 2:
+                print(f"BiCGSTAB i = {i}b, residuals = {tval}")
+            if tval.max() <= self.tol:
+                break
+            elif not np.all(np.isfinite(tval)):
+                raise RuntimeError(f"BiCGSTAB Diverged with residuals {tval}")
+
+            beta = -np.linalg.inv(dot(rhat[:, :p.shape[-1]], v)) @ dot(rhat[:, :p.shape[-1]], t)
+
+            p = orth(r + (p - v * w) @ beta, normalize=True)
+
+        if tval.max() > self.tol:
+            warnings.warn(f'BiCGSTAB Maximum iterations ({self.maxit}) reached, with final residuals {tval}')
+        elif self.verbosity >= 1:
+            print(f"BiCGSTAB Converged in {i} iterations and {np.round(time.perf_counter() - tstart, 3)}s, with final (max) residual {tval.max()}")
 
         return x.flatten() if rhs.ndim == 1 else x

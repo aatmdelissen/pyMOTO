@@ -1,4 +1,5 @@
 """ Specialized linear algebra modules """
+import time
 import warnings
 from inspect import currentframe, getframeinfo
 

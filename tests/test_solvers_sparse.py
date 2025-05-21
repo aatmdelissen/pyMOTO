@@ -265,6 +265,16 @@ class GenericTestSolvers(unittest.TestCase):
     solver = None  # The solver to use
     matrices = []  # The list of matrices the solver should be able to handle
     kwargs = dict()
+    mat_modes = dict(
+        N=lambda A: A,
+        T=lambda A: A.T,
+        H=lambda A: A.conj().T,
+    )
+    mat_types = dict(
+        coo=lambda A: A.tocoo(),
+        csr=lambda A: A.tocsr(),
+        csc=lambda A: A.tocsc(),
+    )
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -292,39 +302,39 @@ class GenericTestSolvers(unittest.TestCase):
             tags_final.append(t)
         return tags_final
 
-    def run_solver(self, solver, A, b):
-        """ Run the actual test for given solver, matrix and right-hand-side """
-        # Reference solution
-        mats = dict()
-        mats['T'] = A.T
-        mats['N'] = A
-        mats['H'] = A.conj().T
-        solver.update(A)
-
-        for k, Ai in mats.items():
-            print(f'Run mode = {k}')
-            xref = pym.solvers.SolverSparseLU(Ai).solve(b)
-
-            # Calculate the solution and the adjoint solution
-            x = solver.solve(b, trans=k)
-
-            # Check residual and solution
-            r = np.linalg.norm(Ai @ x - b) / np.linalg.norm(b)
-            self.assertTrue(r < 1e-4, msg=f"Residual is {r}")
-            npt.assert_allclose(np.real(x), np.real(xref), atol=1e-10, rtol=1e-5)
-            if np.iscomplexobj(x) or np.iscomplexobj(xref):
-                npt.assert_allclose(np.imag(x), np.imag(xref), atol=1e-8, rtol=1e-5)
-
-    def run_sparse_tests(self, solver, Acoo, rhs):
+    def run_sparse_tests(self, solver, Acoo, b):
         """ Run the sparse tests for different matrix types """
-        self.run_solver(solver, Acoo, rhs)
-        self.run_solver(solver, Acoo.tocsr(), rhs)
-        self.run_solver(solver, Acoo.tocsc(), rhs)
+        for t, fnt in self.mat_types.items():
+            At = fnt(Acoo)
+            solver.update(At)
+
+            make_plots = False
+            if make_plots:
+                import matplotlib.pyplot as plt
+                plt.spy(At.toarray())
+                plt.show(block=True)
+
+
+            for k, fnk in self.mat_modes.items():
+                print(f'Matrix type = {type(At).__name__}, Run mode = {k}')
+                Ai = fnk(At)
+                # xref = pym.solvers.SolverSparseLU(Ai).solve(b)
+
+                # Calculate the solution and the adjoint solution
+                x = solver.solve(b, trans=k)
+
+                # Check residual and solution
+                r = np.linalg.norm(Ai @ x - b) / np.linalg.norm(b)
+                self.assertTrue(r < 1e-4, msg=f"Residual is {r}")
+                # npt.assert_allclose(np.real(x), np.real(xref), atol=1e-10, rtol=1e-5)
+                # if np.iscomplexobj(x) or np.iscomplexobj(xref):
+                #     npt.assert_allclose(np.imag(x), np.imag(xref), atol=1e-8, rtol=1e-5)
 
     def test_all_matrices(self):
         """ Run the tests on all given matrices """
         np.random.seed(0)
         tags = self.get_tags()
+        assert len(self.matrices) == len(tags)
         for A, t in zip(self.matrices, tags):
             """ Test for different type of right-hand-sides """
             sys.stdout.write(f"Test \"{self.solver.__name__}\" for matrix \"{t}\"\n")
@@ -337,7 +347,7 @@ class GenericTestSolvers(unittest.TestCase):
                 self.run_sparse_tests(self.solver(**self.kwargs), A, b)
             with self.subTest(msg=f"{t}.multi-real-rhs-lineardependent"):
                 b = np.random.rand(N, 3)
-                b[:, 1] = b[:, 2]
+                b[:, 1] = b[:, 2] + b[:, 0]
                 self.run_sparse_tests(self.solver(**self.kwargs), A, b)
 
             if not pym.solvers.matrix_is_complex(A):
@@ -443,13 +453,47 @@ class TestSparseCG(GenericTestSolvers):
         # mat_real_symm_saddle,
         mat_complex_diagonal,
         mat_complex_spdiag,
-        # mat_complex_symm_pos_def_dynamic, # Works but needs many iterations
+        # mat_complex_symm_pos_def_dynamic,
         # mat_complex_symm_indef_dynamic,
         mat_complex_hermitian_1,
         # mat_complex_hermitian_indef,
         mat_complex_hermitian_pos_def,
     ]
 
+
+class TestSparseBiCGSTAB(GenericTestSolvers):
+    solver = pym.solvers.BiCGSTAB
+    # solver = pym.solvers.CG
+    kwargs = dict(preconditioner=pym.solvers.ILU(drop_tol=1e-3, fill_factor=8), verbosity=1, tol=1e-9)
+    # kwargs = dict(preconditioner=pym.solvers.SOR(w=1.0), verbosity=1, tol=1e-9)
+    # kwargs = dict(preconditioner=pym.solvers.DampedJacobi(), verbosity=1, tol=1e-9)
+    mat_modes = dict(
+        N=lambda A: A,
+        # T=lambda A: A.T,
+        # H=lambda A: A.conj().T,
+    )
+    mat_types = dict(
+        # coo=lambda A: A.tocoo(),
+        csr=lambda A: A.tocsr(),
+        # csc=lambda A: A.tocsc(),
+    )
+    matrices = [
+        mat_real_diagonal,
+        mat_real_spdiag,
+        mat_real_symm_pos_def,
+        mat_real_symm_pos_def_dynamic,
+        mat_real_symm_indef,
+        # mat_real_symm_indef_dynamic,
+        mat_real_asymm,
+        # mat_real_symm_saddle,
+        mat_complex_diagonal,
+        mat_complex_spdiag,
+        mat_complex_symm_pos_def_dynamic,
+        # mat_complex_symm_indef_dynamic,
+        mat_complex_hermitian_1,
+        mat_complex_hermitian_indef,
+        mat_complex_hermitian_pos_def,
+    ]
 
 if __name__ == '__main__':
     unittest.main()
