@@ -1,4 +1,5 @@
 import unittest
+import numpy.testing as npt
 import pymoto as pym
 import numpy as np
 
@@ -571,6 +572,42 @@ class TestModule(unittest.TestCase):
         self.assertFalse(np.may_share_memory(s_A.sensitivity, s_B.sensitivity))
         self.assertFalse(np.may_share_memory(s_A.sensitivity, s_C.sensitivity))
 
+    def test_keyword_arguments(self):
+        class VarArg(pym.Module):
+            def _response(self, A, B=1.0):
+                return A + B
+
+            def _sensitivity(self, dC):
+                return dC if len(self.sig_in) == 1 else (dC, dC)
+
+        s_A = pym.Signal('A', np.array([1, 2, 3]))
+        s_B = pym.Signal('B', np.array([4, 5, 6]))
+
+        # With one argument
+        m = VarArg(s_A)
+        m.response()
+        s_C = m.sig_out[0]
+        npt.assert_equal(s_C.state, np.array([2, 3, 4]))
+        s_C.sensitivity = np.array([1, 1, 1])
+        m.sensitivity()
+        npt.assert_equal(s_A.sensitivity, np.array([1, 1, 1]))
+        assert s_B.sensitivity is None
+        assert not np.may_share_memory(s_A.sensitivity, s_B.sensitivity)
+
+        m.reset()
+
+        # With two arguments
+        m = VarArg([s_A, s_B])
+        m.response()
+        s_C = m.sig_out[0]
+        npt.assert_equal(s_C.state, np.array([5, 7, 9]))
+
+        s_C.sensitivity = np.array([1, 1, 1])
+        m.sensitivity()
+        npt.assert_equal(s_A.sensitivity, np.array([1, 1, 1]))
+        npt.assert_equal(s_B.sensitivity, np.array([1, 1, 1]))
+        assert not np.may_share_memory(s_A.sensitivity, s_B.sensitivity)
+        assert not np.may_share_memory(s_A.sensitivity, s_C.sensitivity)
 
 class TestNetwork(unittest.TestCase):
     def test_correct_network(self):

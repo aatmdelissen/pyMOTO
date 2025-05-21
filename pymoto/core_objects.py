@@ -5,6 +5,7 @@ import time
 import copy
 from typing import Union, List, Any
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from .utils import _parse_to_list, _concatenate_to_array, _split_from_array
 
 
@@ -325,30 +326,54 @@ def _is_valid_module(mod: Any):
     return False
 
 
-def _check_function_signature(fn, signals):
+# Type definition for bound method
+class BoundMethod:
+    __self__: object
+
+
+BoundMethodT = Union[Callable, BoundMethod]
+
+
+def _check_function_signature(fn: BoundMethodT, signals: list = None) -> (int, int):
     """ Checks the function signature against given signal list
-    :param fn: response_ or sensitivity_ function of a Module
-    :param signals: The signals involved
+
+    - Only positional-only or positional-or-keyword arguments are allowed
+      (https://peps.python.org/pep-0362/#parameter-object)
+    - If `signals` is provided, the number of them is compared with the allowed min/max number of arguments
+
+    Args:
+        fn: response_ or sensitivity_ function of a Module
+        signals (optional): The signals involved, which are checked with the function signature
+
+    Returns:
+        (min_args, max_args): Minimum and maximum number of accepted arguments to the function;
+          `None` denotes an unlimited number of maximum arguments (caused by `*args`)
     """
     min_args, max_args = 0, 0
     callstr = f"{type(fn.__self__).__name__}.{fn.__name__}{inspect.signature(fn)}"
+    # Loop over all the parameters defined for the function
     for s, p in inspect.signature(fn).parameters.items():
         if p.kind == inspect.Parameter.POSITIONAL_ONLY or p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:
-            if p.default != inspect.Parameter.empty:
-                raise SyntaxError(f"{callstr} must not have default values \"{p}\"")
-            min_args += 1
-            if max_args >= 0:
+            if p.default == inspect.Parameter.empty:
+                # No default argument is provided, a value MUST be provided
+                min_args += 1
+            if max_args is not None:
                 max_args += 1
         elif p.kind == inspect.Parameter.VAR_POSITIONAL:
-            max_args = -1
+            # If *args is passed, the maximum number of arguments is unknown. Does not affect minimum number
+            max_args = None
         elif p.kind == inspect.Parameter.KEYWORD_ONLY:
-            raise SyntaxError(f"{callstr} may not contain keyword arguments \"{p}\"")
+            raise SyntaxError(f"{callstr} may not contain keyword-only arguments \"{p}\"")
         elif p.kind == inspect.Parameter.VAR_KEYWORD:
-            raise SyntaxError(f"{callstr} may not contain \"{p}\"")
-    if len(signals) < min_args:
-        raise TypeError(f"Not enough arguments ({len(signals)}) for {callstr}")
-    if max_args >= 0 and len(signals) > max_args:
-        raise TypeError(f"Too many arguments ({len(signals)}) for {callstr}")
+            raise SyntaxError(f"{callstr} may not contain dict of keyword-only arguments \"{p}\"")
+
+    # Check with signal list
+    if signals is not None:
+        if len(signals) < min_args:
+            raise TypeError(f"Not enough arguments ({len(signals)}) for {callstr}; expected {min_args}")
+        if max_args is not None and len(signals) > max_args:
+            raise TypeError(f"Too many arguments ({len(signals)}) for {callstr}; expected {max_args}")
+    return min_args, max_args
 
 
 class RegisteredClass(object):
@@ -522,8 +547,12 @@ class Module(ABC, RegisteredClass):
             raise type(e)(str(e) + "\n\t| Above error was raised when calling response(). Module details:" +
                           self._err_str(fn=self._response)).with_traceback(sys.exc_info()[2])
 
-    def __call__(self):
-        return self.response()
+    def __call__(self, *args):
+        if len(args) == 0 and len(self.sig_in) > 0:
+            inp = [s.state for s in self.sig_in]
+            return self._response(*inp)
+        else:
+            return self._response(*args)
 
     def sensitivity(self):
         """  Calculate sensitivities using backpropagation
