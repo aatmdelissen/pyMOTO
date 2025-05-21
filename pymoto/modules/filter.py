@@ -1,3 +1,4 @@
+import pymoto
 from pymoto import Module, DomainDefinition
 import numpy as np
 from scipy.sparse import coo_matrix
@@ -210,7 +211,7 @@ class Filter(Module):
           :math:`s_i = \max(\mathbf{s}) \: \forall\: i \notin \mathcal{N}`. For a density filter this mimics having values
           of `0` outside of the domain, thus emulating padding of the boundaries.
     """
-    def _prepare(self, *args, nonpadding=None, **kwargs):
+    def __init__(self, *args, nonpadding=None, **kwargs):
         self.H = self._calculate_h(*args, **kwargs).tocsc()
 
         self.Hs = self.H.sum(1)
@@ -228,7 +229,8 @@ class Filter(Module):
         """
         raise NotImplementedError("Filter not implemented.")
 
-    def _response(self, x):
+    @pymoto.connect
+    def __call__(self, x):
         return np.asarray(self.H * x[np.newaxis].T / self.Hs)[:, 0]
 
     def _sensitivity(self, dfdy):

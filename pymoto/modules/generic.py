@@ -1,6 +1,6 @@
 """ Generic modules, valid for general mathematical operations """
 import numpy as np
-from pymoto.core_objects import Module
+from pymoto.core_objects import Module, connect
 from pymoto.utils import _concatenate_to_array, _split_from_array
 try:
     from opt_einsum import contract as einsum  # Faster einsum
@@ -49,14 +49,17 @@ class MathGeneral(Module):
     References:
       - `Sympy documentation <https://docs.sympy.org/latest/index.html>`_
     """
-    def _prepare(self, expression):
+    def __init__(self, expression):
+        self.expression = expression
+
+    def parse_expression(self):
         from sympy import lambdify
         from sympy.parsing.sympy_parser import parse_expr
 
-        expression = expression.replace("^", "**").lower()  # Case insensitive
+        self.expression = self.expression.replace("^", "**").lower()  # Case insensitive
 
         # Replace powers
-        expr = parse_expr(expression)
+        expr = parse_expr(self.expression)
 
         # Variables
         var_names = []
@@ -67,7 +70,7 @@ class MathGeneral(Module):
         trn = {}
         for i, s in enumerate(self.sig_in):
             if len(s.tag):
-                if s.tag.lower() in var_names and s.tag.lower() in expression:
+                if s.tag.lower() in var_names and s.tag.lower() in self.expression:
                     raise RuntimeError("Name '{}' multiple defined".format(s.tag.lower()))
                 trn[s.tag.lower()] = var_names[i]
 
@@ -81,7 +84,11 @@ class MathGeneral(Module):
 
         self.df = lambdify(var_names, dx, "numpy")
 
-    def _response(self, *args):
+    @connect
+    def __call__(self, *args):
+        if not hasattr(self, 'f'):
+            self.parse_expression()
+
         self.x = args
         return self.f(*args)
 
@@ -168,17 +175,19 @@ class EinSum(Module):
       - `EinStein summation in Numpy <https://obilaniu6266h16.wordpress.com/2016/02/04/einstein-summation-in-numpy/>`_
       - `Optimized Einsum opt_einsum <https://optimized-einsum.readthedocs.io/en/stable/>`_
     """
-    def _prepare(self, expression: str):
+    def __init__(self, expression: str):
         self.expr = expression
         cmd = self.expr.split("->")
         self.indices_in = [s.strip() for s in cmd[0].split(",")]
         self.indices_out = cmd[1] if "->" in self.expr else ''
 
-    def _response(self, *args):
+    @connect
+    def __call__(self, *args):
         return [einsum(self.expr, *args, optimize=True)]
 
     def _sensitivity(self, df_in):
         n_in = len(self.sig_in)
+        inps = self.get_inputs()
 
         if (self.indices_out == '') and n_in == 1:
             # In case expression has only one input and scalar output, e.g. "i->", "ij->", the output size cannot
@@ -204,17 +213,17 @@ class EinSum(Module):
         for ar in range(n_in):
             ind_in = [self.indices_out]
             ind_in += [elem for i, elem in enumerate(self.indices_in) if i != ar]
-            arg_in = [s.state for i, s in enumerate(self.sig_in) if i != ar]
-            arg_complex = [np.iscomplexobj(s.state) for i, s in enumerate(self.sig_in) if i != ar]
+            arg_in = [v for i, v in enumerate(inps) if i != ar]
+            arg_complex = [np.iscomplexobj(v) for i, v in enumerate(inps) if i != ar]
             ind_out = self.indices_in[ar]
 
             op = ",".join(ind_in)+"->"+ind_out
-            if not np.iscomplexobj(self.sig_in[ar].state) and np.any(arg_complex) and np.iscomplexobj(df_in):
-                da_i = np.zeros_like(self.sig_in[ar].state)+0j
+            if not np.iscomplexobj(inps[ar]) and np.any(arg_complex) and np.iscomplexobj(df_in):
+                da_i = np.zeros_like(inps[ar])+0j
                 einsum(op, df_in, *arg_in, out=da_i, optimize=True)
                 da_i = da_i.real
             else:
-                da_i = np.zeros_like(self.sig_in[ar].state)
+                da_i = np.zeros_like(inps[ar])
                 einsum(op, df_in, *arg_in, out=da_i, optimize=True)
             df_out.append(da_i)
         return df_out

@@ -10,7 +10,7 @@ from .common.mma import MMA
 from . import solvers
 
 # Modular inports
-from .core_objects import Signal, Module, Network, make_signals
+from .core_objects import Signal, Module, Network, make_signals, connect
 
 # Import modules
 from .modules.assembly import AssembleGeneral, AssembleStiffness, AssembleMass, AssemblePoisson
@@ -28,7 +28,7 @@ from .modules.scaling import Scaling
 from .routines import finite_difference, minimize_oc, minimize_mma
 
 __all__ = [
-    'Signal', 'Module', 'Network', 'make_signals',
+    'Signal', 'Module', 'Network', 'make_signals', 'connect',
     'finite_difference', 'minimize_oc', 'minimize_mma',
 
     # Common

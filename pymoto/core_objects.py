@@ -328,7 +328,7 @@ def _is_valid_module(mod: Any):
 
 # Type definition for bound method
 class BoundMethod:
-    __self__: object
+    __self__: 'Module'
 
 
 BoundMethodT = Union[Callable, BoundMethod]
@@ -444,6 +444,76 @@ class RegisteredClass(object):
         print(": ".join([cls.__name__+" subtypes", ", ".join(cls.all_subclasses().keys())]))
 
 
+def keeping_original_fun(decorator):
+    """https://stackoverflow.com/questions/73151828/call-a-function-without-calling-functions-wrapper-function"""
+    class WrappedFun:
+        def __init__(self, fun):
+            self.fun = fun
+            self.decorated_fun = decorator(fun)
+        def __call__(self, slf, *args, **kwargs):
+            return self.decorated_fun(slf, *args, **kwargs)
+    return WrappedFun
+
+
+
+def connect(response: BoundMethodT, create=True):
+    def wrapped(self, *args):
+        # print("Pre-process")
+
+        # Parse inputs
+        inp = [s.state if _is_valid_signal(s) else s for s in args]
+        all_constant = not any([_is_valid_signal(s) for s in args])
+
+        if create and not all_constant:
+            # Make a copy
+            # self = copy.copy(self)
+
+            # Attach signals
+            self.sig_in = _parse_to_list(args)
+
+            # Add to network(s)
+            for n in Network.active:
+                print(f"Add {self} to network {n}")
+                n.append(self)
+
+        # Calculate the actual response
+        print(f"Run {self}")
+        out = response(self, *inp)
+
+        # print("Post-process")
+        if all_constant:
+            return out
+        else:
+            state_out = _parse_to_list(out)
+
+            if create:
+                # Initialize a number of output signals with default names
+                self.sig_out = [Signal(f"{type(self).__name__}_output{i}") for i in range(len(state_out))]
+
+            # Check if enough outputs are calculated
+            if len(state_out) != len(self.sig_out):
+                raise TypeError(f"Number of responses calculated ({len(state_out)}) is unequal to "
+                                f"number of output signals ({len(self.sig_out)})")
+
+            # Update the output signals
+            for i, val in enumerate(state_out):
+                self.sig_out[i].state = val
+
+            if len(self.sig_out) == 0:
+                return
+            elif len(self.sig_out) == 1:
+                return self.sig_out[0]
+            else:
+                return tuple(self.sig_out)
+
+    if create:
+        wrapped.fun = connect(response, create=False)
+    return wrapped
+
+
+# connect = keeping_original_fun(connect_sig)
+
+
 class Module(ABC, RegisteredClass):
     """
     Main class: Module
@@ -472,8 +542,8 @@ class Module(ABC, RegisteredClass):
             inp_str = "Inputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_in]) if len(self.sig_in) > 0 else "No inputs"
             out_str = "Outputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_out]) if len(self.sig_out) > 0 else "No outputs"
             str_list.append(f"Module \'{type(self).__name__}\'( " + inp_str + " ) --> " + out_str)
-        if init:
-            str_list.append(f"Used in {self._init_loc}")
+        # if init:
+            # str_list.append(f"Used in {self._init_loc}")
         if fn is not None:
             name = f"{fn.__self__.__class__.__name__}.{fn.__name__}{inspect.signature(fn)}"
             lineno = inspect.getsourcelines(fn)[1]
@@ -481,78 +551,15 @@ class Module(ABC, RegisteredClass):
             str_list.append(f"Implementation in File \"{filename}\", line {lineno}, in {name}")
         return err_fmt(*str_list)
 
-    # flake8: noqa: C901
-    def __init__(self, sig_in: Union[Signal, List[Signal]] = None, sig_out: Union[Signal, List[Signal]] = None,
-                 *args, **kwargs):
-        self._init_loc = get_init_str()
-
-        self.sig_in = _parse_to_list(sig_in)
-        self.sig_out = _parse_to_list(sig_out)
-        for i, s in enumerate(self.sig_in):
-            if not _is_valid_signal(s):
-                tag = f" (\'{s.tag}\')" if hasattr(s, 'tag') else ''
-                raise TypeError(f"Input {i}{tag} is not a valid signal, type=\'{type(s).__name__}\'.")
-
-        for i, s in enumerate(self.sig_out):
-            if not _is_valid_signal(s):
-                tag = f" (\'{s.tag}\')" if hasattr(s, 'tag') else ''
-                raise TypeError(f"Output {i}{tag} is not a valid signal, type=\'{type(s).__name__}\'.")
-
-        # Call preparation of submodule with remaining arguments
-        self._prepare(*args, **kwargs)
-
-        try:
-            # Check if the signals match _response() signature
-            _check_function_signature(self._response, self.sig_in)
-        except Exception as e:
-            raise type(e)(str(e) + "\n\t| Module details:" +
-                          self._err_str(fn=self._response)).with_traceback(sys.exc_info()[2])
-
-        try:
-            # If no output signals are given, but are required, try to initialize them here
-            req_args = 0
-            for s, p in inspect.signature(self._sensitivity).parameters.items():
-                if p.kind == inspect.Parameter.POSITIONAL_ONLY or p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:
-                    if req_args >= 0:
-                        req_args += 1
-                elif p.kind == inspect.Parameter.VAR_POSITIONAL:
-                    req_args = -1
-            if len(self.sig_out) == 0 and req_args >= 0 and req_args != len(self.sig_out):
-                # Initialize a number of output signals with default names
-                self.sig_out = [Signal(f"{type(self).__name__}_output{i}") for i in range(req_args)]
-
-            # Check if signals match _sensitivity() signature
-            _check_function_signature(self._sensitivity, self.sig_out)
-        except Exception as e:
-            raise type(e)(str(e) + "\n\t| Module details:" +
-                          self._err_str(fn=self._sensitivity)).with_traceback(sys.exc_info()[2])
-
     def response(self):
         """ Calculate the response from sig_in and output this to sig_out """
         try:
-            inp = [s.state for s in self.sig_in]
-            state_out = _parse_to_list(self._response(*inp))  # Calculate the actual response
-
-            # Check if enough outputs are calculated
-            if len(state_out) != len(self.sig_out):
-                raise TypeError(f"Number of responses calculated ({len(state_out)}) is unequal to "
-                                f"number of output signals ({len(self.sig_out)})")
-
-            # Update the output signals
-            for i, val in enumerate(state_out):
-                self.sig_out[i].state = val
+            self.__call__.fun(self, *self.sig_in)  # Calculate the actual response
             return self
         except Exception as e:
             # https://stackoverflow.com/questions/6062576/adding-information-to-an-exception
             raise type(e)(str(e) + "\n\t| Above error was raised when calling response(). Module details:" +
-                          self._err_str(fn=self._response)).with_traceback(sys.exc_info()[2])
-
-    def __call__(self, *args):
-        if len(args) == 0 and len(self.sig_in) > 0:
-            inp = [s.state for s in self.sig_in]
-            return self._response(*inp)
-        else:
-            return self._response(*args)
+                          self._err_str(fn=self.__call__)).with_traceback(sys.exc_info()[2])
 
     def sensitivity(self):
         """  Calculate sensitivities using backpropagation
@@ -561,7 +568,7 @@ class Module(ABC, RegisteredClass):
         """
         try:
             # Get all sensitivity values of the outputs
-            sens_in = [s.sensitivity for s in self.sig_out]
+            sens_in = [s.sensitivity for s in self.sig_out]  # FIXME
 
             if len(self.sig_out) > 0 and all([s is None for s in sens_in]):
                 return  # If none of the adjoint variables is set
@@ -576,7 +583,8 @@ class Module(ABC, RegisteredClass):
 
             # Add the sensitivities to the signals
             for i, ds in enumerate(sens_out):
-                self.sig_in[i].add_sensitivity(ds)
+                if _is_valid_signal(self.sig_in[i]):
+                    self.sig_in[i].add_sensitivity(ds)
 
             return self
         except Exception as e:
@@ -586,20 +594,23 @@ class Module(ABC, RegisteredClass):
     def reset(self):
         """ Reset the state of the sensitivities (they are set to zero or to None) """
         try:
-            [s.reset() for s in self.sig_out]
-            [s.reset() for s in self.sig_in]
+            [s.reset() for s in self.sig_out if _is_valid_signal(s)]
+            [s.reset() for s in self.sig_in if _is_valid_signal(s)]
             self._reset()
             return self
         except Exception as e:
             raise type(e)(str(e) + "\n\t| Above error was raised when calling reset(). Module details:" +
-                          self._err_str(fn=self._response)).with_traceback(sys.exc_info()[2])
+                          self._err_str(fn=self.__call__)).with_traceback(sys.exc_info()[2])
+
+    def get_inputs(self):
+        return [s.state if _is_valid_signal(s) else s for s in self.sig_in]
+
+    def get_outputs(self):
+        return [s.state if _is_valid_signal(s) else s for s in self.sig_out]
 
     # METHODS TO BE DEFINED BY USER
-    def _prepare(self, *args, **kwargs):
-        pass
-
     @abstractmethod
-    def _response(self, *args):
+    def __call__(self, *args):
         raise NotImplementedError("No response behavior defined")
 
     def _sensitivity(self, *args):
@@ -632,12 +643,22 @@ class Network(Module):
     Args:
         print_timing: Print timing of each module inside this Network
     """
+
+    active = set()
+
     def __init__(self, *args, print_timing=False):
         super().__init__()
         self._init_loc = get_init_str()
         self.mods = []  # Empty module list
         self.append(*args)  # Append to module list
         self.print_timing = print_timing
+
+    def __enter__(self):
+        self.active.add(self)
+        return self
+
+    def __exit__(self, typ, value, traceback):
+        self.active.remove(self)
 
     def timefn(self, fn, name=None):
         start_t = time.time()
@@ -725,13 +746,14 @@ class Network(Module):
         self.mods.extend(modlist)
 
         # Gather all the input and output signals of the internal blocks
-        all_in = set()
-        all_out = set()
-        [all_in.update(m.sig_in) for m in self.mods]
-        [all_out.update(m.sig_out) for m in self.mods]
-        in_unique = all_in - all_out
+        # all_in = set()
+        # all_out = set()
+        # [all_in.update(m.sig_in) for m in self.mods]
+        # [all_out.update(m.sig_out) for m in self.mods]
+        # in_unique = all_in - all_out
+        #
+        # self.sig_in = _parse_to_list(in_unique)
+        # self.sig_out = _parse_to_list(all_out)
 
-        self.sig_in = _parse_to_list(in_unique)
-        self.sig_out = _parse_to_list(all_out)
-
-        return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out
+        # return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out
+        return self

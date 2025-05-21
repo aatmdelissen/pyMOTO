@@ -5,7 +5,7 @@ from typing import Union
 import numpy as np
 from scipy.sparse import csc_matrix
 
-from pymoto import Module, DyadCarrier, DomainDefinition
+from pymoto import Module, DyadCarrier, DomainDefinition, connect
 
 try:
     from opt_einsum import contract as einsum
@@ -39,7 +39,7 @@ class AssembleGeneral(Module):
         add_constant (optional): A constant (e.g. matrix) to add.
     """
 
-    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None,
+    def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None,
                  matrix_type=csc_matrix, add_constant=None):
         self.elmat = element_matrix
         self.ndof = self.elmat.shape[-1] // domain.elemnodes  # Number of dofs per node
@@ -68,7 +68,8 @@ class AssembleGeneral(Module):
 
         self.add_constant = add_constant
 
-    def _response(self, xscale: np.ndarray):
+    @connect
+    def __call__(self, xscale: np.ndarray):
         nel = self.dofconn.shape[0]
         assert xscale.size == nel, f"Input vector wrong size ({xscale.size}), must be of size #nel ({nel})"
         scaled_el = (self.elmat.flatten() * xscale[..., np.newaxis]).flatten()
@@ -212,7 +213,7 @@ class AssembleStiffness(AssembleGeneral):
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
         kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
-    def _prepare(self, domain: DomainDefinition, *args,
+    def __init__(self, domain: DomainDefinition, *args,
                  e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane='strain', **kwargs):
         self.E, self.nu = e_modulus, poisson_ratio
 
@@ -237,7 +238,7 @@ class AssembleStiffness(AssembleGeneral):
             B = get_B(dN_dx)
             self.stiffness_element += w * B.T @ D @ B  # Add contribution
 
-        super()._prepare(domain, self.stiffness_element, *args, **kwargs)
+        super().__init__(domain, self.stiffness_element, *args, **kwargs)
 
 
 class AssembleMass(AssembleGeneral):
@@ -305,7 +306,7 @@ class AssemblePoisson(AssembleGeneral):
         kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
 
-    def _prepare(self, domain: DomainDefinition, *args, material_property: float = 1.0, **kwargs):
+    def __init__(self, domain: DomainDefinition, *args, material_property: float = 1.0, **kwargs):
         # Prepare material properties and element matrices
         self.material_property = material_property
         self.poisson_element = np.zeros((domain.elemnodes, domain.elemnodes))
@@ -321,7 +322,7 @@ class AssemblePoisson(AssembleGeneral):
             Bn = domain.eval_shape_fun_der(pos)
             self.poisson_element += w * self.material_property * Bn.T @ Bn  # Add contribution
 
-        super()._prepare(domain, self.poisson_element, *args, **kwargs)
+        super().__init__(domain, self.poisson_element, *args, **kwargs)
 
 
 class ElementOperation(Module):

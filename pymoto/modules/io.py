@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use('TkAgg')  # Change default backend -- TkAgg does not freeze during calculations
 import matplotlib.pyplot as plt
 
-from pymoto import Module
+from pymoto import Module, connect
 from .assembly import DomainDefinition
 
 
@@ -19,8 +19,8 @@ class FigModule(Module):
           filename (default = ``False``)
         show (bool): Show the figure on the screen
     """
-    def __init__(self, *args, saveto=None, overwrite=False, show=True, **kwargs):
-        self.fig = plt.figure()
+    def __init__(self, saveto=None, overwrite=False, show=True):
+        self.fig = None
         if saveto is not None:
             self.saveloc, self.saveext = os.path.splitext(saveto)
             dir = os.path.dirname(saveto)
@@ -31,7 +31,10 @@ class FigModule(Module):
         self.overwrite = overwrite
         self.show = show
         self.iter = 0
-        super().__init__(*args, **kwargs)
+
+    def _init_fig(self):
+        if self.fig is None:
+            self.fig = plt.figure()
 
     def _update_fig(self):
         if self.iter == 0 and self.show:
@@ -69,12 +72,15 @@ class PlotDomain(FigModule):
           value below which elements are clipped.
         cmap (str): Colormap (only for 2D)
     """
-    def _prepare(self, domain: DomainDefinition, clim=None, cmap='gray_r'):
+    def __init__(self, domain: DomainDefinition, *args, clim=None, cmap='gray_r', **kwargs):
+        super().__init__(*args, **kwargs)
         self.clim = clim
         self.cmap = cmap
         self.domain = domain
 
-    def _response(self, x):
+    @connect
+    def __call__(self, x):
+        self._init_fig()
         if self.domain.dim == 2:
             self._plot_2d(x)
         elif self.domain.dim == 3:
@@ -82,7 +88,7 @@ class PlotDomain(FigModule):
         else:
             raise NotImplementedError("Only 2D and 3D plots are implemented")
         assert len(self.fig.axes) > 0, "Figure must contain axes"
-        self.fig.axes[0].set_title(f"{self.sig_in[0].tag}, Iteration {self.iter}")
+        self.fig.axes[0].set_title(f"{self.sig_in[0].tag if hasattr(self.sig_in[0], 'tag') else 'Unknown variable'}, Iteration {self.iter}")
 
         self._update_fig()
 
@@ -159,6 +165,7 @@ class PlotGraph(FigModule):
         self.style = style
 
     def _response(self, x, *ys):
+        self._init_fig()
         if not hasattr(self, 'ax'):
             self.ax = self.fig.add_subplot(111)
             self.ax.set_xlabel(self.sig_in[0].tag)
@@ -198,13 +205,16 @@ class PlotIter(FigModule):
         show (bool): Show the figure on the screen
         ylim: Provide y-axis limits for the plot
     """
-    def _prepare(self, ylim=None, log_scale=False):
+    def __init__(self, ylim=None, log_scale=False, **kwargs):
         self.minlim = 1e+200
         self.maxlim = -1e+200
         self.ylim = ylim
         self.log_scale = log_scale
+        super().__init__(**kwargs)
 
-    def _response(self, *args):
+    @connect
+    def __call__(self, *args):
+        self._init_fig()
         if not hasattr(self, 'ax'):
             self.ax = self.fig.add_subplot(111)
             self.ax.set_yscale('linear' if not self.log_scale else 'log')
