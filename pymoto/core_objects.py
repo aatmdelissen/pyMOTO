@@ -334,7 +334,7 @@ class BoundMethod:
 BoundMethodT = Union[Callable, BoundMethod]
 
 
-def _check_function_signature(fn: BoundMethodT, signals: list = None) -> (int, int):
+def _check_function_signature(fn: BoundMethodT, n_args: int = None) -> (int, int):
     """ Checks the function signature against given signal list
 
     - Only positional-only or positional-or-keyword arguments are allowed
@@ -343,7 +343,7 @@ def _check_function_signature(fn: BoundMethodT, signals: list = None) -> (int, i
 
     Args:
         fn: response_ or sensitivity_ function of a Module
-        signals (optional): The signals involved, which are checked with the function signature
+        n_args (optional): The numbere of positional arguments provided, which are checked with the function signature
 
     Returns:
         (min_args, max_args): Minimum and maximum number of accepted arguments to the function;
@@ -368,153 +368,20 @@ def _check_function_signature(fn: BoundMethodT, signals: list = None) -> (int, i
             raise SyntaxError(f"{callstr} may not contain dict of keyword-only arguments \"{p}\"")
 
     # Check with signal list
-    if signals is not None:
-        if len(signals) < min_args:
-            raise TypeError(f"Not enough arguments ({len(signals)}) for {callstr}; expected {min_args}")
-        if max_args is not None and len(signals) > max_args:
-            raise TypeError(f"Too many arguments ({len(signals)}) for {callstr}; expected {max_args}")
+    if n_args is not None:
+        if n_args < min_args:
+            raise TypeError(f"Not enough arguments ({n_args}) for {callstr}; expected {min_args}")
+        if max_args is not None and n_args > max_args:
+            raise TypeError(f"Too many arguments ({n_args}) for {callstr}; expected {max_args}")
     return min_args, max_args
 
 
-class RegisteredClass(object):
-    """
-    Abstract base class that can keep track of its subclasses and can instantiate them as well, based on their name.
-    """
-
-    @classmethod
-    def create(cls, sub_type: str, *args, **kwargs):
-        """
-        Factory method to create subclasses. Call with the name of the subclass to instantiate a new object of
-        requested type.
-        :param sub_type: String identifying the name of the subclass (case insensitive)
-        :param args: Passed to the subclass constructor
-        :param kwargs: Passed to the subclass constructor
-        :return: New subclass object
-        """
-        id_req = sub_type.lower()
-        subs = cls.all_subclasses()
-        if id_req not in subs.keys():
-            raise ValueError("Subclass type not defined: {}".format(sub_type))
-        return subs[id_req](*args, **kwargs)
-
-    @classmethod
-    def all_subclasses(cls):
-        """
-        Looks for subclasses of this class, used in creation
-        :return: List of (unique) subclasses
-        """
-
-        # Recursive search for subclasses
-        def get_subs(cl):
-            all_subclasses = []
-
-            for subclass in cl.__subclasses__():
-                all_subclasses.append(subclass)
-                all_subclasses.extend(get_subs(subclass))
-
-            return all_subclasses
-
-        subs = get_subs(cls)
-
-        # Check for duplicates
-        seen = {}
-        subs_out = {}
-        duplicates = []
-        duplicate_obj = []
-        for sc in subs:
-            scn = sc.__name__.lower()
-            if scn not in seen:
-                seen[scn] = 1
-                subs_out[scn] = sc
-            else:
-                if seen[scn] > 0:
-                    duplicates.append(scn)
-                    duplicate_obj.append(sc)
-                seen[scn] += 1
-
-        # Emit warning if duplicates are found
-        for d, do in zip(duplicates, duplicate_obj):
-            warnings.warn("Duplicated module '{}', currently defined as {}, duplicate definition at {}"
-                          .format(d, subs_out[d], do), Warning)
-
-        return subs_out
-
-    @classmethod
-    def print_children(cls):
-        print(": ".join([cls.__name__+" subtypes", ", ".join(cls.all_subclasses().keys())]))
+def contains_signal(*args):
+    """ Test if the arguments a signal is contained """
+    return any([_is_valid_signal(s) for s in args])
 
 
-def keeping_original_fun(decorator):
-    """https://stackoverflow.com/questions/73151828/call-a-function-without-calling-functions-wrapper-function"""
-    class WrappedFun:
-        def __init__(self, fun):
-            self.fun = fun
-            self.decorated_fun = decorator(fun)
-        def __call__(self, slf, *args, **kwargs):
-            return self.decorated_fun(slf, *args, **kwargs)
-    return WrappedFun
-
-
-
-def connect(response: BoundMethodT, create=True):
-    def wrapped(self, *args):
-        # print("Pre-process")
-
-        # Parse inputs
-        inp = [s.state if _is_valid_signal(s) else s for s in args]
-        all_constant = not any([_is_valid_signal(s) for s in args])
-
-        if create and not all_constant:
-            # Make a copy
-            # self = copy.copy(self)
-
-            # Attach signals
-            self.sig_in = _parse_to_list(args)
-
-            # Add to network(s)
-            for n in Network.active:
-                print(f"Add {self} to network {n}")
-                n.append(self)
-
-        # Calculate the actual response
-        print(f"Run {self}")
-        out = response(self, *inp)
-
-        # print("Post-process")
-        if all_constant:
-            return out
-        else:
-            state_out = _parse_to_list(out)
-
-            if create:
-                # Initialize a number of output signals with default names
-                self.sig_out = [Signal(f"{type(self).__name__}_output{i}") for i in range(len(state_out))]
-
-            # Check if enough outputs are calculated
-            if len(state_out) != len(self.sig_out):
-                raise TypeError(f"Number of responses calculated ({len(state_out)}) is unequal to "
-                                f"number of output signals ({len(self.sig_out)})")
-
-            # Update the output signals
-            for i, val in enumerate(state_out):
-                self.sig_out[i].state = val
-
-            if len(self.sig_out) == 0:
-                return
-            elif len(self.sig_out) == 1:
-                return self.sig_out[0]
-            else:
-                return tuple(self.sig_out)
-
-    if create:
-        wrapped.fun = connect(response, create=False)
-    return wrapped
-
-
-# connect = keeping_original_fun(connect_sig)
-
-
-class Module(ABC, RegisteredClass):
+class Module(ABC):
     """
     Main class: Module
     Transforms input signal to output signal and output signal sensitivity to input signal sensitivity
@@ -534,16 +401,83 @@ class Module(ABC, RegisteredClass):
     Using keywords:
     >> Module(sig_in=[inputs], sig_out=[outputs])
     """
+    sig_in: List = None
+    sig_out: List = None
+    _init_loc: str = None
+
+    def __init_subclass__(cls, *args, **kwargs):
+        fwd = cls.__call__
+        is_abstract = hasattr(fwd, '__isabstractmethod__') and fwd.__isabstractmethod__
+        if not is_abstract:
+            cls._response = cls.connect(fwd, create=False)
+            cls.__call__ = cls.connect(fwd, create=True)
+
+    @classmethod
+    def connect(cls, response: BoundMethodT, create=True):
+        def wrapped(self, *args):
+            # print("Pre-process")
+
+            # Parse inputs
+            inp = [s.state if _is_valid_signal(s) else s for s in args]
+            all_constant = len(args) > 0 and not contains_signal(*args)
+            self._init_loc = get_init_str()
+
+            if create and not all_constant:
+                # Make a copy
+                # self = copy.copy(self)
+
+                # Attach signals
+                self.sig_in = _parse_to_list(args)
+
+                # Add to network(s)
+                for n in Network.active:
+                    if self in n.mods:
+                        raise RuntimeError("Module already in network, cannot add twice.")
+                    n.append(self)
+
+            # Calculate the actual response
+            out = response(self, *inp)
+
+            # print("Post-process")
+            if all_constant:
+                return out
+            else:
+                state_out = _parse_to_list(out)
+
+                if create:
+                    # Initialize a number of output signals with default names
+                    self.sig_out = [Signal(f"{type(self).__name__}_output{i}") for i in range(len(state_out))]
+
+                    # Check if signals match _sensitivity() signature
+                    _check_function_signature(self._sensitivity, len(self.sig_out))
+
+                # Check if enough outputs are calculated
+                if len(state_out) != len(self.sig_out):
+                    raise TypeError(f"Number of responses calculated ({len(state_out)}) is unequal to "
+                                    f"number of output signals ({len(self.sig_out)})")
+
+                # Update the output signals
+                for i, val in enumerate(state_out):
+                    self.sig_out[i].state = val
+
+                if len(self.sig_out) == 0:
+                    return
+                elif len(self.sig_out) == 1:
+                    return self.sig_out[0]
+                else:
+                    return tuple(self.sig_out)
+
+        return wrapped
 
     def _err_str(self, module_signature: bool = True, init: bool = True, fn=None):
         str_list = []
 
         if module_signature:
-            inp_str = "Inputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_in]) if len(self.sig_in) > 0 else "No inputs"
-            out_str = "Outputs: " + ", ".join([s.tag if hasattr(s, 'tag') else 'N/A' for s in self.sig_out]) if len(self.sig_out) > 0 else "No outputs"
+            inp_str = "Inputs: " + "Unconnected" if self.sig_in is None else (", ".join([s.tag if _is_valid_signal(s) else type(s) for s in self.sig_in]) if len(self.sig_in) > 0 else "No inputs")
+            out_str = "Outputs: " + "Unconnected" if self.sig_out is None else (", ".join([s.tag if _is_valid_signal(s) else type(s) for s in self.sig_out]) if len(self.sig_out) > 0 else "No outputs")
             str_list.append(f"Module \'{type(self).__name__}\'( " + inp_str + " ) --> " + out_str)
-        # if init:
-            # str_list.append(f"Used in {self._init_loc}")
+        if init and self._init_loc is not None:
+            str_list.append(f"Used in {self._init_loc}")
         if fn is not None:
             name = f"{fn.__self__.__class__.__name__}.{fn.__name__}{inspect.signature(fn)}"
             lineno = inspect.getsourcelines(fn)[1]
@@ -554,7 +488,7 @@ class Module(ABC, RegisteredClass):
     def response(self):
         """ Calculate the response from sig_in and output this to sig_out """
         try:
-            self.__call__.fun(self, *self.sig_in)  # Calculate the actual response
+            self._response(*self.sig_in)  # Calculate the actual response
             return self
         except Exception as e:
             # https://stackoverflow.com/questions/6062576/adding-information-to-an-exception
@@ -568,7 +502,10 @@ class Module(ABC, RegisteredClass):
         """
         try:
             # Get all sensitivity values of the outputs
-            sens_in = [s.sensitivity for s in self.sig_out]  # FIXME
+            sens_in = self.get_output_sensitivities()
+
+            if (self.sig_in is None or not contains_signal(*self.sig_in)) and (self.sig_out is None or not contains_signal(*self.sig_out)):
+                raise RuntimeError("Cannot run sensitivity as there are no connected signals")
 
             if len(self.sig_out) > 0 and all([s is None for s in sens_in]):
                 return  # If none of the adjoint variables is set
@@ -602,11 +539,17 @@ class Module(ABC, RegisteredClass):
             raise type(e)(str(e) + "\n\t| Above error was raised when calling reset(). Module details:" +
                           self._err_str(fn=self.__call__)).with_traceback(sys.exc_info()[2])
 
-    def get_inputs(self):
-        return [s.state if _is_valid_signal(s) else s for s in self.sig_in]
+    def get_input_states(self):
+        return [s.state if _is_valid_signal(s) else s for s in self.sig_in] if self.sig_in is not None else None
 
-    def get_outputs(self):
-        return [s.state if _is_valid_signal(s) else s for s in self.sig_out]
+    def get_output_states(self):
+        return [s.state if _is_valid_signal(s) else s for s in self.sig_out] if self.sig_out is not None else None
+
+    def get_input_sensitivities(self):
+        return [s.sensitivity if _is_valid_signal(s) else None for s in self.sig_in] if self.sig_in is not None else None
+
+    def get_output_sensitivities(self):
+        return [s.sensitivity if _is_valid_signal(s) else None for s in self.sig_out] if self.sig_out is not None else None
 
     # METHODS TO BE DEFINED BY USER
     @abstractmethod

@@ -5,7 +5,7 @@ from typing import Union
 import numpy as np
 from scipy.sparse import csc_matrix
 
-from pymoto import Module, DyadCarrier, DomainDefinition, connect
+from pymoto import Module, DyadCarrier, DomainDefinition
 
 try:
     from opt_einsum import contract as einsum
@@ -68,7 +68,6 @@ class AssembleGeneral(Module):
 
         self.add_constant = add_constant
 
-    @connect
     def __call__(self, xscale: np.ndarray):
         nel = self.dofconn.shape[0]
         assert xscale.size == nel, f"Input vector wrong size ({xscale.size}), must be of size #nel ({nel})"

@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use('TkAgg')  # Change default backend -- TkAgg does not freeze during calculations
 import matplotlib.pyplot as plt
 
-from pymoto import Module, connect
+from pymoto import Module
 from .assembly import DomainDefinition
 
 
@@ -78,7 +78,6 @@ class PlotDomain(FigModule):
         self.cmap = cmap
         self.domain = domain
 
-    @connect
     def __call__(self, x):
         self._init_fig()
         if self.domain.dim == 2:
@@ -212,7 +211,6 @@ class PlotIter(FigModule):
         self.log_scale = log_scale
         super().__init__(**kwargs)
 
-    @connect
     def __call__(self, *args):
         self._init_fig()
         if not hasattr(self, 'ax'):

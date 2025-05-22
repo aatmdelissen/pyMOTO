@@ -229,7 +229,6 @@ class Filter(Module):
         """
         raise NotImplementedError("Filter not implemented.")
 
-    @pymoto.connect
     def __call__(self, x):
         return np.asarray(self.H * x[np.newaxis].T / self.Hs)[:, 0]
 

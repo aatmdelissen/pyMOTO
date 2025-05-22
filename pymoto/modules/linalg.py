@@ -7,7 +7,7 @@ import scipy.linalg as spla  # Dense matrix solvers
 import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
 
-from pymoto import Signal, Module, DyadCarrier, connect
+from pymoto import Signal, Module, DyadCarrier
 from pymoto.solvers import auto_determine_solver
 from pymoto.solvers import matrix_is_sparse, matrix_is_complex, matrix_is_hermitian, LDAWrapper
 
@@ -249,7 +249,6 @@ class LinSolve(Module):
         self.solver = solver
         self.u = None  # Solution storage
 
-    @connect
     def __call__(self, mat, rhs):
         # Do some detections on the matrix type
         self.issparse = matrix_is_sparse(mat)  # Check if it is a sparse matrix
@@ -281,7 +280,7 @@ class LinSolve(Module):
         return self.u
 
     def _sensitivity(self, dfdv):
-        mat, rhs = self.get_inputs()
+        mat, rhs = self.get_input_states()
         # lam = self.solver.solve(dfdv.conj(), trans='H').conj()
         lam = self.solver.solve(dfdv, trans='T')
 

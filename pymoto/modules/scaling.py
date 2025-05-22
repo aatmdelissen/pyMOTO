@@ -1,4 +1,4 @@
-from pymoto import Module, connect
+from pymoto import Module
 import numpy as np
 
 
@@ -38,7 +38,6 @@ class Scaling(Module):
         if self.minval is not None or self.maxval is not None:
             self.sf = self.scaling
 
-    @connect
     def __call__(self, x):
         if not hasattr(self, 'sf'):
             self.sf = self.scaling/np.linalg.norm(x)

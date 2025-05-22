@@ -1,6 +1,6 @@
 """ Generic modules, valid for general mathematical operations """
 import numpy as np
-from pymoto.core_objects import Module, connect
+from pymoto.core_objects import Module
 from pymoto.utils import _concatenate_to_array, _split_from_array
 try:
     from opt_einsum import contract as einsum  # Faster einsum
@@ -84,7 +84,6 @@ class MathGeneral(Module):
 
         self.df = lambdify(var_names, dx, "numpy")
 
-    @connect
     def __call__(self, *args):
         if not hasattr(self, 'f'):
             self.parse_expression()
@@ -181,13 +180,12 @@ class EinSum(Module):
         self.indices_in = [s.strip() for s in cmd[0].split(",")]
         self.indices_out = cmd[1] if "->" in self.expr else ''
 
-    @connect
     def __call__(self, *args):
-        return [einsum(self.expr, *args, optimize=True)]
+        return einsum(self.expr, *args, optimize=True)
 
     def _sensitivity(self, df_in):
         n_in = len(self.sig_in)
-        inps = self.get_inputs()
+        inps = self.get_input_states()
 
         if (self.indices_out == '') and n_in == 1:
             # In case expression has only one input and scalar output, e.g. "i->", "ij->", the output size cannot

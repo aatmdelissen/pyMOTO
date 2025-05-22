@@ -87,7 +87,7 @@ if __name__ == "__main__":
         # pym.WriteToVTI(domain, saveto='out/dat.vti')(sx_analysis, su, f)
 
         # Compliance calculation c = f^T u
-        scompl = pym.EinSum('i,i->')(su, f)
+        scompl = pym.EinSum('i, i->')(su, f)
         scompl.tag = 'compliance'
 
         # MMA needs correct scaling of the objective
