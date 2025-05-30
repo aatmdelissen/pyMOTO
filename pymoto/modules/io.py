@@ -160,10 +160,11 @@ class PlotGraph(FigModule):
         style (str): Line/marker style (*e.g.* ``"."``)
     """
 
-    def _prepare(self, style: str = None):
+    def __init__(self, style: str = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.style = style
 
-    def _response(self, x, *ys):
+    def __call__(self, x, *ys):
         self._init_fig()
         if not hasattr(self, 'ax'):
             self.ax = self.fig.add_subplot(111)
@@ -279,7 +280,7 @@ class WriteToVTI(Module):
         overwrite (bool): Write a new file for each iteration
         scale (float): Scaling factor for the domain
     """
-    def _prepare(self, domain: DomainDefinition, saveto: str, overwrite: bool = False, scale=1.):
+    def __init__(self, domain: DomainDefinition, saveto: str, overwrite: bool = False, scale=1.):
         self.domain = domain
         self.saveto = saveto
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
@@ -287,8 +288,10 @@ class WriteToVTI(Module):
         self.scale = scale
         self.overwrite = overwrite
 
-    def _response(self, *args):
+    def __call__(self, *args):
         data = {}
+        if self.sig_in is None:
+            raise NotImplementedError("Only for signals as inputs")
         for s in self.sig_in:
             data[s.tag] = s.state
         pth = os.path.splitext(self.saveto)
@@ -313,7 +316,7 @@ class ScalarToFile(Module):
         fmt (optional): Value format (e.g. 'e', 'f', '.3e', '.5g', '.3f')
         separator (optional): Value separator, .csv files will automatically use a comma
     """
-    def _prepare(self, saveto: str, fmt: str = '.10e', separator: str = '\t'):
+    def __init__(self, saveto: str, fmt: str = '.10e', separator: str = '\t'):
         self.saveto = saveto
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
         self.iter = 0
@@ -324,13 +327,16 @@ class ScalarToFile(Module):
 
         self.separator = "," if ".csv" in self.saveto else separator
 
-    def _response(self, *args):
+    def __call__(self, *args):
         tags = [] if self.iter == 0 else None
 
         # Add iteration as first column
         dat = [self.iter.__format__('d')]
         if tags is not None:
             tags.append('Iteration')
+
+        if self.sig_in is None:
+            raise NotImplementedError("Only for signals as inputs")
 
         # Add all signals
         for s in self.sig_in:

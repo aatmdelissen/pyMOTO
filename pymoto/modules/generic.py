@@ -184,22 +184,22 @@ class EinSum(Module):
         return einsum(self.expr, *args, optimize=True)
 
     def _sensitivity(self, df_in):
-        n_in = len(self.sig_in)
-        inps = self.get_input_states()
+        inps = self.get_input_states(as_list=True)
+        n_in = len(inps)
 
         if (self.indices_out == '') and n_in == 1:
             # In case expression has only one input and scalar output, e.g. "i->", "ij->", the output size cannot
             # be deducted. Therefore, we add these exceptions
             if len(set(self.indices_in[0])) < len(self.indices_in[0]):
                 # exception for repeated indices (e.g. trace, diagonal summing)
-                if self.sig_in[0].state.ndim > 2:
+                if inps[0].ndim > 2:
                     raise TypeError(
                         "Sensitivities for repeated incides '{}' not supported for any other than trace 'ii->'."
                         .format(self.expr))
-                mat = np.zeros_like(self.sig_in[0].state)
+                mat = np.zeros_like(inps[0])
                 np.fill_diagonal(mat, 1.0)
             else:
-                mat = np.ones_like(self.sig_in[0].state)
+                mat = np.ones_like(inps[0])
             return df_in * mat
 
         for ind_in in self.indices_in:
@@ -229,7 +229,7 @@ class EinSum(Module):
 
 class ConcatSignal(Module):
     """ Concatenates data of multiple signals into one big vector """
-    def _response(self, *args):
+    def __call__(self, *args):
         state, self.cumlens = _concatenate_to_array(list(args))
         return state
 

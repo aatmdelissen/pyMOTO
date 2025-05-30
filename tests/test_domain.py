@@ -75,18 +75,21 @@ class TestDomainDefinition(unittest.TestCase):
             N_chk[i] = 1.0
             pos = np.array([n[0]*unitx/2, n[1]*unity/2])
             npt.assert_allclose(domain.eval_shape_fun(pos), N_chk)
+
     def test_shape_fn_derivatives_2D(self):
         unitx, unity = 0.8, 0.3
         domain = pym.DomainDefinition(1, 1, unitx=unitx, unity=unity)
         pos = np.array([0.2, 0.1])
 
         class ShapeFn(pym.Module):
-            def _response(self, pos):
+            def __call__(self, pos):
                 return domain.eval_shape_fun(pos)
+
             def _sensitivity(self, dN):
                 return domain.eval_shape_fun_der(pos) @ dN
 
-        pym.finite_difference(ShapeFn(pym.Signal('pos', state=pos)), test_fn=fd_testfn)
+        ShapeFn()(pym.Signal('pos', state=pos))
+        pym.finite_difference(test_fn=fd_testfn)
 
 
 if __name__ == '__main__':

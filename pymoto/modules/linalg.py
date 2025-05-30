@@ -56,13 +56,13 @@ class StaticCondensation(Module):
         **kwargs: See `pymoto.LinSolve`, as they are directly passed into the `LinSolve` module
     """
 
-    def _prepare(self, main, free, **kwargs):
+    def __init__(self, main, free, **kwargs):
         self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
         self.module_LinSolve.use_lda_solver = False
         self.m = main
         self.f = free
 
-    def _response(self, A):
+    def __call__(self, A):
         self.n = np.shape(A)[0]
         self.module_LinSolve.sig_in[0].state = A[self.f, ...][..., self.f]
         self.module_LinSolve.sig_in[1].state = A[self.f, ...][..., self.m].todense()
@@ -77,128 +77,6 @@ class StaticCondensation(Module):
         return C @ dfdB @ C.T if isinstance(dfdB, DyadCarrier) else DyadCarrier(list(C.T), list(np.asarray(dfdB @ C.T)))
 
 
-class SystemOfEquations(Module):
-    r""" Solve a partitioned linear system of equations
-
-    The partitioned system of equations
-
-    :math:`\begin{bmatrix} \mathbf{A}_\text{ff} & \mathbf{A}_\text{fp} \\ \mathbf{A}_\text{pf} & \mathbf{A}_\text{pp}
-    \end{bmatrix}
-    \begin{bmatrix} \mathbf{x}_\text{f} \\ \mathbf{x}_\text{p} \end{bmatrix} =
-    \begin{bmatrix} \mathbf{b}_\text{f} \\ \mathbf{b}_\text{p} \end{bmatrix}
-    ,`
-
-    which is solved in two steps. First solving for the free unknowns (e.g. displacements or temperatures)
-    :math:`\mathbf{x}_f` and then calculating the rhs for the prescribed unknowns (e.g. reaction forces or heat flux):
-
-    :math:`\begin{aligned}
-    \mathbf{A}_\text{ff} \mathbf{x}_\text{f} &= \mathbf{b}_\text{f} - \mathbf{A}_\text{fp} \mathbf{x}_\text{p} \\
-    \mathbf{b}_\text{p} &= \mathbf{A}_\text{pf}\mathbf{x}_\text{f} + \mathbf{A}_\text{pp} \mathbf{x}_\text{p}.
-    \end{aligned}`
-
-    References:
-        Koppen, S., Langelaar, M., & van Keulen, F. (2022).
-        Efficient multi-partition topology optimization.
-        Computer Methods in Applied Mechanics and Engineering, 393, 114829.
-        DOI: https://doi.org/10.1016/j.cma.2022.114829
-
-    Input Signals:
-      - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
-      - ``b_f`` (`vector`): applied load vector of size ``(f)`` or block-vector of size ``(f, Nrhs)``
-      - ``x_p`` (`vector`): prescribed state vector of size ``(p)`` or block-vector of size ``(p, Nrhs)``
-
-    Output Signal:
-      - ``x`` (`vector`): state vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
-      - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
-
-    Keyword Args:
-        free: The indices corresponding to the free degrees of freedom at which :math:`f_\text{f}` is given
-        prescribed: The indices corresponding to the prescibed degrees of freedom at which :math:`x_\text{p}` is given
-        **kwargs: See `pymoto.LinSolve`, as they are directly passed into the `LinSolve` module
-    """
-
-    def _prepare(self, free=None, prescribed=None, **kwargs):
-        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
-        self.f = free
-        self.p = prescribed
-        assert self.p is not None or self.f is not None, "Either prescribed or free indices must be provided"
-
-    def _response(self, A, bf, xp):
-        assert bf.shape[0] + xp.shape[0] == A.shape[0], "Dimensions of applied force and displacement must match matrix"
-        assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
-        self.n = np.shape(A)[0]
-        self.dim = xp.ndim
-
-        if self.f is None:
-            all_dofs = np.arange(self.n)
-            self.f = np.setdiff1d(all_dofs, self.p)
-        if self.p is None:
-            all_dofs = np.arange(self.n)
-            self.p = np.setdiff1d(all_dofs, self.f)
-        assert self.f.size + self.p.size == self.n, "Size of free and prescribed indices must match the matrix size"
-
-        # create empty output
-        self.x = np.zeros((self.n, *bf.shape[1:]), dtype=complex) if np.iscomplexobj(A) else np.zeros(
-            (self.n, *bf.shape[1:]), dtype=float)
-        self.x[self.p, ...] = xp
-
-        b = np.zeros_like(self.x)
-        b[self.f, ...] = bf
-
-        # partitioning
-        Aff = A[self.f, :][:, self.f]
-        self.Afp = A[self.f, :][:, self.p]
-        self.App = A[self.p, :][:, self.p]
-
-        # solve
-        self.module_LinSolve.sig_in[0].state = Aff
-        self.module_LinSolve.sig_in[1].state = bf - self.Afp * xp
-        self.module_LinSolve.response()
-        xf = self.module_LinSolve.sig_out[0].state
-
-        # set output
-        self.x[self.f, ...] = xf
-        b[self.p, ...] = self.Afp.T * xf + self.App * xp
-
-        return self.x, b
-
-    def _sensitivity(self, dgdx, dgdb):
-        adjoint_load = np.zeros_like(self.x[self.f, ...])
-
-        if dgdx is not None:
-            adjoint_load += dgdx[self.f, ...]
-        if dgdb is not None:
-            adjoint_load += self.Afp * dgdb[self.p, ...]
-
-        lam = np.zeros_like(self.x)
-        lamf = -1.0 * self.module_LinSolve.solver.solve(adjoint_load, trans='T')
-        lam[self.f, ...] = lamf
-
-        if dgdb is not None:
-            lam[self.p, ...] = dgdb[self.p, ...]
-
-        # sensitivities to system matrix
-        if self.x.ndim > 1:
-            dgdA = DyadCarrier(list(lam.T), list(self.x.T))
-        else:
-            dgdA = DyadCarrier(lam, self.x)
-
-        # sensitivities to applied load and prescribed state
-        dgdbf = np.zeros_like(adjoint_load)
-        dgdup = np.zeros_like(self.x[self.p, ...])
-        dgdbf -= lam[self.f, ...]
-        dgdup += self.Afp.T * lam[self.f, ...]
-
-        if dgdx is not None:
-            dgdup += dgdx[self.p, ...]
-
-        if dgdb is not None:
-            dgdbf += dgdb[self.f, ...]
-            dgdup += self.App * dgdb[self.p, ...]
-
-        return dgdA, dgdbf, dgdup
-
-
 class Inverse(Module):
     r""" Calculate the inverse of a matrix :math:`\mathbf{B} = \mathbf{A}^{-1}`
 
@@ -208,7 +86,7 @@ class Inverse(Module):
     Output Signal:
       - `B` (`np.ndarray`): The inverse of :math:`\mathbf{A}` as dense matrix
     """
-    def _response(self, A):
+    def __call__(self, A):
         return np.linalg.inv(A)
 
     def _sensitivity(self, dB):
@@ -260,7 +138,7 @@ class LinSolve(Module):
         if self.issparse and not self.iscomplex and np.iscomplexobj(rhs):
             raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported."
                             "This case can simply be solved by running two rhs (one for the real part and "
-                            "one for the imaginary.")
+                            "one for the imaginary.")  # FIXME
 
         # Determine the solver we want to use
         if self.solver is None:
@@ -302,6 +180,128 @@ class LinSolve(Module):
         return dmat, db
 
 
+class SystemOfEquations(Module):
+    r""" Solve a partitioned linear system of equations
+
+    The partitioned system of equations
+
+    :math:`\begin{bmatrix} \mathbf{A}_\text{ff} & \mathbf{A}_\text{fp} \\ \mathbf{A}_\text{pf} & \mathbf{A}_\text{pp}
+    \end{bmatrix}
+    \begin{bmatrix} \mathbf{x}_\text{f} \\ \mathbf{x}_\text{p} \end{bmatrix} =
+    \begin{bmatrix} \mathbf{b}_\text{f} \\ \mathbf{b}_\text{p} \end{bmatrix}
+    ,`
+
+    which is solved in two steps. First solving for the free unknowns (e.g. displacements or temperatures)
+    :math:`\mathbf{x}_f` and then calculating the rhs for the prescribed unknowns (e.g. reaction forces or heat flux):
+
+    :math:`\begin{aligned}
+    \mathbf{A}_\text{ff} \mathbf{x}_\text{f} &= \mathbf{b}_\text{f} - \mathbf{A}_\text{fp} \mathbf{x}_\text{p} \\
+    \mathbf{b}_\text{p} &= \mathbf{A}_\text{pf}\mathbf{x}_\text{f} + \mathbf{A}_\text{pp} \mathbf{x}_\text{p}.
+    \end{aligned}`
+
+    References:
+        Koppen, S., Langelaar, M., & van Keulen, F. (2022).
+        Efficient multi-partition topology optimization.
+        Computer Methods in Applied Mechanics and Engineering, 393, 114829.
+        DOI: https://doi.org/10.1016/j.cma.2022.114829
+
+    Input Signals:
+      - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
+      - ``b_f`` (`vector`): applied load vector of size ``(f)`` or block-vector of size ``(f, Nrhs)``
+      - ``x_p`` (`vector`): prescribed state vector of size ``(p)`` or block-vector of size ``(p, Nrhs)``
+
+    Output Signal:
+      - ``x`` (`vector`): state vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
+      - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
+
+    Keyword Args:
+        free: The indices corresponding to the free degrees of freedom at which :math:`f_\text{f}` is given
+        prescribed: The indices corresponding to the prescibed degrees of freedom at which :math:`x_\text{p}` is given
+        **kwargs: Arguments passed to initialization of :py:class:`LinSolve`
+    """
+    def __init__(self, free=None, prescribed=None, **kwargs):
+        self.linsolve = LinSolve(**kwargs)
+        self.linsolve.sig_in = [Signal('Aff'), Signal('bf - Afp.xp')]
+        self.linsolve.sig_out = [Signal('xf')]
+        self.f = free
+        self.p = prescribed
+        assert self.p is not None or self.f is not None, "Either prescribed or free indices must be provided"
+
+    def __call__(self, A, bf, xp):
+        n = A.shape[0]
+
+        assert bf.shape[0] + xp.shape[0] == n, "Dimensions of applied force and displacement must match matrix"
+        assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
+
+        if self.f is None:
+            all_dofs = np.arange(n)
+            self.f = np.setdiff1d(all_dofs, self.p)
+        if self.p is None:
+            all_dofs = np.arange(n)
+            self.p = np.setdiff1d(all_dofs, self.f)
+        assert self.f.size + self.p.size == n, "Size of free and prescribed indices must match the matrix size"
+
+        # create empty output
+        self.x = np.zeros((n, *bf.shape[1:]), dtype=A.dtype)
+        self.x[self.p, ...] = xp
+
+        b = np.zeros_like(self.x)
+        b[self.f, ...] = bf
+
+        # partitioning
+        Aff = A[self.f, :][:, self.f]
+        self.Afp = A[self.f, :][:, self.p]
+        self.App = A[self.p, :][:, self.p]
+
+        # solve
+        self.linsolve.sig_in[0].state = Aff
+        self.linsolve.sig_in[1].state = bf - self.Afp * xp
+        self.linsolve.response()
+        xf = self.linsolve.sig_out[0].state
+
+        # set output
+        self.x[self.f, ...] = xf
+        b[self.p, ...] = self.Afp.T * xf + self.App * xp
+
+        return self.x, b
+
+    def _sensitivity(self, dgdx, dgdb):
+        adjoint_load = np.zeros_like(self.x[self.f, ...])
+
+        if dgdx is not None:
+            adjoint_load += dgdx[self.f, ...]
+        if dgdb is not None:
+            adjoint_load += self.Afp * dgdb[self.p, ...]
+
+        lam = np.zeros_like(self.x)
+        lamf = -1.0 * self.linsolve.solver.solve(adjoint_load, trans='T')
+        lam[self.f, ...] = lamf
+
+        if dgdb is not None:
+            lam[self.p, ...] = dgdb[self.p, ...]
+
+        # sensitivities to system matrix
+        if self.x.ndim > 1:
+            dgdA = DyadCarrier(list(lam.T), list(self.x.T))
+        else:
+            dgdA = DyadCarrier(lam, self.x)
+
+        # sensitivities to applied load and prescribed state
+        dgdbf = np.zeros_like(adjoint_load)
+        dgdup = np.zeros_like(self.x[self.p, ...])
+        dgdbf -= lam[self.f, ...]
+        dgdup += self.Afp.T * lam[self.f, ...]
+
+        if dgdx is not None:
+            dgdup += dgdx[self.p, ...]
+
+        if dgdb is not None:
+            dgdbf += dgdb[self.f, ...]
+            dgdup += self.App * dgdb[self.p, ...]
+
+        return dgdA, dgdbf, dgdup
+
+
 class EigenSolve(Module):
     r""" Solves the (generalized) eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{B} \mathbf{q}_i`
 
@@ -335,7 +335,7 @@ class EigenSolve(Module):
           calculated first (default = ``0.0``)
         mode: Mode of the eigensolver (see documentation of `scipy.sparse.linalg.eigsh` for more info)
     """
-    def _prepare(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None, nmodes=None, sigma=None, mode='normal'):
+    def __init__(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None, nmodes=None, sigma=None, mode='normal'):
         self.sorting_fn = sorting_func
         self.is_hermitian = hermitian
         self.nmodes = nmodes
@@ -344,8 +344,9 @@ class EigenSolve(Module):
         self.Ainv = None
         self.do_solve = False
         self.adjoint_solvers_need_update = True
+        self.dense_solver = None
 
-    def _response(self, A, *args):
+    def __call__(self, A, *args):
         B = args[0] if len(args) > 0 else None
         if self.is_hermitian is None:
             self.is_hermitian = (matrix_is_hermitian(A) and (B is None or matrix_is_hermitian(B)))
@@ -356,7 +357,16 @@ class EigenSolve(Module):
         if self.is_sparse:
             W, Q = self._sparse_eigs(A, B=B)
         else:
-            W, Q = spla.eigh(A, b=B) if self.is_hermitian else spla.eig(A, b=B)
+            if self.dense_solver is None:
+                self.dense_solver = spla.eigh if self.is_hermitian else spla.eig
+            try:
+                W, Q = self.dense_solver(A, b=B)
+            except np.linalg.LinAlgError as e:  # eigh fails for non-positive definite B
+                if not self.dense_solver == spla.eigh:
+                    raise
+                W, Q = spla.eig(A, b=B)
+                self.dense_solver = spla.eig
+                print("Failed before and switched to eig -- succesfully")
 
         # Sort the eigenvalues
         isort = self.sorting_fn(W, Q)

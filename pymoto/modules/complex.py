@@ -65,11 +65,23 @@ class MakeComplex(Module):
     Output Signal:
         - ``z``: Complex value
     """
-    def _response(self, x, y):
+    def __call__(self, x, y):
         return x + 1j*y
 
     def _sensitivity(self, dz):
         return np.real(dz), np.real(1j*dz)
+
+
+class SplitComplex(Module):
+    def __call__(self, z):
+        return np.real(z), np.imag(z)
+
+    def _sensitivity(self, dzr, dzi):
+        if dzr is None:
+            dzr = 0.0
+        if dzi is None:
+            dzi = 0.0
+        return dzr - 1j*dzi
 
 
 class RealPart(Module):
@@ -81,11 +93,11 @@ class RealPart(Module):
     Output Signal:
         - ``x``: Real part
     """
-    def _response(self, z):
+    def __call__(self, z):
         return np.real(z)
 
     def _sensitivity(self, dx):
-        return np.real(dx)
+        return dx
 
 
 class ImagPart(Module):
@@ -97,7 +109,7 @@ class ImagPart(Module):
     Output Signal:
         - ``y``: Imaginary part
     """
-    def _response(self, z):
+    def __call__(self, z):
         return np.imag(z)
 
     def _sensitivity(self, dy):
@@ -113,7 +125,7 @@ class ComplexNorm(Module):
     Output Signal:
         - ``A``: Complex norm (real valued)
     """
-    def _response(self, z):
+    def __call__(self, z):
         return np.absolute(z)
 
     def _sensitivity(self, dA):

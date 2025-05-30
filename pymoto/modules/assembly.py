@@ -263,7 +263,7 @@ class AssembleMass(AssembleGeneral):
         **kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
 
-    def _prepare(self, domain: DomainDefinition, *args, material_property: float = 1.0, ndof: int = 1,
+    def __init__(self, domain: DomainDefinition, *args, material_property: float = 1.0, ndof: int = 1,
                  bcdiagval: float = 0.0, **kwargs):
         # Element mass (or equivalent) matrix
         self.el_mat = np.zeros((domain.elemnodes * ndof, domain.elemnodes * ndof))
@@ -282,7 +282,7 @@ class AssembleMass(AssembleGeneral):
                 Nmat[0:ndof, ndof * d:ndof * d + ndof] = np.identity(ndof) * N[d]  # fill up shape function matrix according to ndof
             self.el_mat += w * material_property * Nmat.T @ Nmat  # Add contribution
 
-        super()._prepare(domain, self.el_mat, *args, bcdiagval=bcdiagval, **kwargs)
+        super().__init__(domain, self.el_mat, *args, bcdiagval=bcdiagval, **kwargs)
 
 
 class AssemblePoisson(AssembleGeneral):
@@ -341,7 +341,7 @@ class ElementOperation(Module):
         domain: The domain defining element and nodal connectivity
         element_matrix: The element operator matrix :math:`\mathbf{B}` of size ``(..., #dofs_per_element)`` or ``(..., #nodes_per_element)``
     """
-    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray):
+    def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
         if element_matrix.shape[-1] % domain.elemnodes != 0:
             raise IndexError(
                 f"Size of last dimension of element operator matrix ({element_matrix.shape[-1]}) is not compatible "
@@ -351,7 +351,7 @@ class ElementOperation(Module):
         self.element_matrix = element_matrix
         self.dofconn = None
 
-    def _response(self, u):
+    def __call__(self, u):
         if u.size % self.domain.nnodes != 0:
             raise IndexError(f"Size of input vector ({u.size}) does not match number of nodes ({self.domain.nnodes})")
         ndof = u.size // self.domain.nnodes
@@ -405,7 +405,7 @@ class Strain(ElementOperation):
     Keyword Args:
         voigt: Use Voigt strain notation (2x off-diagonal strain contribution)
     """
-    def _prepare(self, domain: DomainDefinition, voigt: bool = True):
+    def __init__(self, domain: DomainDefinition, voigt: bool = True):
         # Numerical integration
         B = None
         siz = domain.element_size
@@ -423,7 +423,7 @@ class Strain(ElementOperation):
             idx_shear = np.count_nonzero(B, axis=1) == 2*domain.elemnodes  # Shear is combination of two displacements
             B[idx_shear, :] *= 2  # Use engineering strain
 
-        super()._prepare(domain, B)
+        super().__init__(domain, B)
 
 
 class Stress(Strain):
@@ -443,10 +443,10 @@ class Stress(Strain):
         poisson_ratio: Poisson ratio
         plane: Plane 'strain' or 'stress'
     """
-    def _prepare(self, domain: DomainDefinition,
+    def __init__(self, domain: DomainDefinition,
                  e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane: str = 'strain'):
 
-        super()._prepare(domain, voigt=True)
+        super().__init__(domain, voigt=True)
 
         # Get material relation
         D = get_D(e_modulus, poisson_ratio, '3d' if domain.dim == 3 else plane.lower())
@@ -467,9 +467,9 @@ class ElementAverage(ElementOperation):
     Args:
         domain: The domain defining element and nodal connectivity
     """
-    def _prepare(self, domain: DomainDefinition):
+    def __init__(self, domain: DomainDefinition):
         shapefuns = domain.eval_shape_fun(pos=np.array([0, 0, 0]))
-        super()._prepare(domain, shapefuns)
+        super().__init__(domain, shapefuns)
 
 
 class NodalOperation(Module):
@@ -489,7 +489,7 @@ class NodalOperation(Module):
         domain: The domain defining element and nodal connectivity
         element_matrix: The element operator matrix :math:`\mathbf{A}` of size ``(..., #dofs_per_element)``
     """
-    def _prepare(self, domain: DomainDefinition, element_matrix: np.ndarray):
+    def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
         if element_matrix.shape[-1] % domain.elemnodes != 0:
             raise IndexError("Size of last dimension of element operator matrix is not compatible with mesh. "
                              "Must be dividable by the number of nodes.")
@@ -500,7 +500,7 @@ class NodalOperation(Module):
         self.dofconn = domain.get_dofconnectivity(ndof)
         self.ndofs = ndof*domain.nnodes
 
-    def _response(self, x):
+    def __call__(self, x):
         dofs_el = einsum('...k, ...l -> lk', self.element_matrix, x, optimize=True)
         dofs = np.zeros(self.ndofs)
         np.add.at(dofs, self.dofconn, dofs_el)
@@ -529,7 +529,7 @@ class ThermoMechanical(NodalOperation):
         alpha (optional): Coefficient of thermal expansion
         plane (optional): Plane 'strain' or 'stress'
     """
-    def _prepare(self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, alpha: float = 1e-6, plane: str = 'strain'):
+    def __init__(self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, alpha: float = 1e-6, plane: str = 'strain'):
         dim = domain.dim
         D = get_D(e_modulus, poisson_ratio, '3d' if dim == 3 else plane.lower())
         if dim == 2:
@@ -548,4 +548,4 @@ class ThermoMechanical(NodalOperation):
             B = get_B(dN_dx)
             BDPhi += w * B.T @ D @ Phi  # Add contribution
 
-        super()._prepare(domain, alpha*BDPhi)
+        super().__init__(domain, alpha*BDPhi)

@@ -92,7 +92,7 @@ class Aggregation(Module):
         scaling(optional): Scaling strategy to improve approximation :py:class:`pymoto.AggScaling`
         active_set(optional): Active set strategy to improve approximation :py:class:`pymoto.AggActiveSet`
     """
-    def _prepare(self, scaling: AggScaling = None, active_set: AggActiveSet = None):
+    def __init__(self, scaling: AggScaling = None, active_set: AggActiveSet = None):
         # This prepare function MUST be called in the _prepare function of sub-classes
         self.scaling = scaling
         self.active_set = active_set
@@ -108,7 +108,7 @@ class Aggregation(Module):
         """" Calculates df(x) / dx """
         raise NotImplementedError()
 
-    def _response(self, x):
+    def __call__(self, x):
         # Determine active set
         if self.active_set is not None:
             self.select = self.active_set(x)
@@ -143,10 +143,10 @@ class PNorm(Aggregation):
         scaling(optional): Scaling strategy to improve approximation :py:class:`pymoto.AggScaling`
         active_set(optional): Active set strategy to improve approximation :py:class:`pymoto.AggActiveSet`
     """
-    def _prepare(self, p=2, scaling: AggScaling = None, active_set: AggActiveSet = None):
+    def __init__(self, p=2, scaling: AggScaling = None, active_set: AggActiveSet = None):
         self.p = p
         self.y = None
-        super()._prepare(scaling, active_set)
+        super().__init__(scaling, active_set)
 
     def aggregation_function(self, x):
         if np.min(x) < 0:
@@ -173,10 +173,10 @@ class SoftMinMax(Aggregation):
         scaling(optional): Scaling strategy to improve approximation :py:class:`pymoto.AggScaling`
         active_set(optional): Active set strategy to improve approximation :py:class:`pymoto.AggActiveSet`
     """
-    def _prepare(self, alpha=1.0, scaling: AggScaling = None, active_set: AggActiveSet = None):
+    def __init__(self, alpha=1.0, scaling: AggScaling = None, active_set: AggActiveSet = None):
         self.alpha = alpha
         self.y = None
-        super()._prepare(scaling, active_set)
+        super().__init__(scaling, active_set)
 
     def aggregation_function(self, x):
         self.y = np.sum(x * spsp.softmax(self.alpha * x))
@@ -196,10 +196,10 @@ class KSFunction(Aggregation):
         scaling(optional): Scaling strategy to improve approximation :py:class:`pymoto.AggScaling`
         active_set(optional): Active set strategy to improve approximation :py:class:`pymoto.AggActiveSet`
     """
-    def _prepare(self, rho=1.0, scaling: AggScaling = None, active_set: AggActiveSet = None):
+    def __init__(self, rho=1.0, scaling: AggScaling = None, active_set: AggActiveSet = None):
         self.rho = rho
         self.y = None
-        super()._prepare(scaling, active_set)
+        super().__init__(scaling, active_set)
 
     def aggregation_function(self, x):
         return 1/self.rho * np.log(np.sum(np.exp(self.rho * x)))

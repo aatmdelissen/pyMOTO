@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import numpy as np
 import pymoto as pym
 import numpy.testing as npt
@@ -9,11 +9,11 @@ class DynamicMatrix(pym.Module):
     alpha = 0.5
     beta = 0.5
 
-    def _response(self, K, M, omega):
+    def __call__(self, K, M, omega):
         return K + 1j * omega * (self.alpha * M + self.beta * K) - omega ** 2 * M
 
     def _sensitivity(self, dZ):
-        K, M, omega = [s.state for s in self.sig_in]
+        K, M, omega = self.get_input_states()
         dK = np.real(dZ) - (omega * self.beta) * np.imag(dZ)
         dM = (-omega ** 2) * np.real(dZ) - (omega * self.alpha) * np.imag(dZ)
         dZrM = np.real(dZ).contract(M)
@@ -23,7 +23,11 @@ class DynamicMatrix(pym.Module):
         return dK, dM, domega
 
 
-class TestLinSolveModuleSparse(unittest.TestCase):
+class TestLinSolveModuleSparse:
+    @staticmethod
+    def fd_testfn(x0, dx, df_an, df_fd):
+        npt.assert_allclose(df_an, df_fd, rtol=2e-3, atol=1e-5)
+
     # # ------------- Symmetric -------------
     def test_symmetric_real_compliance2d(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
@@ -51,21 +55,20 @@ class TestLinSolveModuleSparse(unittest.TestCase):
         f[iforce_y, 1] = 1.0
         force_vecs['multiple_real'] = f
 
+        # Single force (Complex) -- FIXME Not supported right now
+        # f = np.zeros(dom.nnodes * 2, dtype=np.complex128)
+        # f[iforce_x] = 1.0 + 1j
+        # force_vecs['single_real'] = f
+
         for k, f in force_vecs.items():
-            with self.subTest(f"RHS-{k}"):
-                sf = pym.Signal('f', f)
+            sf = pym.Signal('f', f)
 
-                fn = pym.Network()
-                sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), dom, bc=bc))
-                su = fn.append(pym.LinSolve([sK, sf], pym.Signal('u')))
+            sK = pym.AssembleStiffness(dom, bc=bc)(sx)
+            su = pym.LinSolve()(sK, sf)
 
-                fn.response()
-
-                self.assertTrue(np.allclose(sK.state@su.state, sf.state))  # Check residual
-                # Check finite difference
-                # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
-                def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
-                pym.finite_difference(fn, [sx, sf], su, test_fn=tfn, dx=1e-6, tol=1e-4, verbose=False)
+            npt.assert_allclose(sK.state@su.state, sf.state, atol=1e-10)  # Check residual
+            # Check finite difference
+            pym.finite_difference(tosig=su, test_fn=self.fd_testfn, dx=1e-6, tol=1e-4, verbose=False)
 
     def test_symmetric_real_compliance3d(self):
         """ Test symmetric real sparse matrix (compliance in 3D)"""
@@ -80,17 +83,12 @@ class TestLinSolveModuleSparse(unittest.TestCase):
         sf = pym.Signal('f', np.zeros(dom.nnodes*3))
         sf.state[iforce] = 1.0
 
-        fn = pym.Network()
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), dom, bc=bc))
-        su = fn.append(pym.LinSolve([sK, sf], pym.Signal('u')))
+        sK = pym.AssembleStiffness(dom, bc=bc)(sx)
+        su = pym.LinSolve()(sK, sf)
 
-        fn.response()
-
-        self.assertTrue(np.allclose(sK.state@su.state, sf.state))  # Check residual
+        npt.assert_allclose(sK.state@su.state, sf.state, atol=1e-10)  # Check residual
         # Check finite difference
-        # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=2e-3, atol=1e-5))
-        pym.finite_difference(fn, [sx, sf], su, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+        pym.finite_difference(test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_symmetric_complex_dyncompliance2d(self):
         """ Test symmetric complex sparse matrix (dynamic compliance in 2D)"""
@@ -105,25 +103,24 @@ class TestLinSolveModuleSparse(unittest.TestCase):
         sf.state[iforce] = 1.0
 
         sOmega = pym.Signal('omega', 0.1)
-        fn = pym.Network()
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), dom, bc=bc))
-        sM = fn.append(pym.AssembleMass(sx, pym.Signal('M'), dom, bc=bc, ndof=dom.dim))
-        sZ = fn.append(DynamicMatrix([sK, sM, sOmega], pym.Signal('Z')))
 
-        su = fn.append(pym.LinSolve([sZ, sf], pym.Signal('u')))
-
-        fn.response()
+        sK = pym.AssembleStiffness(dom, bc=bc)(sx)
+        sM = pym.AssembleMass(dom, bc=bc, ndof=dom.dim)(sx)
+        sZ = DynamicMatrix()(sK, sM, sOmega)
+        su = pym.LinSolve()(sZ, sf)
 
         # spspla.eigsh(sK.state, M=sM.state, k=6, sigma=0.0)
 
-        self.assertTrue(np.allclose(sZ.state@su.state, sf.state))  # Check residual
+        npt.assert_allclose(sZ.state@su.state, sf.state, atol=1e-10)  # Check residual
         # Check finite difference
-        # def tfn(x0, dx, df_an, df_fd): np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-        pym.finite_difference(fn, [sx, sf, sOmega], su, test_fn=tfn, dx=1e-7, tol=1e-4, verbose=False)
+        pym.finite_difference(test_fn=self.fd_testfn, dx=1e-7, tol=1e-4, verbose=False)
 
 
-class TestAssemblyAddValues(unittest.TestCase):
+class TestAssemblyAddValues:
+    @staticmethod
+    def fd_testfn(x0, dx, df_an, df_fd):
+        npt.assert_allclose(df_an, df_fd, rtol=2e-3, atol=1e-5)
+
     def test_finite_difference(self):
         np.random.seed(0)
         N = 2
@@ -147,23 +144,18 @@ class TestAssemblyAddValues(unittest.TestCase):
 
         # Initial design
         sx = pym.Signal('x', np.random.rand(domain.nel))
-        signal_force = pym.Signal('f', state=f)
-        # Setup optimization problem
-        network = pym.Network()
+        sf = pym.Signal('f', state=f)
 
         # Assembly
         istiff = np.array([dof_input, dof_output])
         sstiff = np.array([10.0, 10.0])
 
         K_const = csc_matrix((sstiff, (istiff, istiff)), shape=(domain.nnodes * 2, domain.nnodes * 2))
-        signal_stiffness = network.append(pym.AssembleStiffness(sx, domain=domain, bc=prescribed_dofs, add_constant=K_const))
-        su = network.append(pym.LinSolve([signal_stiffness, signal_force], pym.Signal('u')))
-        sc = network.append(pym.EinSum(su, expression='i->'))
-        network.response()
+        sK = pym.AssembleStiffness(domain, bc=prescribed_dofs, add_constant=K_const)(sx)
+        su = pym.LinSolve()(sK, sf)
+        sc = pym.EinSum('i->')(su)
 
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-
-        pym.finite_difference(network, [sx], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+        pym.finite_difference(test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_added_stiffness_on_ground(self):
         np.random.seed(0)
@@ -188,43 +180,38 @@ class TestAssemblyAddValues(unittest.TestCase):
 
         # Initial design
         sx = pym.Signal('x', np.random.rand(domain.nel))
-        signal_force = pym.Signal('f', state=f)
-        # Setup optimization problem
-        network = pym.Network()
+        sf = pym.Signal('f', state=f)
 
         # Assembly
         istiff = np.array([dof_input, dof_output])
         sstiff = np.array([10.0, 10.0])
 
         K_const = csc_matrix((sstiff, (istiff, istiff)), shape=(domain.nnodes * 2, domain.nnodes * 2))
-        signal_stiffness = network.append(
-            pym.AssembleStiffness(sx, domain=domain, bc=prescribed_dofs, add_constant=K_const))
-        su = network.append(pym.LinSolve([signal_stiffness, signal_force], pym.Signal('u')))
-        sc = network.append(pym.EinSum(su, expression='i->'))
+        sK = pym.AssembleStiffness(domain, bc=prescribed_dofs, add_constant=K_const)(sx)
+        su = pym.LinSolve()(sK, sf)
+        sc = pym.EinSum('i->')(su)
 
-        network.response()
-
-        network2 = pym.Network()
         # Assembly
         istiff = np.array([dof_input, dof_output, 4, 5])
         sstiff = np.array([10.0, 10.0, 100.0, 100.0])
 
         K_const1 = csc_matrix((sstiff, (istiff, istiff)), shape=(domain.nnodes * 2, domain.nnodes * 2))
-        signal_stiffness = network2.append(
-            pym.AssembleStiffness(sx, domain=domain, bc=prescribed_dofs, add_constant=K_const1))
-        su = network2.append(pym.LinSolve([signal_stiffness, signal_force], pym.Signal('u')))
-        sc2 = network2.append(pym.EinSum(su, expression='i->'))
-
-        network2.response()
+        sK2 = pym.AssembleStiffness(domain, bc=prescribed_dofs, add_constant=K_const1)(sx)
+        su2 = pym.LinSolve()(sK2, sf)
+        sc2 = pym.EinSum('i->')(su2)
 
         npt.assert_allclose(sc.state, sc2.state)
 
 
-class TestSystemOfEquations(unittest.TestCase):
+class TestSystemOfEquations:
+    @staticmethod
+    def fd_testfn(x0, dx, df_an, df_fd):
+        npt.assert_allclose(df_an, df_fd, rtol=2e-3, atol=1e-5)
+
     def test_sparse_symmetric_real_compliance2d_single_load(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
         np.random.seed(0)
-        N=10
+        N = 10
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
 
@@ -254,14 +241,12 @@ class TestSystemOfEquations(unittest.TestCase):
         sff = pym.Signal('ff', ff)
         sup = pym.Signal('up', up)
 
-        fn = pym.Network()
         sx = pym.Signal('x', np.random.rand(domain.nel))
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
-        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
-        sc = fn.append(pym.EinSum([su[0], su[1]], expression='i,i->'))
-        fn.response()
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+        sK = pym.AssembleStiffness(domain)(sx)
+        su = pym.SystemOfEquations(free=free_dofs, prescribed=prescribed_dofs)(sK, sff, sup)
+        sc = pym.EinSum('i,i->')(su[0], su[1])
+
+        pym.finite_difference([sx, sff, sup], sc, test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_sparse_symmetric_real_compliance2d_single_load_u(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
@@ -296,16 +281,12 @@ class TestSystemOfEquations(unittest.TestCase):
         sff = pym.Signal('ff', ff)
         sup = pym.Signal('up', up)
 
-        fn = pym.Network()
         sx = pym.Signal('x', np.random.rand(domain.nel))
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
-        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
-        sc = fn.append(pym.EinSum([su[0]], expression='i->'))
-        fn.response()
+        sK = pym.AssembleStiffness(domain)(sx)
+        su = pym.SystemOfEquations(free=free_dofs, prescribed=prescribed_dofs)(sK, sff, sup)
+        sc = pym.EinSum('i->')(su[0])
 
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-
-        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+        pym.finite_difference([sx, sff, sup], sc, test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_sparse_symmetric_real_compliance2d_single_load_f(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
@@ -340,21 +321,17 @@ class TestSystemOfEquations(unittest.TestCase):
         sff = pym.Signal('ff', ff)
         sup = pym.Signal('up', up)
 
-        fn = pym.Network()
         sx = pym.Signal('x', np.random.rand(domain.nel))
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
-        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
-        sc = fn.append(pym.EinSum([su[1]], expression='i->'))
-        fn.response()
+        sK = pym.AssembleStiffness(domain)(sx)
+        su = pym.SystemOfEquations(free=free_dofs, prescribed=prescribed_dofs)(sK, sff, sup)
+        sc = pym.EinSum('i->')(su[1])
 
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-
-        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+        pym.finite_difference([sx, sff, sup], sc, test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_sparse_symmetric_real_compliance2d_single_multi_load(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
         np.random.seed(0)
-        N=10
+        N = 10
         # Set up the domain
         domain = pym.DomainDefinition(N, N)
 
@@ -385,16 +362,14 @@ class TestSystemOfEquations(unittest.TestCase):
         sff = pym.Signal('ff', ff)
         sup = pym.Signal('up', up)
 
-        fn = pym.Network()
         sx = pym.Signal('x', np.random.rand(domain.nel))
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
-        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
-        sc1 = fn.append(pym.EinSum([su[0][:, 0], su[1][:, 0]], expression='i,i->'))
-        sc2 = fn.append(pym.EinSum([su[0][:, 1], su[1][:, 1]], expression='i,i->'))
-        sc = fn.append(pym.MathGeneral([sc1, sc2], expression='inp0 + inp1'))
-        fn.response()
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
-        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+        sK = pym.AssembleStiffness(domain)(sx)
+        su, sf = pym.SystemOfEquations(free=free_dofs, prescribed=prescribed_dofs)(sK, sff, sup)
+        sc1 = pym.EinSum('i,i->')(su[:, 0], sf[:, 0])
+        sc2 = pym.EinSum('i,i->')(su[:, 1], sf[:, 1])
+        sc = pym.MathGeneral('inp0 + inp1')(sc1, sc2)
+
+        pym.finite_difference([sx, sff, sup], sc, test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_sparse_symmetric_real_compliance2d_single_multi_load_u(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
@@ -429,17 +404,13 @@ class TestSystemOfEquations(unittest.TestCase):
 
         sff = pym.Signal('ff', ff)
         sup = pym.Signal('up', up)
-
-        fn = pym.Network()
         sx = pym.Signal('x', np.random.rand(domain.nel))
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
-        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
-        sc = fn.append(pym.EinSum(su[0], expression='ij->'))
-        fn.response()
 
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+        sK = pym.AssembleStiffness(domain)(sx)
+        su = pym.SystemOfEquations(free=free_dofs, prescribed=prescribed_dofs)(sK, sff, sup)
+        sc = pym.EinSum('ij->')(su[0])
 
-        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+        pym.finite_difference([sx, sff, sup], sc, test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_sparse_symmetric_real_compliance2d_single_multi_load_f(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
@@ -474,18 +445,14 @@ class TestSystemOfEquations(unittest.TestCase):
 
         sff = pym.Signal('ff', ff)
         sup = pym.Signal('up', up)
-
-        fn = pym.Network()
         sx = pym.Signal('x', np.random.rand(domain.nel))
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
-        su = fn.append(pym.SystemOfEquations([sK, sff, sup], free=free_dofs, prescribed=prescribed_dofs))
-        sc = fn.append(pym.EinSum(su[1], expression='ij->'))
-        fn.response()
 
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+        sK = pym.AssembleStiffness(domain)(sx)
+        su = pym.SystemOfEquations(free=free_dofs, prescribed=prescribed_dofs)(sK, sff, sup)
+        sc = pym.EinSum('ij->')(su[1])
 
-        pym.finite_difference(fn, [sx, sff, sup], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+        pym.finite_difference([sx, sff, sup], sc, test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
 
 if __name__ == '__main__':
-    unittest.main()
+    pytest.main()

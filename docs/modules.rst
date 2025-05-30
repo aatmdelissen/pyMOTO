@@ -95,6 +95,7 @@ Complex-value Modules
    :nosignatures:
 
    pymoto.MakeComplex
+   pymoto.SplitComplex
    pymoto.RealPart
    pymoto.ImagPart
    pymoto.ComplexNorm

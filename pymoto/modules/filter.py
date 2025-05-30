@@ -38,7 +38,7 @@ class FilterConv(Module):
         zmin_bc(optional): Boundary condition at minimum z (only in 3D)
         zmax_bc(optional): Bounadry condition at maximum z (only in 3D)
     """
-    def _prepare(self, domain: DomainDefinition, radius: float = None, relative_units: bool = True, weights: np.ndarray = None,
+    def __init__(self, domain: DomainDefinition, radius: float = None, relative_units: bool = True, weights: np.ndarray = None,
                  xmin_bc='symmetric', xmax_bc='symmetric',
                  ymin_bc='symmetric', ymax_bc='symmetric',
                  zmin_bc='symmetric', zmax_bc='symmetric'):
@@ -173,7 +173,7 @@ class FilterConv(Module):
         self.weights = np.maximum(0.0, radius - np.sqrt(coords_x*coords_x + coords_y*coords_y + coords_z*coords_z))
         self.weights /= np.sum(self.weights)  # Volume preserving
 
-    def _response(self, x):
+    def __call__(self, x):
         xpad = self.get_padded_vector(x)
         y3d = convolve(xpad, self.weights, mode='valid')
         y = np.zeros_like(x)
@@ -380,7 +380,7 @@ class OverhangFilter(Module):
         Additive Manufacturing, 12, 60–70.
         `doi: 10.1016/j.addma.2016.06.010 <https://doi.org/10.1016/j.addma.2016.06.010>`_
     """
-    def _prepare(self,
+    def __init__(self,
                  domain: DomainDefinition,
                  direction=(0.0, 1.0, 0.0),
                  xi_0: float = 0.5,
@@ -434,7 +434,7 @@ class OverhangFilter(Module):
         self.shift = 100.0 * pow(dbl_min, 1.0/self.p)  # Small shift to prevent division by 0
         self.backshift = pow(self.nsampling, 1/self.q)*pow(self.shift, self.p/self.q)*0.95  # 5% smaller to be on the safe side
 
-    def _response(self, x):
+    def __call__(self, x):
         if self.q is None:  # Set parameters according to data type of x
             self.set_parameters(x.dtype)
         xprint = x.copy()

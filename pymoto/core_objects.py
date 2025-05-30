@@ -3,7 +3,7 @@ import warnings
 import inspect
 import time
 import copy
-from typing import Union, List, Any
+from typing import Union, List, Any, Iterable, Self, Set
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from .utils import _parse_to_list, _concatenate_to_array, _split_from_array
@@ -332,6 +332,8 @@ class BoundMethod:
 
 
 BoundMethodT = Union[Callable, BoundMethod]
+SignalsT = Union[Signal, Iterable[Signal]]
+
 
 
 def _check_function_signature(fn: BoundMethodT, n_args: int = None) -> (int, int):
@@ -409,11 +411,12 @@ class Module(ABC):
         fwd = cls.__call__
         is_abstract = hasattr(fwd, '__isabstractmethod__') and fwd.__isabstractmethod__
         if not is_abstract:
-            cls._response = cls.connect(fwd, create=False)
-            cls.__call__ = cls.connect(fwd, create=True)
+            cls._orig_call = fwd
+            cls._response = cls._wrap_connect(fwd, create=False)
+            cls.__call__ = cls._wrap_connect(fwd, create=True)
 
     @classmethod
-    def connect(cls, response: BoundMethodT, create=True):
+    def _wrap_connect(cls, response: BoundMethodT, create=True):
         def wrapped(self, *args):
             # print("Pre-process")
 
@@ -428,12 +431,6 @@ class Module(ABC):
 
                 # Attach signals
                 self.sig_in = _parse_to_list(args)
-
-                # Add to network(s)
-                for n in Network.active:
-                    if self in n.mods:
-                        raise RuntimeError("Module already in network, cannot add twice.")
-                    n.append(self)
 
             # Calculate the actual response
             out = response(self, *inp)
@@ -450,6 +447,12 @@ class Module(ABC):
 
                     # Check if signals match _sensitivity() signature
                     _check_function_signature(self._sensitivity, len(self.sig_out))
+
+                    # Add to network(s)
+                    for n in Network.active:
+                        if self in n.mods:
+                            raise RuntimeError("Module already in network, cannot add twice.")
+                        n.append(self)
 
                 # Check if enough outputs are calculated
                 if len(state_out) != len(self.sig_out):
@@ -468,6 +471,36 @@ class Module(ABC):
                     return tuple(self.sig_out)
 
         return wrapped
+
+    def connect(self, sig_in: SignalsT, sig_out: SignalsT = None) -> Self:
+        """ Connect without automatic adding to a function network """
+        # Parse inputs
+        self._init_loc = get_init_str()
+
+        # Attach input signals
+        self.sig_in = _parse_to_list(sig_in)
+        inp = [s.state if _is_valid_signal(s) else s for s in self.sig_in]
+
+        # Calculate the actual response once
+        out = _parse_to_list(self._orig_call(*inp))
+
+        if sig_out is not None:
+            self.sig_out = _parse_to_list(sig_out)
+            if len(self.sig_out) != len(out):
+                raise TypeError(f"Number of responses calculated ({len(out)}) is unequal to "
+                                f"number of output signals ({len(self.sig_out)})")
+        else:
+            # Initialize a number of output signals with default names
+            self.sig_out = [Signal(f"{type(self).__name__}_output{i}") for i in range(len(out))]
+
+        # Check if signals match _sensitivity() signature
+        _check_function_signature(self._sensitivity, len(self.sig_out))
+
+        # Update the output signals
+        for i, val in enumerate(out):
+            self.sig_out[i].state = val
+
+        return self
 
     def _err_str(self, module_signature: bool = True, init: bool = True, fn=None):
         str_list = []
@@ -502,7 +535,7 @@ class Module(ABC):
         """
         try:
             # Get all sensitivity values of the outputs
-            sens_in = self.get_output_sensitivities()
+            sens_in = self.get_output_sensitivities(as_list=True)
 
             if (self.sig_in is None or not contains_signal(*self.sig_in)) and (self.sig_out is None or not contains_signal(*self.sig_out)):
                 raise RuntimeError("Cannot run sensitivity as there are no connected signals")
@@ -539,17 +572,48 @@ class Module(ABC):
             raise type(e)(str(e) + "\n\t| Above error was raised when calling reset(). Module details:" +
                           self._err_str(fn=self.__call__)).with_traceback(sys.exc_info()[2])
 
-    def get_input_states(self):
-        return [s.state if _is_valid_signal(s) else s for s in self.sig_in] if self.sig_in is not None else None
+    def get_input_states(self, as_list=False):
+        if self.sig_in is None:
+            return None
+        elif not as_list and len(self.sig_in) == 1:
+            return self.sig_in[0].state
+        else:
+            return [s.state if _is_valid_signal(s) else s for s in self.sig_in]
 
-    def get_output_states(self):
-        return [s.state if _is_valid_signal(s) else s for s in self.sig_out] if self.sig_out is not None else None
+    def get_output_states(self, as_list=False):
+        if self.sig_out is None:
+            return None
+        elif not as_list and len(self.sig_out) == 1:
+            return self.sig_out[0].state
+        else:
+            return [s.state if _is_valid_signal(s) else s for s in self.sig_out]
 
-    def get_input_sensitivities(self):
-        return [s.sensitivity if _is_valid_signal(s) else None for s in self.sig_in] if self.sig_in is not None else None
+    def get_input_sensitivities(self, as_list=False):
+        if self.sig_in is None:
+            return None
+        elif not as_list and len(self.sig_in) == 1:
+            return self.sig_in[0].sensitivity
+        else:
+            return [s.sensitivity if _is_valid_signal(s) else s for s in self.sig_in]
 
-    def get_output_sensitivities(self):
-        return [s.sensitivity if _is_valid_signal(s) else None for s in self.sig_out] if self.sig_out is not None else None
+    def get_output_sensitivities(self, as_list=False):
+        if self.sig_out is None:
+            return None
+        elif not as_list and len(self.sig_out) == 1:
+            return self.sig_out[0].sensitivity
+        else:
+            return [s.sensitivity if _is_valid_signal(s) else s for s in self.sig_out]
+
+    def __repr__(self):
+        if self.sig_in is None:
+            inputs = "Unconnected"
+        else:
+            inputs = ', '.join([s.tag if _is_valid_signal(s) else type(s).__name__ for s in self.sig_in])
+        if self.sig_out is None:
+            outputs = "Unconnected"
+        else:
+            outputs = ', '.join([s.tag if _is_valid_signal(s) else type(s).__name__ for s in self.sig_out])
+        return f"Module {type(self).__name__} ({inputs}) -> ({outputs}) at {hex(id(self))}"
 
     # METHODS TO BE DEFINED BY USER
     @abstractmethod
@@ -563,6 +627,9 @@ class Module(ABC):
 
     def _reset(self):
         pass
+
+
+ModulesT = Union[Module, Iterable[Module]]
 
 
 class Network(Module):
@@ -587,7 +654,7 @@ class Network(Module):
         print_timing: Print timing of each module inside this Network
     """
 
-    active = set()
+    active = []
 
     def __init__(self, *args, print_timing=False):
         super().__init__()
@@ -597,11 +664,13 @@ class Network(Module):
         self.print_timing = print_timing
 
     def __enter__(self):
-        self.active.add(self)
+        if self in Network.active:
+            raise ValueError("Network is already activated, cannot activate twice")
+        self.active.append(self)
         return self
 
     def __exit__(self, typ, value, traceback):
-        self.active.remove(self)
+        Network.active.remove(self)
 
     def timefn(self, fn, name=None):
         start_t = time.time()
@@ -647,9 +716,6 @@ class Network(Module):
     def reset(self):
         [m.reset() for m in reversed(self.mods)]
 
-    def _response(self, *args):
-        pass  # Unused
-
     def __copy__(self):
         return Network(*self.mods)
 
@@ -659,26 +725,39 @@ class Network(Module):
     def __len__(self):
         return len(self.mods)
 
-    def __getitem__(self, i):
-        return self.mods[i]
+    def __getitem__(self, sel: Union[int, slice]):
+        if isinstance(sel, slice) and (isinstance(sel.start, Signal) or isinstance(sel.stop, Signal)):
+            if sel.step is not None:
+                raise IndexError("When slicing with Signals, step must be None")
+            if sel.start is not None and not isinstance(sel.start, Signal):
+                raise IndexError(f"Slice start cannot be {type(sel.start)}")
+            if sel.stop is not None and not isinstance(sel.stop, Signal):
+                raise IndexError(f"Slice stop cannot be {type(sel.stop)}")
+            out = self.get_input_cone(sel.start).get_output_cone(sel.stop)
+        else:
+            mm = self.mods[sel]
+            out = Network(mm)
+
+        if len(out) == 0:
+            return None
+        elif len(out) == 1:
+            return out.mods[0]
+        else:
+            return out
 
     def __iter__(self):
         return iter(self.mods)
 
     def __call__(self, *args):
-        return self.append(*args)
+        raise RuntimeError("Cannot re-connect signals in existing network")
+
+    def __repr__(self):
+        return f"\"{type(self).__name__}\" at {hex(id(self))} with modules: {''.join([f'\n\t- {m}' for m in self.mods])}"
 
     def append(self, *newmods):
         modlist = _parse_to_list(*newmods)
         if len(modlist) == 0:
             return
-
-        # Check if the blocks are initialized, else create them
-        for i, m in enumerate(modlist):
-            if isinstance(m, dict):
-                exclude_keys = ['type']
-                b_ex = {k: m[k] for k in set(list(m.keys())) - set(exclude_keys)}
-                modlist[i] = Module.create(m['type'], **b_ex)
 
         # Check validity of modules
         for i, m in enumerate(modlist):
@@ -687,16 +766,110 @@ class Network(Module):
 
         # Obtain the internal blocks
         self.mods.extend(modlist)
+        return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out
 
-        # Gather all the input and output signals of the internal blocks
-        # all_in = set()
-        # all_out = set()
-        # [all_in.update(m.sig_in) for m in self.mods]
-        # [all_out.update(m.sig_out) for m in self.mods]
-        # in_unique = all_in - all_out
-        #
-        # self.sig_in = _parse_to_list(in_unique)
-        # self.sig_out = _parse_to_list(all_out)
+    @staticmethod
+    def _parse_signal_set(sigs: Any) -> Set[Signal]:
+        """ Parse signals to a set and unpack sliced signals to base """
 
-        # return modlist[-1].sig_out[0] if len(modlist[-1].sig_out) == 1 else modlist[-1].sig_out
-        return self
+        def dig_to_base(s: Signal):
+            return dig_to_base(s.base) if isinstance(s, SignalSlice) else s
+
+        return set([dig_to_base(s) for s in _parse_to_list(sigs)])
+
+    @property
+    def sig_in(self):
+        """ All 'stub' input-signals not generated by any module in the network """
+        all_in, all_out = set(), set()
+        for m in self.mods:
+            all_in.update(self._parse_signal_set([s for s in m.sig_in if _is_valid_signal(s)]))
+            all_out.update(self._parse_signal_set([s for s in m.sig_out if _is_valid_signal(s)]))
+        return _parse_to_list(all_in - all_out)
+
+    @property
+    def sig_out(self):
+        """ All 'stub' output-signals not used as input by any module in the network """
+        all_in, all_out = set(), set()
+        for m in self.mods:
+            all_in.update(self._parse_signal_set([s for s in m.sig_in if _is_valid_signal(s)]))
+            all_out.update(self._parse_signal_set([s for s in m.sig_out if _is_valid_signal(s)]))
+        return _parse_to_list(all_out - all_in)
+
+    def get_input_cone(self, fromsig: SignalsT = None, frommod: ModulesT = None):
+        touched_sig = self._parse_signal_set(fromsig)  # Set of signals changed by fromsig
+        frommod = self._parse_signal_set(frommod)
+        if len(touched_sig) == 0 and len(frommod) == 0:
+            return self
+        input_cone = Network()
+
+        for m in self:
+            if m in frommod or any([s in touched_sig for s in self._parse_signal_set(m.sig_in)]):
+                if len(m.sig_out) > 0:
+                    touched_sig.update(self._parse_signal_set(m.sig_out))
+                input_cone.append(m)
+        return input_cone
+
+    def get_output_cone(self, tosig: SignalsT = None, tomod: ModulesT = None):
+        dependent_sig = self._parse_signal_set(tosig) if tosig is not None else set()  # List of signals on which tosig is dependent
+        tomod = self._parse_signal_set(tomod) if tomod is not None else set()
+        if len(dependent_sig) == 0 and len(tomod) == 0:
+            return self
+        output_cone = list()
+
+        for m in reversed(self):
+            if m in tomod or any([s in dependent_sig for s in self._parse_signal_set(m.sig_out)]):
+                if len(m.sig_in) > 0:
+                    dependent_sig.update(self._parse_signal_set(m.sig_in))
+                output_cone.append(m)
+        return Network(list(reversed(output_cone)))
+
+    def get_subset(self, fromsig: SignalsT = None, tosig: SignalsT = None, include_sinks: bool = True, include_sources: bool = True) -> Self:
+        # This includes all modules
+        fromsig = self._parse_signal_set(fromsig)
+        tosig = self._parse_signal_set(tosig)
+        if len(fromsig) == 0 and len(tosig) == 0 and include_sinks and include_sources:
+            return self
+
+        # If to/fromsig is not given, use any stale signals as input/output
+        minimal_cone = self.get_input_cone(fromsig).get_output_cone(tosig)
+        if len(minimal_cone) == 0:
+            return Network()
+
+        if len(fromsig) == 0:
+            fromsig = set(minimal_cone.sig_in)
+
+        if len(tosig) == 0:
+            tosig = set(minimal_cone.sig_out)
+
+        # Find intersecting source modules
+        all_sources = set([m for m in self if len(m.sig_in) == 0]) if include_sources else set()
+        intersected_sources = set()
+
+        if len(tosig) == 0 and len(fromsig) > 0:
+            affected_sig = minimal_cone.sig_out
+        else:
+            affected_sig = tosig
+
+        for m in all_sources:
+            source_cone = self.get_input_cone(frommod=m).get_output_cone(affected_sig)
+            if len(source_cone) > 0:
+                intersected_sources.add(m)
+
+        # Find intersecting sink modules
+        all_sinks = set([m for m in self if len(m.sig_out) == 0]) if include_sinks else set()
+        intersected_sinks = set()
+        if len(fromsig) == 0 and len(tosig) > 0:
+            dependent_sig = minimal_cone.sig_out
+        else:
+            dependent_sig = fromsig
+
+        for m in all_sinks:
+            sink_cone = self.get_output_cone(tomod=m).get_input_cone(dependent_sig)
+            if len(sink_cone) > 0:
+                intersected_sinks.add(m)
+
+        return self.get_input_cone(fromsig, intersected_sources).get_output_cone(tosig, intersected_sinks)
+
+
+# Add default global network
+Network.active.append(Network())

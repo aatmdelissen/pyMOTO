@@ -137,23 +137,23 @@ class TestPNorm(unittest.TestCase):
     def test_PNorm_max_fd(self):
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(100))
-        m = pym.PNorm(sx, p=2)
+        sy = pym.PNorm(p=2)(sx)
 
-        pym.finite_difference(m, test_fn=self.fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=self.fd_testfn)
 
     def test_PNorm_max1_fd(self):
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(100))
-        m = pym.PNorm(sx, p=20)
+        sy = pym.PNorm(p=20)(sx)
 
-        pym.finite_difference(m, test_fn=self.fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=self.fd_testfn)
 
     def test_PNorm_min_fd(self):
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(100))
-        m = pym.PNorm(sx, p=-4)
+        sy = pym.PNorm(p=-4)(sx)
 
-        pym.finite_difference(m, test_fn=self.fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=self.fd_testfn)
 
 
 class TestSoftMinMax(unittest.TestCase):
@@ -164,16 +164,16 @@ class TestSoftMinMax(unittest.TestCase):
     def test_soft_max_fd(self):
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(100))
-        m = pym.SoftMinMax(sx, alpha=2)
+        sy = pym.SoftMinMax(alpha=2)(sx)
 
-        pym.finite_difference(m, test_fn=self.fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=self.fd_testfn)
 
     def test_soft_min_fd(self):
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(100))
-        m = pym.SoftMinMax(sx, alpha=-20)
+        sy = pym.SoftMinMax(alpha=-20)(sx)
 
-        pym.finite_difference(m, test_fn=self.fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=self.fd_testfn)
 
 
 class TestKS(unittest.TestCase):
@@ -184,22 +184,23 @@ class TestKS(unittest.TestCase):
     def test_KS_max_fd(self):
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(100))
-        m = pym.KSFunction(sx, rho=2)
-        m.response()
-        self.assertGreaterEqual(m.sig_out[0].state, max(sx.state))
+        m = pym.KSFunction(rho=2)
+        sy = m(sx)
 
-        pym.finite_difference(m, test_fn=self.fd_testfn)
+        self.assertGreaterEqual(sy.state, max(sx.state))
+
+        pym.finite_difference(sx, sy, test_fn=self.fd_testfn)
 
         # Converge to actual maximum
-        y_2 = m.sig_out[0].state
+        y_2 = sy.state
         m.rho = 3
         m.response()
-        y_3 = m.sig_out[0].state
+        y_3 = sy.state
         self.assertLessEqual(y_3 - max(sx.state), y_2 - max(sx.state))
 
     def test_KS_min_fd(self):
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(100))
-        m = pym.KSFunction(sx, rho=-20)
+        sy = pym.KSFunction(rho=-20)(sx)
 
-        pym.finite_difference(m, test_fn=self.fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=self.fd_testfn)

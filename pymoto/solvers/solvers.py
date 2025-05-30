@@ -260,25 +260,25 @@ class LDAWrapper(LinearSolver):
             For symmetric or Hermitian matrices, only the normal storage is required. For any other matrix, the `T` and 
             `H` mode will require the adjoint storage space.
         '''
+        trans = trans.upper()
         if trans not in ['N', 'T', 'H']:
             raise TypeError("Only N, T, or H transposition is possible")
 
-        # Use adjoint storage?
-        adjoint_mode = trans != 'N' and not (self.symmetric or self.hermitian)
         # Use conjugation?
-        conj_mode = self.symmetric and trans == 'H' or not self.symmetric and trans == 'T'
+        use_conj = (trans == 'H') if self.symmetric else (trans == 'T')
+        # Use adjoint storage?
+        use_adj = trans != 'N' and not (self.symmetric or self.hermitian)
 
-        storage = 'H' if adjoint_mode else 'N'
-        rhs = rhs.conj() if conj_mode else rhs
-        if storage == 'N':  # Use the normal storage
-            ret = self._do_solve_1rhs(self.A, rhs,
-                                      self.x_stored, self.b_stored,
-                                      lambda b, x_init: self.solver.solve(b, trans='N', x0=x_init),
-                                      x0=x0)
-        elif storage == 'H':  # Use adjoint storage
+        rhs = rhs.conj() if use_conj else rhs
+        if use_adj:  # Use adjoint storage
             ret = self._do_solve_1rhs(self.A.conj().T, rhs,
                                       self.xadj_stored, self.badj_stored,
                                       lambda b, x_init: self.solver.solve(b, trans='H', x0=x_init),
                                       x0=x0)
+        else:  # Use the normal storage
+            ret = self._do_solve_1rhs(self.A, rhs,
+                                      self.x_stored, self.b_stored,
+                                      lambda b, x_init: self.solver.solve(b, trans='N', x0=x_init),
+                                      x0=x0)
 
-        return ret.conj() if conj_mode else ret
+        return ret.conj() if use_conj else ret

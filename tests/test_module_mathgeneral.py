@@ -1,259 +1,114 @@
-import unittest
+import pytest
 import numpy as np
 import numpy.testing as npt
 import pymoto as pym
+import copy
 
 
-class TestMath(unittest.TestCase):
-    def testVec_Scalar(self):
+def make_vec(n):
+    return np.random.rand(n)
+
+
+def make_mat(m, n=None):
+    if n is None:
+        n = m
+    return np.random.rand(m, n)
+
+
+class TestMathGeneral:
+    np.random.seed(0)
+
+    @staticmethod
+    def fd_testfn(x0, dx, df_an, df_fd):
+        npt.assert_allclose(df_an, df_fd, rtol=1e-6, atol=1e-15)
+
+    @pytest.mark.parametrize('b', [3.5, np.array(3.5), 3.5 + 3.8j], ids=['float', 'np_scalar', 'complex_float'])
+    @pytest.mark.parametrize('a', [make_vec(4), make_vec(5) + 1j*make_vec(5), make_mat(3)], ids=['vector', 'complex_vector', 'matrix'])
+    def test_vec_scalar_multiply(self, a, b):
         """ Test functionality where a vector is multiplied with a scalar """
-        sVec = pym.Signal("vec", np.array([1.0, 0.0, 3.8, 4.6]))
-        sScalar = pym.Signal("scalar", 3.5)
+        sVec = pym.Signal("a", copy.deepcopy(a))
+        sScalar = pym.Signal("b", copy.deepcopy(b))
 
-        sRes = pym.Signal("result")
-
-        mod = pym.MathGeneral([sVec, sScalar], sRes, expression="inp0*inp1")
-
-        mod.response()
+        mod = pym.MathGeneral("inp0*inp1")
+        sRes = mod(sVec, sScalar)
+        sRes.tag = 'result'
 
         # Check result
-        self.assertIsInstance(sRes.state, type(sVec.state))
-        self.assertTrue(np.allclose(sRes.state, np.array([1.0*3.5, 0.0*3.5, 3.8*3.5, 4.6*3.5])))
+        assert isinstance(sRes.state, type(a*b))
+        npt.assert_equal(sRes.state, a*b)
+        assert sRes.state.shape == a.shape
 
-        sRes.sensitivity = np.array([1.0, -2.0, 0.0, -4.0])
+        sRes.sensitivity = np.random.rand(*np.shape(sRes.state))
+        if np.iscomplexobj(sRes.state):
+            sRes.sensitivity = sRes.sensitivity + 1j*np.random.rand(*np.shape(sRes.state))
 
         mod.sensitivity()
 
         # Check sensitivity types
-        self.assertIsInstance(sScalar.sensitivity, type(sScalar.state))
-        self.assertIsInstance(sVec.sensitivity, type(sVec.state))
+        assert isinstance(sVec.sensitivity, type(sVec.state))
+        assert isinstance(sScalar.sensitivity, type(sScalar.state))
 
         # Check results
-        self.assertAlmostEqual(sScalar.sensitivity, 1.0*1.0 - 0.0*2.0 + 3.8*0.0 - 4.6*4.0)
-        self.assertTrue(np.allclose(sVec.sensitivity, np.array([1.0*3.5, -2.0*3.5, 0.0*3.5, -4.0*3.5])))
+        sens_scalar = np.sum(sRes.sensitivity * a)
+        npt.assert_allclose(sScalar.sensitivity, np.real(sens_scalar) if np.isrealobj(sScalar.state) else sens_scalar)
+        sens_vec = sRes.sensitivity * b
+        npt.assert_allclose(sVec.sensitivity, np.real(sens_vec) if np.isrealobj(sVec.state) else sens_vec)
 
-    def testVec_npScalar(self):
-        """ Test functionality where a vector is multiplied with a scalar """
-        sVec = pym.Signal("vec", np.array([1.0, 0.0, 3.8, 4.6]))
-        sScalar = pym.Signal("numpy_scalar", np.array(3.5))
-
-        sRes = pym.Signal("result")
-
-        mod = pym.MathGeneral([sVec, sScalar], sRes, expression="inp0*inp1")
-
-        mod.response()
-
-        # Check result
-        self.assertIsInstance(sRes.state, type(sVec.state))
-        self.assertTrue(np.allclose(sRes.state, np.array([1.0*3.5, 0.0*3.5, 3.8*3.5, 4.6*3.5])))
-
-        sRes.sensitivity = np.array([1.0, -2.0, 0.0, -4.0])
-
-        mod.sensitivity()
-
-        # Check sensitivity types
-        self.assertIsInstance(sScalar.sensitivity, type(sScalar.state))
-        self.assertIsInstance(sVec.sensitivity, type(sVec.state))
-
-        # Check results
-        self.assertAlmostEqual(sScalar.sensitivity, 1.0*1.0 - 0.0*2.0 + 3.8*0.0 - 4.6*4.0)
-        self.assertTrue(np.allclose(sVec.sensitivity, np.array([1.0*3.5, -2.0*3.5, 0.0*3.5, -4.0*3.5])))
-
-    def testVec_scalar_complex(self):
-        """ Test functionality where a vector is multiplied with a complex scalar """
-        v = np.array([1.0, 0.0+2.1j, 3.8, 4.6+3.6j])
-        s = 3.5 + 3.8j
-        sVec = pym.Signal("vec", v.copy())
-        sScalar = pym.Signal("scalar", s)
-
-        sRes = pym.Signal("result")
-
-        mod = pym.MathGeneral([sVec, sScalar], sRes, expression="inp0*inp1")
-
-        mod.response()
-
-        # Check result
-        self.assertIsInstance(sRes.state, type(sVec.state))
-        self.assertTrue(np.allclose(sRes.state, v*s))
-
-        dr = np.array([1.0+0.1j, -2.0-2.5j, 0.0+0.8j, -4.0-2.2j])
-        sRes.sensitivity = dr.copy()
-
-        mod.sensitivity()
-
-        # Check sensitivity types
-        self.assertIsInstance(sScalar.sensitivity, type(sScalar.state))
-        self.assertIsInstance(sVec.sensitivity, type(sVec.state))
-        self.assertEqual(sVec.sensitivity.dtype, sVec.state.dtype)
-
-        # Check results
-        self.assertAlmostEqual(sScalar.sensitivity, dr@v)
-        self.assertTrue(np.allclose(sVec.sensitivity, dr*s))
-
-    def testVec_scalar_complex_real_input(self):
-        """ Test functionality where a vector is multiplied with a complex scalar """
-        v = np.array([1.0, 0.0 + 2.1j, 3.8, 4.6 + 3.6j])
-        s = 3.5  # This is now a real input
-        sVec = pym.Signal("vec", v.copy())
-        sScalar = pym.Signal("scalar", s)
-
-        sRes = pym.Signal("result")
-
-        mod = pym.MathGeneral([sVec, sScalar], sRes, expression="inp0*inp1")
-
-        mod.response()
-
-        # Check result
-        self.assertIsInstance(sRes.state, type(sVec.state))
-        self.assertTrue(np.allclose(sRes.state, v * s))
-
-        dr = np.array([1.0 + 0.1j, -2.0 - 2.5j, 0.0 + 0.8j, -4.0 - 2.2j])
-        sRes.sensitivity = dr.copy()
-
-        mod.sensitivity()
-
-        # Check sensitivity types
-        self.assertIsInstance(sScalar.sensitivity, type(sScalar.state))
-        self.assertIsInstance(sVec.sensitivity, type(sVec.state))
-        self.assertEqual(sVec.sensitivity.dtype, sVec.state.dtype)
-
-        # Check results
-        self.assertAlmostEqual(sScalar.sensitivity, np.real(dr @ v))
-        self.assertTrue(np.allclose(sVec.sensitivity, dr * s))
-
-    def testVec_npScalar_complex(self):
-        """ Test functionality where a vector is multiplied with a scalar """
-        v = np.array([1.0, 0.0 + 2.1j, 3.8, 4.6 + 3.6j])
-        s = np.array(3.5 + 3.8j)
-        sVec = pym.Signal("vec", v.copy())
-        sScalar = pym.Signal("numpy_scalar", s.copy())
-
-        sRes = pym.Signal("result")
-
-        mod = pym.MathGeneral([sVec, sScalar], sRes, expression="inp0*inp1")
-
-        mod.response()
-
-        # Check result
-        self.assertIsInstance(sRes.state, type(sVec.state))
-        self.assertTrue(np.allclose(sRes.state, v*s))
-
-        dr = np.array([1.0 + 0.1j, -2.0 - 2.5j, 0.0 + 0.8j, -4.0 - 2.2j])
-        sRes.sensitivity = dr.copy()
-
-        mod.sensitivity()
-
-        # Check sensitivity types
-        self.assertIsInstance(sScalar.sensitivity, type(sScalar.state))
-        self.assertIsInstance(sVec.sensitivity, type(sVec.state))
-
-        # Check results
-        self.assertAlmostEqual(sScalar.sensitivity, dr@v)
-        self.assertTrue(np.allclose(sVec.sensitivity, dr*s))
-
-    def testVec_npScalar_complex_real_input(self):
-        """ Test functionality where a vector is multiplied with a scalar """
-        v = np.array([1.0, 0.0 + 2.1j, 3.8, 4.6 + 3.6j])
-        s = np.array(3.5)
-        sVec = pym.Signal("vec", v.copy())
-        sScalar = pym.Signal("numpy_scalar", s.copy())
-
-        sRes = pym.Signal("result")
-
-        mod = pym.MathGeneral([sVec, sScalar], sRes, expression="inp0*inp1")
-
-        mod.response()
-
-        # Check result
-        self.assertIsInstance(sRes.state, type(sVec.state))
-        self.assertTrue(np.allclose(sRes.state, v*s))
-
-        dr = np.array([1.0 + 0.1j, -2.0 - 2.5j, 0.0 + 0.8j, -4.0 - 2.2j])
-        sRes.sensitivity = dr.copy()
-
-        mod.sensitivity()
-
-        # Check sensitivity types
-        self.assertIsInstance(sScalar.sensitivity, type(sScalar.state))
-        self.assertIsInstance(sVec.sensitivity, type(sVec.state))
-
-        # Check results
-        self.assertAlmostEqual(sScalar.sensitivity, np.real(v@dr))
-        self.assertTrue(np.allclose(sVec.sensitivity, s*dr))
-
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
-        pym.finite_difference(mod, test_fn=tfn)
+        # Check finite difference
+        pym.finite_difference(tosig=sRes, test_fn=self.fd_testfn)
 
     def test_numpy_arrays_without_broadcasting(self):
         """ Check if broadcasting works for sensitivity calculation """
         np.random.seed(0)
-        sv1 = pym.Signal("vec", np.random.rand(15))
-        sv2 = pym.Signal("vec", np.random.rand(15))
+        sv1 = pym.Signal("v1", np.random.rand(15))
+        sv2 = pym.Signal("v2", np.random.rand(15))
 
-        sRes = pym.Signal("result")
-
-        mod = pym.MathGeneral([sv1, sv2], sRes, expression="inp0*inp1")
-        mod.response()
+        sRes = pym.MathGeneral("inp0*inp1")(sv1, sv2)
+        sRes.tag = 'v1*v2'
 
         # Check value of response
-        self.assertEqual(sRes.state.shape, (15,))
+        assert sRes.state.shape == (15,)
         npt.assert_allclose(sRes.state, sv1.state * sv2.state)
 
         # Check sensitivities
-        sRes.sensitivity = np.random.rand(*sRes.state.shape)
-        mod.sensitivity()
-
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
-
-        pym.finite_difference(mod, test_fn=tfn)
+        pym.finite_difference(tosig=sRes, test_fn=self.fd_testfn)
 
     def test_numpy_arrays_with_broadcasting(self):
         """ Check if broadcasting works for sensitivity calculation """
         np.random.seed(0)
-        sv1 = pym.Signal("vec", np.random.rand(15))
-        sv2 = pym.Signal("vec", np.random.rand(2, 15))
-        sv3 = pym.Signal("vec", np.random.rand(2, 2, 15))
-        s_scalar = pym.Signal("scalar", 3.5)
+        sv1 = pym.Signal("v1", np.random.rand(15))
+        sv2 = pym.Signal("v2", np.random.rand(2, 15))
+        sv3 = pym.Signal("v3", np.random.rand(2, 2, 15))
+        s_scalar = pym.Signal("c", 3.5)
 
-        sRes = pym.Signal("result")
-
-        mod = pym.MathGeneral([sv1, sv2, sv3, s_scalar], sRes, expression="inp0*inp1*inp2*inp3")
-        mod.response()
+        sRes = pym.MathGeneral("inp0*inp1*inp2*inp3")(sv1, sv2, sv3, s_scalar)
+        sRes.tag = 'v1*v2*v3*c'
 
         # Check value of response
-        self.assertEqual(sRes.state.shape, (2, 2, 15))
+        assert sRes.state.shape == (2, 2, 15)
         npt.assert_allclose(sRes.state, sv1.state * sv2.state * sv3.state * s_scalar.state)
 
         # Check sensitivities
-        sRes.sensitivity = np.random.rand(*sRes.state.shape)
-        mod.sensitivity()
-
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
-        pym.finite_difference(mod, test_fn=tfn)
+        pym.finite_difference(tosig=sRes, test_fn=self.fd_testfn)
 
     def test_numpy_arrays_with_broadcasting1(self):
         """ Broadcast with singleton axes """
         np.random.seed(0)
-        sv1 = pym.Signal("vec", np.random.rand(36, 1, 15))
-        sv2 = pym.Signal("vec", np.random.rand(2, 1, 1, 15))
-        sv3 = pym.Signal("vec", np.random.rand(2, 1, 2, 15))
-        s_scalar = pym.Signal("scalar", 3.5)
+        sv1 = pym.Signal("v1", np.random.rand(36, 1, 15))
+        sv2 = pym.Signal("v2", np.random.rand(2, 1, 1, 15))
+        sv3 = pym.Signal("v3", np.random.rand(2, 1, 2, 15))
+        s_scalar = pym.Signal("c", 3.5)
 
-        sRes = pym.Signal("result")
-
-        mod = pym.MathGeneral([sv1, sv2, sv3, s_scalar], sRes, expression="inp0*inp1*inp2*inp3")
-        mod.response()
+        sRes = pym.MathGeneral("inp0*inp1*inp2*inp3")(sv1, sv2, sv3, s_scalar)
+        sRes.tag = 'v1*v2*v3*c'
 
         # Check value of response
-        self.assertEqual(sRes.state.shape, (2, 36, 2, 15))
+        assert sRes.state.shape == (2, 36, 2, 15)
         npt.assert_allclose(sRes.state, sv1.state * sv2.state * sv3.state * s_scalar.state)
 
         # Check sensitivities
-        sRes.sensitivity = np.random.rand(*sRes.state.shape)
-        mod.sensitivity()
+        pym.finite_difference(tosig=sRes, test_fn=self.fd_testfn)
 
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-7, atol=1e-5))
-        pym.finite_difference(mod, test_fn=tfn)
 
 if __name__ == '__main__':
-    unittest.main()
+    pytest.main()

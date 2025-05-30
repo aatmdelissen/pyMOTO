@@ -376,6 +376,20 @@ class TestModule:
         s_D = pym.Signal('B', np.array([4, 5]))
         m = MyMod()
         s_E = m(s_A, s_B)
-        s_F = m(s_C, s_D)
+        pytest.raises(RuntimeError, m, s_C, s_D)  # Error when trying to connect module twice
+        # s_F = m(s_C, s_D)
         npt.assert_equal(s_E.state, np.array([5, 7, 9]))
-        npt.assert_equal(s_F.state, np.array([5, 7]))
+        # npt.assert_equal(s_F.state, np.array([5, 7]))
+
+    def test_connect_module(self):
+        class MyMod(pym.Module):
+            def __call__(self, A, B):
+                return A + B
+
+            def _sensitivity(self, dC):
+                return dC, dC
+
+        m = MyMod().connect([pym.Signal('A', np.array([1, 2, 3])), pym.Signal('B', np.array([4, 5, 6]))])
+        assert isinstance(m, MyMod)
+        assert len(m.sig_out) == 1
+        npt.assert_equal(m.sig_out[0].state, np.array([5, 7, 9]))
