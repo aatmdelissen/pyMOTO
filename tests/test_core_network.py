@@ -174,7 +174,8 @@ class TestSubsets:
 
         for t in testcases:
             incl = t['incl'].copy()
-            errstr = f"Function ({len(t['fn'])}) = {t['fn']}\nExpected ({len(t['incl'])}) = {''.join([f'\n\t- {s}' for s in t['incl']])}"
+            expected_mods = ''.join([f'\n\t- {s}' for s in t['incl']])
+            errstr = f"Function ({len(t['fn'])}) = {t['fn']}\nExpected ({len(t['incl'])}) = {expected_mods}"
             for m in t['fn']:
                 assert m in incl, errstr
                 incl.remove(m)

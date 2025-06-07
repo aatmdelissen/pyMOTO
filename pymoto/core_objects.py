@@ -752,7 +752,8 @@ class Network(Module):
         raise RuntimeError("Cannot re-connect signals in existing network")
 
     def __repr__(self):
-        return f"\"{type(self).__name__}\" at {hex(id(self))} with modules: {''.join([f'\n\t- {m}' for m in self.mods])}"
+        mod_names = ''.join([f'\n\t- {m}' for m in self.mods])
+        return f"\"{type(self).__name__}\" at {hex(id(self))} with modules: {mod_names}"
 
     def append(self, *newmods):
         modlist = _parse_to_list(*newmods)
