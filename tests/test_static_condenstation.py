@@ -31,7 +31,8 @@ class TestStaticCondensation:
         sK = pym.AssembleStiffness(domain)(sx)
         su = pym.StaticCondensation(free=free_dofs, main=main_dofs)(sK)
         sc = pym.EinSum('ij->')(su)
-
+        sc.tag = 'c'
+        
         # Check result
         sK1 = pym.AssembleStiffness(domain=domain, bc=np.concatenate([main_dofs[1:], prescribed_dofs]))(sx)
         sf = pym.Signal('f', np.zeros(domain.nnodes*2))
@@ -43,7 +44,7 @@ class TestStaticCondensation:
 
         def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
 
-        pym.finite_difference(fn, [sx], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
+        pym.finite_difference(sx, sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
 
 
 if __name__ == '__main__':

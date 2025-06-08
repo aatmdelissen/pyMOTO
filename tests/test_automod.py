@@ -17,7 +17,6 @@ class TestAutoMod:
         sx = pym.Signal("x", 1.1)
         sy = pym.Signal("y", 2.0)
 
-        m = Mult()
         sz = m(sx, sy)
         sz.tag = "z"
 
