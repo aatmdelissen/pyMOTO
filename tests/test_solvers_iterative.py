@@ -17,9 +17,9 @@ def test_interpolation_2D():
     bc = np.concatenate([bc_nodes*2, bc_nodes*2+1])
 
     sx = pym.Signal('x', np.ones(domain.nel))
-    m = pym.AssembleStiffness(sx, domain=domain, bc=bc)
-    m.response()
-    K = m.sig_out[0].state
+    sK = pym.AssembleStiffness(domain, bc=bc)(sx)
+
+    K = sK.state
 
     mg1.update(K)
 
@@ -50,10 +50,8 @@ def test_interpolation_3D():
     bc_nodes = domain.nodes[:, :, 0].flatten()
     bc = np.concatenate([bc_nodes * 3, bc_nodes * 3 + 1, bc_nodes * 3 + 2])
 
-    sx = pym.Signal('x', np.ones(domain.nel))
-    m = pym.AssembleStiffness(sx, domain=domain, bc=bc)
-    m.response()
-    K = m.sig_out[0].state
+    x = np.ones(domain.nel)
+    K = pym.AssembleStiffness(domain, bc=bc)(x)
 
     mg1.update(K)
 

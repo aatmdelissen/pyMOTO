@@ -3,7 +3,7 @@ import warnings
 import inspect
 import time
 import copy
-from typing import Union, List, Any, Iterable, Self, Set
+from typing import Union, List, Any, Iterable, Set
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from .utils import _parse_to_list, _concatenate_to_array, _split_from_array
@@ -472,7 +472,7 @@ class Module(ABC):
 
         return wrapped
 
-    def connect(self, sig_in: SignalsT, sig_out: SignalsT = None) -> Self:
+    def connect(self, sig_in: SignalsT, sig_out: SignalsT = None):
         """ Connect without automatic adding to a function network """
         # Parse inputs
         self._init_loc = get_init_str()
@@ -824,7 +824,7 @@ class Network(Module):
                 output_cone.append(m)
         return Network(list(reversed(output_cone)))
 
-    def get_subset(self, fromsig: SignalsT = None, tosig: SignalsT = None, include_sinks: bool = True, include_sources: bool = True) -> Self:
+    def get_subset(self, fromsig: SignalsT = None, tosig: SignalsT = None, include_sinks: bool = True, include_sources: bool = True):
         # This includes all modules
         fromsig = self._parse_signal_set(fromsig)
         tosig = self._parse_signal_set(tosig)

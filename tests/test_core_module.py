@@ -265,9 +265,9 @@ class TestModule:
         sa = pym.Signal('a', 2.5)
         sb = pym.Signal('b', 3.5)
 
-        m = WrongSensitivity()
+        m = WrongSensitivity().connect(sa, sb)
 
-        sc = m(sa, sb)  # Two inputs -> expects two sensitivities returned
+        sc = m.sig_out[0]  # Two inputs -> expects two sensitivities returned
 
         m.sensitivity()  # First test with None as sensitivity, no error as sensitivity is not run
         assert not hasattr(m, "did_sensitivity")

@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import numpy as np
 import pymoto as pym
 import numpy.testing as npt
@@ -6,7 +6,7 @@ import numpy.testing as npt
 np.random.seed(0)
 
 
-class TestStaticCondensation(unittest.TestCase):
+class TestStaticCondensation:
     def test_real_symmetric(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
         N = 20
@@ -27,29 +27,24 @@ class TestStaticCondensation(unittest.TestCase):
         main_dofs = dofs_left[0::2]
         free_dofs = np.setdiff1d(all_dofs, np.unique(np.hstack([main_dofs, prescribed_dofs])))
 
-        fn = pym.Network()
         sx = pym.Signal('x', np.random.rand(domain.nel))
-        sK = fn.append(pym.AssembleStiffness(sx, pym.Signal('K'), domain))
-        su = fn.append(pym.StaticCondensation([sK], free=free_dofs, main=main_dofs))
-        sc = fn.append(pym.EinSum([su], expression='ij->'))
-        fn.response()
+        sK = pym.AssembleStiffness(domain)(sx)
+        su = pym.StaticCondensation(free=free_dofs, main=main_dofs)(sK)
+        sc = pym.EinSum('ij->')(su)
 
         # Check result
-        fn1 = pym.Network()
-        sK1 = fn1.append(pym.AssembleStiffness(sx, domain=domain, bc=np.concatenate([main_dofs[1:], prescribed_dofs])))
+        sK1 = pym.AssembleStiffness(domain=domain, bc=np.concatenate([main_dofs[1:], prescribed_dofs]))(sx)
         sf = pym.Signal('f', np.zeros(domain.nnodes*2))
         sf.state[main_dofs[0]] = 1.0
-        su1 = fn1.append(pym.LinSolve([sK1, sf]))
-        suKu1 = fn1.append(pym.EinSum([su1, sf], expression='i,i->'))
-        fn1.response()
+        su1 = pym.LinSolve()(sK1, sf)
+        suKu1 = pym.EinSum('i,i->')(su1, sf)
 
         npt.assert_allclose(suKu1.state, 1/su.state[0, 0])
 
-        def tfn(x0, dx, df_an, df_fd): self.assertTrue(np.allclose(df_an, df_fd, rtol=1e-3, atol=1e-5))
+        def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
 
         pym.finite_difference(fn, [sx], sc, test_fn=tfn, dx=1e-5, tol=1e-4, verbose=False)
 
 
-
 if __name__ == '__main__':
-    unittest.main()
+    pytest.main()
