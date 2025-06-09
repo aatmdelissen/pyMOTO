@@ -21,7 +21,7 @@ class TestScaling:
         m.response()
         assert s_scaled.state == 2.0 * 105.0
 
-        pym.finite_difference(sc, s_scaled, test_fn=self.fd_testfn)
+        pym.finite_difference(sx, s_scaled, test_fn=self.fd_testfn)
 
     def test_negative_objective(self):
         """ Test if the negative sign is kept"""
