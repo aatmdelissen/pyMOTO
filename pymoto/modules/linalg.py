@@ -71,8 +71,8 @@ class StaticCondensation(Module):
         Amf = A[self.m, ...][..., self.f]
         
         if self.m_linsolve.sig_in is None:
-            sAff = pym.Signal("Aff", state=Aff)
-            sAfm = pym.Signal("rhs", state=Afm)
+            sAff = Signal("Aff", state=Aff)
+            sAfm = Signal("rhs", state=Afm)
             self.m_linsolve.connect([sAff, sAfm])
         else:
             self.m_linsolve.sig_in[0].state = Aff
