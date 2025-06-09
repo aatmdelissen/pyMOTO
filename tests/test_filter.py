@@ -38,7 +38,7 @@ class TestConvolutionFilter:
         npt.assert_allclose(y[domain.get_elemnumber(ix-1, iy-1)], w[2, 2, 0])
         npt.assert_allclose(y[domain.get_elemnumber(ix+1, iy-1)], w[0, 2, 0])
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=fd_testfn)
 
     def test_2d_edge_xmin_symmetric(self):
         """ Test one element at the edge to test xmin boundary effect """
@@ -65,7 +65,7 @@ class TestConvolutionFilter:
         npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy)],     w[0, 1, 0])
         npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy + 1)], w[0, 0, 0])
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=fd_testfn)
 
     def test_2d_edge_xmin_constval(self):
         """ Test one element at the edge to test xmin boundary effect """
@@ -93,7 +93,7 @@ class TestConvolutionFilter:
         npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy)],     w[0, 1, 0])
         npt.assert_allclose(y[domain.get_elemnumber(ix + 1, iy + 1)], w[0, 0, 0])
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=fd_testfn)
 
     def test_2d_edge_xmax_symmetric(self):
         """ Test one element at the edge to test xmin boundary effect """
@@ -120,7 +120,7 @@ class TestConvolutionFilter:
         npt.assert_allclose(y[domain.get_elemnumber(ix - 1, iy)],     w[2, 1, 0])
         npt.assert_allclose(y[domain.get_elemnumber(ix - 1, iy + 1)], w[2, 0, 0])
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=fd_testfn)
 
     def test_2d_fd_symmetric_kernel(self):
         np.random.seed(0)
@@ -130,7 +130,7 @@ class TestConvolutionFilter:
 
         sy = pym.FilterConv(domain=domain, radius=5.3, relative_units=False)(sx)
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=fd_testfn)
 
     def test_2d_fd_asymmetric_kernel(self):
         np.random.seed(0)
@@ -143,7 +143,7 @@ class TestConvolutionFilter:
         weights = 1+np.arange(nx*ny).reshape((nx, ny, 1))
         sy = pym.FilterConv(domain=domain, weights=weights)(sx)
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=fd_testfn)
 
     def test_3d_dot(self):
         np.random.seed(0)
@@ -166,7 +166,7 @@ class TestConvolutionFilter:
                 for k in range(3):
                     npt.assert_allclose(y[domain.get_elemnumber(ix-1+i, iy-1+j, iz-1+k)], w[i, j, k])
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=fd_testfn)
 
     def test_3d_dot_symm_at_zmin(self):
         np.random.seed(0)
@@ -211,7 +211,7 @@ class TestConvolutionFilter:
         npt.assert_allclose(ysel[1, 2, 1], w[1, 2, 2])
         npt.assert_allclose(ysel[2, 2, 1], w[2, 2, 2])
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=fd_testfn)
 
     def test_3d_symmetric(self):
         np.random.seed(0)
@@ -221,7 +221,7 @@ class TestConvolutionFilter:
 
         sy = pym.FilterConv(domain=domain, radius=5.3, relative_units=False)(sx)
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(sx, sy, test_fn=fd_testfn)
 
     def test_3d_symmetric1(self):
         np.random.seed(0)

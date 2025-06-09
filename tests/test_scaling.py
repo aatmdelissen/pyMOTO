@@ -21,7 +21,7 @@ class TestScaling:
         m.response()
         assert s_scaled.state == 2.0 * 105.0
 
-        pym.finite_difference(test_fn=self.fd_testfn)
+        pym.finite_difference(sc, s_scaled, test_fn=self.fd_testfn)
 
     def test_negative_objective(self):
         """ Test if the negative sign is kept"""
@@ -31,7 +31,7 @@ class TestScaling:
 
         assert s_scaled.state == -1.0 * 105.0
 
-        pym.finite_difference(test_fn=self.fd_testfn)
+        pym.finite_difference(sx, s_scaled, test_fn=self.fd_testfn)
 
     def test_lower_constraint(self):
         sx = pym.Signal('x', 1.0)
@@ -48,7 +48,7 @@ class TestScaling:
         m.response()
         assert s_scaled.state == 15.0
 
-        pym.finite_difference(test_fn=self.fd_testfn)
+        pym.finite_difference(sx, s_scaled, test_fn=self.fd_testfn)
 
     def test_upper_constraint(self):
         sx = pym.Signal('x', 1.0)
@@ -65,7 +65,7 @@ class TestScaling:
         m.response()
         assert s_scaled.state == 15.0
 
-        pym.finite_difference(test_fn=self.fd_testfn)
+        pym.finite_difference(sx, s_scaled, test_fn=self.fd_testfn)
 
 
 if __name__ == '__main__':

@@ -25,8 +25,8 @@ class TestAutoMod:
         sz.sensitivity = 1.5
         m.sensitivity()
 
-        assert sx.sensitivity == 1.5*2.0
-        assert sy.sensitivity == 1.5*1.1
+        npt.assert_allclose(sx.sensitivity, 1.5*2.0)
+        npt.assert_allclose(sy.sensitivity, 1.5*1.1)
 
     def test_automod_vec(self):
         def resp_fn(x, y):
@@ -48,8 +48,8 @@ class TestAutoMod:
         sz.sensitivity = 1.5
         m.sensitivity()
 
-        assert sx.sensitivity == 1.5*sy.state
-        assert sy.sensitivity == 1.5*sx.state
+        npt.assert_allclose(sx.sensitivity, 1.5*sy.state)
+        npt.assert_allclose(sy.sensitivity, 1.5*sx.state)
 
 
 if __name__ == '__main__':

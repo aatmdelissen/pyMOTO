@@ -88,7 +88,7 @@ class TestLinSolveModuleSparse:
 
         npt.assert_allclose(sK.state@su.state, sf.state, atol=1e-10)  # Check residual
         # Check finite difference
-        pym.finite_difference(test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
+        pym.finite_difference(tosig=su, test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_symmetric_complex_dyncompliance2d(self):
         """ Test symmetric complex sparse matrix (dynamic compliance in 2D)"""
@@ -113,7 +113,7 @@ class TestLinSolveModuleSparse:
 
         npt.assert_allclose(sZ.state@su.state, sf.state, atol=1e-10)  # Check residual
         # Check finite difference
-        pym.finite_difference(test_fn=self.fd_testfn, dx=1e-7, tol=1e-4, verbose=False)
+        pym.finite_difference(tosig=su, test_fn=self.fd_testfn, dx=1e-7, tol=1e-4, verbose=False)
 
 
 class TestAssemblyAddValues:
@@ -155,7 +155,7 @@ class TestAssemblyAddValues:
         su = pym.LinSolve()(sK, sf)
         sc = pym.EinSum('i->')(su)
 
-        pym.finite_difference(test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
+        pym.finite_difference(tosig=sc, test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
     def test_added_stiffness_on_ground(self):
         np.random.seed(0)

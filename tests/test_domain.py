@@ -88,8 +88,10 @@ class TestDomainDefinition(unittest.TestCase):
             def _sensitivity(self, dN):
                 return domain.eval_shape_fun_der(pos) @ dN
 
-        ShapeFn()(pym.Signal('pos', state=pos))
-        pym.finite_difference(test_fn=fd_testfn)
+        sp = pym.Signal('pos', state=pos)
+        sn = ShapeFn()(sp)
+        sn.tag = "N"
+        pym.finite_difference(sp, sn, test_fn=fd_testfn)
 
 
 if __name__ == '__main__':

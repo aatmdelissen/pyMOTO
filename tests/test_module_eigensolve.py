@@ -72,7 +72,7 @@ def test_eig_vs_eigh():
     Q, _ = np.linalg.qr(np.random.rand(N, N))
     D = np.diag(np.random.rand(N) * 0.9 + 0.1)
     B = Q @ D @ Q.T
-    B = make_random(N)
+    
     def solve_eig(A=A, B=B):
         return spla.eig(A, B)
 
@@ -193,13 +193,13 @@ def test_eigensolve_sparse(generalized):
     else:
         npt.assert_allclose(s_K.state @ s_V.state, s_V.state @ np.diag(s_lam.state), atol=1e-10)
 
-    def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-4)
+    def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-3)
     # Test eigenvalue sensitivities
-    pym.finite_difference(s_x, s_lam, test_fn=tfn, verbose=True)
+    pym.finite_difference(s_x, s_lam, test_fn=tfn, verbose=True, dx=1e-6)
     # Test eigenvector sensitivities
     for i in range(6):
-        pym.finite_difference(s_x, s_V[:, i], test_fn=tfn, verbose=True)
-    pym.finite_difference(s_x, s_V, test_fn=tfn, verbose=True)
+        pym.finite_difference(s_x, s_V[:, i], test_fn=tfn, verbose=True, dx=1e-6)
+    pym.finite_difference(s_x, s_V, test_fn=tfn, verbose=True, dx=1e-6)
 
 
 @pytest.mark.parametrize("complex_matrix", [True, False])

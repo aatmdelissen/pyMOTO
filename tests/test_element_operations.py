@@ -64,7 +64,7 @@ class TestElementOperations:
         npt.assert_allclose(s_avg.state[0, :], ux_chk)
         npt.assert_allclose(s_avg.state[1, :], uy_chk)
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(s_u, s_avg, test_fn=fd_testfn)
 
     @pytest.mark.parametrize('domain', domains.values(), ids=domains.keys())
     def test_2d_output(self, domain: pym.DomainDefinition):
@@ -87,7 +87,7 @@ class TestElementOperations:
         npt.assert_allclose(s_avg.state[1, 0, :], 0)
         npt.assert_allclose(s_avg.state[1, 1, :], uy_chk)
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(s_u, s_avg, test_fn=fd_testfn)
 
     @pytest.mark.parametrize('domain', domains.values(), ids=domains.keys())
     def test_3d_output(self, domain: pym.DomainDefinition):
@@ -112,7 +112,7 @@ class TestElementOperations:
             npt.assert_allclose(s_avg.state[(n[0]+1)//2, (n[1]+1)//2, 0, :], u[dofconn[:, i * domain.dim + 0]] * 1.2)
             npt.assert_allclose(s_avg.state[(n[0]+1)//2, (n[1]+1)//2, 1, :], u[dofconn[:, i * domain.dim + 1]] * 1.1)
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(s_u, s_avg, test_fn=fd_testfn)
 
     def test_element_operation_repeat_multidim(self):
         np.random.seed(0)
@@ -130,7 +130,7 @@ class TestElementOperations:
         npt.assert_allclose(y.state[0], y_chk1)
         npt.assert_allclose(y.state[1], y_chk2)
 
-        pym.finite_difference(test_fn=fd_testfn)
+        pym.finite_difference(x, y, test_fn=fd_testfn)
 
 
 class TestStressStrain:

@@ -265,7 +265,7 @@ class TestModule:
         sa = pym.Signal('a', 2.5)
         sb = pym.Signal('b', 3.5)
 
-        m = WrongSensitivity().connect(sa, sb)
+        m = WrongSensitivity().connect([sa, sb])
 
         sc = m.sig_out[0]  # Two inputs -> expects two sensitivities returned
 
@@ -298,9 +298,9 @@ class TestModule:
 
         sa = pym.Signal('a', 2.5)
         sb = pym.Signal('b', 3.5)
-        m1 = ErrModule()
-        sc = m1(sa, sb)
-        m1.response()
+        m1 = ErrModule().connect([sa, sb])
+        sc = m1.sig_out[0]
+
         sc.sensitivity = 1.0
         pytest.raises(ValueError, m1.sensitivity)
         try:
