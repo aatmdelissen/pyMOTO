@@ -57,24 +57,35 @@ class StaticCondensation(Module):
     """
 
     def __init__(self, main, free, **kwargs):
-        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
-        self.module_LinSolve.use_lda_solver = False
+        self.m_linsolve = LinSolve(**kwargs)
+        self.m_linsolve.use_lda_solver = False
         self.m = main
         self.f = free
 
     def __call__(self, A):
         self.n = np.shape(A)[0]
-        self.module_LinSolve.sig_in[0].state = A[self.f, ...][..., self.f]
-        self.module_LinSolve.sig_in[1].state = A[self.f, ...][..., self.m].todense()
-        self.module_LinSolve.response()
-        self.X = self.module_LinSolve.sig_out[0].state
-        return A[self.m, ...][..., self.m] - A[self.m, ...][..., self.f] @ self.X
+        
+        Aff = A[self.f, ...][..., self.f]
+        Afm = A[self.f, ...][..., self.m].todense()
+        Amm = A[self.m, ...][..., self.m]
+        Amf = A[self.m, ...][..., self.f]
+        
+        if self.m_linsolve.sig_in is None:
+            sAff = pym.Signal("Aff", state=Aff)
+            sAfm = pym.Signal("rhs", state=Afm)
+            self.m_linsolve.connect([sAff, sAfm])
+        else:
+            self.m_linsolve.sig_in[0].state = Aff
+            self.m_linsolve.sig_in[1].state = Afm
+            self.m_linsolve.response()
+        self.X = self.m_linsolve.sig_out[0].state
+        return Amm - Amf @ self.X
 
     def _sensitivity(self, dfdB):
         C = np.zeros((self.n, len(self.m)), dtype=float)
         C[self.m, ...] = np.eye(len(self.m))
         C[self.f, ...] = -self.X
-        return C @ dfdB @ C.T if isinstance(dfdB, DyadCarrier) else DyadCarrier(list(C.T), list(np.asarray(dfdB @ C.T)))
+        return C @ dfdB @ C.T if isinstance(dfdB, DyadCarrier) else DyadCarrier(list(C.T), list(np.asarray(dfdB @ C.T)))  # FIXME probably can do without the check
 
 
 class Inverse(Module):
