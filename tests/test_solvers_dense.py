@@ -153,7 +153,7 @@ def test_correct_auto_solver(Atag, expected):
 # - SolverDenseCholesky
 
 
-def run_solver(solver_type, A, b):
+def run_solver_test(solver_type, A, b):
     solver = solver_type()
     atol = 1e-12
     # Get reference solutions
@@ -276,7 +276,8 @@ def construct_b(b_type: str, b_shape: int, n: int):
 @pytest.mark.parametrize('Atag', ['mat_real_diagonal', 'mat_complex_diagonal'])
 def test_diagonal(Atag, b_type, b_shape):
     A = all_matrices[Atag]
-    run_solver(pym.solvers.SolverDiagonal, A, construct_b(b_type, b_shape, A.shape[0]))
+    b = construct_b(b_type, b_shape, A.shape[0])
+    run_solver_test(pym.solvers.SolverDiagonal, A, b)
 
 
 @pytest.mark.parametrize('b_shape', [None, 1, 3], ids=['singleRHS', 'columnRHS', 'multiRHS'])
@@ -284,7 +285,8 @@ def test_diagonal(Atag, b_type, b_shape):
 @pytest.mark.parametrize('Atag', all_matrices.keys())
 def test_qr(Atag, b_type, b_shape):
     A = all_matrices[Atag]
-    run_solver(pym.solvers.SolverDenseQR, A, construct_b(b_type, b_shape, A.shape[0]))
+    b = construct_b(b_type, b_shape, A.shape[0])
+    run_solver_test(pym.solvers.SolverDenseQR, A, b)
 
 
 @pytest.mark.parametrize('b_shape', [None, 1, 3], ids=['singleRHS', 'columnRHS', 'multiRHS'])
@@ -292,7 +294,8 @@ def test_qr(Atag, b_type, b_shape):
 @pytest.mark.parametrize('Atag', all_matrices.keys())
 def test_lu(Atag, b_type, b_shape):
     A = all_matrices[Atag]
-    run_solver(pym.solvers.SolverDenseLU, A, construct_b(b_type, b_shape, A.shape[0]))
+    b = construct_b(b_type, b_shape, A.shape[0])
+    run_solver_test(pym.solvers.SolverDenseLU, A, b)
 
 
 @pytest.mark.parametrize('b_shape', [None, 1, 3], ids=['singleRHS', 'columnRHS', 'multiRHS'])
@@ -307,7 +310,8 @@ def test_lu(Atag, b_type, b_shape):
 def test_cholesky(Atag, b_type, b_shape):
     # The indefinite matrices use LDL instead as a backup
     A = all_matrices[Atag]
-    run_solver(pym.solvers.SolverDenseCholesky, A, construct_b(b_type, b_shape, A.shape[0]))
+    b = construct_b(b_type, b_shape, A.shape[0])
+    run_solver_test(pym.solvers.SolverDenseCholesky, A, b)
 
 
 @pytest.mark.parametrize('b_shape', [None, 1, 3], ids=['singleRHS', 'columnRHS', 'multiRHS'])
@@ -324,7 +328,8 @@ def test_cholesky(Atag, b_type, b_shape):
 ])
 def test_ldl(Atag, b_type, b_shape):
     A = all_matrices[Atag]
-    run_solver(pym.solvers.SolverDenseLDL, A, construct_b(b_type, b_shape, A.shape[0]))
+    b = construct_b(b_type, b_shape, A.shape[0])
+    run_solver_test(pym.solvers.SolverDenseLDL, A, b)
 
 
 """ ----------- TEST LINSOLVE MODULE ---------- """

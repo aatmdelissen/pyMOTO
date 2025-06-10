@@ -119,7 +119,7 @@ class SolverSparsePardiso(LinearSolver):
             # assert(max(np.diff(A.indices[A.indptr[:-1]])))  # All diagonals must be non-empty
         if not sps.isspmatrix_csr(A):
             warnings.warn(f'PyPardiso requires CSR matrix format, not {type(A).__name__}', SparseEfficiencyWarning)
-            A = A.tocsr()
+            A = sps.csr_matrix(A)
         self.A = A
 
         if self._pardiso_solver is None:
@@ -346,7 +346,7 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
         r""" Factorize the matrix using CVXOPT's Cholmod as :math:`\mathbf{A}=\mathbf{L}\mathbf{L}^\text{H}`. """
         if not isinstance(A, cvxopt.spmatrix):
             if not isinstance(A, sps.coo_matrix):
-                Kcoo = A.tocoo()
+                Kcoo = sps.coo_matrix(A)
                 warnings.warn(f"{type(self).__name__}: Efficiency warning: CVXOPT spmatrix must be used")
             else:
                 Kcoo = A
