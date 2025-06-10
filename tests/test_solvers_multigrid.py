@@ -10,7 +10,7 @@ import pymoto as pym
 
 
 
-def test_interpolation_2D():
+def test_interpolation_2d():
     domain = pym.DomainDefinition(10, 10)
     mg1 = pym.solvers.GeometricMultigrid(domain)
     bc_nodes = domain.nodes[:, 0].flatten()
@@ -44,7 +44,7 @@ def test_interpolation_2D():
     npt.assert_allclose(uf, 1.0)
 
 
-def test_interpolation_3D():
+def test_interpolation_3d():
     domain = pym.DomainDefinition(10, 10, 10)
     mg1 = pym.solvers.GeometricMultigrid(domain)
     bc_nodes = domain.nodes[:, :, 0].flatten()
