@@ -1,3 +1,16 @@
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyMOTO"
+dynamic = ["version"]
+description = "A modular approach to topology optimization"
+readme = "README.md"
+requires-python = ">=3.8" 
+dependencies = [
+    "numpy",
+    "scipy>=1.7",
+    "sympy",
+    "matplotlib",
+]
