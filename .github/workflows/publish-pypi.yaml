@@ -65,7 +65,7 @@ jobs:
     needs: publish_test_pypi
     permissions:
       id-token: write
-    if: ${{ needs.publish_test_pypi.result == 'success' && github.event_name != 'workflow_run'}}
+    if: ${{ needs.publish_test_pypi.result == 'success' && github.event_name != 'workflow_dispatch'}}
     environment:
       name: pypi
       url: https://pypi.org/p/pymoto
