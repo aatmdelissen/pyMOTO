@@ -74,5 +74,5 @@ version = { attr = "pymoto.__version__" }
 readme = { file = "README.md" }
 
 ## CONDA CONFIGURATION
-[tool.dist_conda]
+[tool.setuptools_conda]
 noarch = true
