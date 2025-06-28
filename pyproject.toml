@@ -1,3 +1,78 @@
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyMOTO"
+dynamic = ["version"]
+description = "A modular approach to topology optimization"
+authors = [
+    { name = "Arnoud Delissen", email = "arnouddelissen+pymoto@gmail.com" },
+]
+readme = "README.md"
+requires-python = ">=3.8" 
+dependencies = [
+    "numpy",
+    "scipy>=1.7",
+    "sympy",
+    "matplotlib",
+]
+
+# license = "MIT"
+# license-files = ["LICENSE"]
+license = {text = "MIT"}
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Mechanics",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+keywords = [
+    "topology optimization",
+    "generative design",
+    "sensitivity analysis",
+    "gradients",
+    "finite element method",
+    "structural optimization",
+    "mechanics",
+    "engineering",
+]
+
+[project.urls]
+Homepage = "https://pymoto.readthedocs.io/"
+Code = "https://github.com/aatmdelissen/pyMOTO"
+Documentation = "https://pymoto.readthedocs.io/"
+Issues = "https://github.com/aatmdelissen/pyMOTO/issues"
+"Release notes" = "https://github.com/aatmdelissen/pyMOTO/releases/latest"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "flake8",
+    "cvxopt",
+    "scikit-sparse",
+    "pypardiso",
+    "opt-einsum",
+    "jax[cpu]",
+]
+
+## SETUPTOOLS CONFIGURATION
+[tool.setuptools.packages.find]
+include = ["pymoto*"]
+namespaces = false
+
+# Manually add common and modules directories
+[tool.setuptools.package-data]
+pymoto = ["common/*.py", "modules/*.py"]
+
+[tool.setuptools.dynamic]
+version = { attr = "pymoto.__version__" }
+readme = { file = "README.md" }
+
+## CONDA CONFIGURATION
+[tool.dist_conda]
+noarch = true
