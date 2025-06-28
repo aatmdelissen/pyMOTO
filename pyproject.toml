@@ -18,8 +18,9 @@ dependencies = [
     "matplotlib",
 ]
 
-license = "MIT"
-license-files = ["LICENSE"]
+# license = "MIT"
+# license-files = ["LICENSE"]
+license = {text = "MIT"}
 
 classifiers = [
     "Development Status :: 4 - Beta",
