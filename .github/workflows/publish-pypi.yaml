@@ -1,4 +1,4 @@
-name: Publish on PyPI and Conda
+name: Publish on PyPI
 
 on:
   workflow_run:
