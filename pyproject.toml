@@ -25,7 +25,7 @@ license = {text = "MIT"}
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering :: Mechanics",
+    "Topic :: Scientific/Engineering",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
