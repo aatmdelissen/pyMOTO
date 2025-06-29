@@ -1,9 +1,9 @@
 import warnings
 import numpy as np
 from .utils import _parse_to_list, _concatenate_to_array
-from .core_objects import Signal, SignalSlice, Module, Network, SignalsT
+from .core_objects import Signal, Module, Network, SignalsT
 from .common.mma import MMA
-from typing import List, Iterable, Union, Callable
+from typing import List, Iterable, Callable
 from scipy.sparse import issparse
 
 

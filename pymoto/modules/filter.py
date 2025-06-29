@@ -1,4 +1,3 @@
-import pymoto
 from pymoto import Module, DomainDefinition
 import numpy as np
 from scipy.sparse import coo_matrix

@@ -1,6 +1,5 @@
 """ Specialized linear algebra modules """
 import warnings
-from inspect import currentframe, getframeinfo
 
 import numpy as np
 import scipy.linalg as spla  # Dense matrix solvers
@@ -372,7 +371,7 @@ class EigenSolve(Module):
                 self.dense_solver = spla.eigh if self.is_hermitian else spla.eig
             try:
                 W, Q = self.dense_solver(A, b=B)
-            except np.linalg.LinAlgError as e:  # eigh fails for non-positive definite B
+            except np.linalg.LinAlgError:  # eigh fails for non-positive definite B
                 if not self.dense_solver == spla.eigh:
                     raise
                 W, Q = spla.eig(A, b=B)
@@ -388,7 +387,8 @@ class EigenSolve(Module):
         # 1) Flip sign such that the average (real) value is positive
         # 2) Normalize the eigenvector v⋅v or v⋅Bv to unity
         for i in range(W.size):
-            qi, wi = Q[:, i], W[i]
+            # wi = W[i]
+            qi = Q[:, i]
             Bqi = qi if B is None else B@qi
 
             normval = np.sqrt(qi @ Bqi)

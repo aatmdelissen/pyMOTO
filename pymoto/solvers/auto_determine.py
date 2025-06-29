@@ -1,10 +1,11 @@
 import warnings
+import numpy as np
 import scipy.sparse as sps
 from inspect import currentframe, getframeinfo
 
-from .dense import *
-from .sparse import *
-from .matrix_checks import *
+from .dense import SolverDenseQR, SolverDenseCholesky, SolverDenseLDL, SolverDenseLU, SolverDiagonal
+from .sparse import SolverSparseLU, SolverSparseCholeskyScikit, SolverSparseCholeskyCVXOPT, SolverSparsePardiso
+from .matrix_checks import matrix_is_diagonal, matrix_is_sparse, matrix_is_hermitian, matrix_is_symmetric
 
 
 # flake8: noqa: C901
