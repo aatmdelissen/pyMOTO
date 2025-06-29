@@ -3,7 +3,8 @@ import numbers
 from pathlib import Path
 import numpy as np
 import matplotlib
-matplotlib.use('TkAgg')  # Change default backend -- TkAgg does not freeze during calculations
+
+matplotlib.use("TkAgg")  # Change default backend -- TkAgg does not freeze during calculations
 import matplotlib.pyplot as plt
 
 from pymoto import Module
@@ -11,7 +12,7 @@ from .assembly import DomainDefinition
 
 
 class FigModule(Module):
-    """ Abstract base class for any module which produces a figure
+    """Abstract base class for any module which produces a figure
 
     Keyword Args:
         saveto (str): Save images of each iteration to the specified location. (default = ``None``)
@@ -19,6 +20,7 @@ class FigModule(Module):
           filename (default = ``False``)
         show (bool): Show the figure on the screen
     """
+
     def __init__(self, saveto=None, overwrite=False, show=True):
         self.fig = None
         if saveto is not None:
@@ -44,8 +46,10 @@ class FigModule(Module):
         self.fig.canvas.flush_events()
 
         if self.saveloc is not None:
-            filen = "{0:s}{1:s}".format(self.saveloc, self.saveext) if self.overwrite else \
-                "{0:s}_{1:04d}{2:s}".format(self.saveloc, self.iter, self.saveext)
+            if self.overwrite:
+                filen = "{0:s}{1:s}".format(self.saveloc, self.saveext)
+            else:
+                filen = "{0:s}_{1:04d}{2:s}".format(self.saveloc, self.iter, self.saveext)
             self.fig.savefig(filen)
 
         self.iter += 1
@@ -55,7 +59,7 @@ class FigModule(Module):
 
 
 class PlotDomain(FigModule):
-    """ Plots the densities of a domain (2D or 3D)
+    """Plots the densities of a domain (2D or 3D)
 
     Input Signal:
       - ``x`` (`np.ndarray`): The field to be shown of size ``(domain.nel)``
@@ -72,7 +76,8 @@ class PlotDomain(FigModule):
           value below which elements are clipped.
         cmap (str): Colormap (only for 2D)
     """
-    def __init__(self, domain: DomainDefinition, *args, clim=None, cmap='gray_r', **kwargs):
+
+    def __init__(self, domain: DomainDefinition, *args, clim=None, cmap="gray_r", **kwargs):
         super().__init__(*args, **kwargs)
         self.clim = clim
         self.cmap = cmap
@@ -87,21 +92,23 @@ class PlotDomain(FigModule):
         else:
             raise NotImplementedError("Only 2D and 3D plots are implemented")
         assert len(self.fig.axes) > 0, "Figure must contain axes"
-        self.fig.axes[0].set_title(f"{self.sig_in[0].tag if hasattr(self.sig_in[0], 'tag') else 'Unknown variable'}, Iteration {self.iter}")
+
+        tag_str = self.sig_in[0].tag if hasattr(self.sig_in[0], "tag") else "Unknown variable"
+        self.fig.axes[0].set_title(f"{tag_str}, Iteration {self.iter}")
 
         self._update_fig()
 
     def _plot_2d(self, x):
-        data = x.reshape((self.domain.nelx, self.domain.nely), order='F').T  # TODO Put this reshape inside domain?
-        if hasattr(self, 'im'):
+        data = x.reshape((self.domain.nelx, self.domain.nely), order="F").T  # TODO Put this reshape inside domain?
+        if hasattr(self, "im"):
             self.im.set_data(data)
         else:
             ax = self.fig.add_subplot(111)
             Lx = self.domain.nelx * self.domain.unitx
             Ly = self.domain.nely * self.domain.unity
-            self.im = ax.imshow(data, cmap=self.cmap, origin='lower', extent=(0.0, Lx, 0.0, Ly))
-            self.cbar = self.fig.colorbar(self.im, orientation='horizontal')
-            ax.set(xlabel='x', ylabel='y')
+            self.im = ax.imshow(data, cmap=self.cmap, origin="lower", extent=(0.0, Lx, 0.0, Ly))
+            self.cbar = self.fig.colorbar(self.im, orientation="horizontal")
+            ax.set(xlabel="x", ylabel="y")
         vmin, vmax = np.min(data), np.max(data)
         if vmin < 0:
             vabs = max(abs(vmin), abs(vmax))
@@ -121,32 +128,37 @@ class PlotDomain(FigModule):
 
         # combine the color components
         colors = np.zeros(sel.shape + (3,))
-        colors[..., 0] = np.clip(1-densities, 0, 1)
-        colors[..., 1] = np.clip(1-densities, 0, 1)
-        colors[..., 2] = np.clip(1-densities, 0, 1)
+        colors[..., 0] = np.clip(1 - densities, 0, 1)
+        colors[..., 1] = np.clip(1 - densities, 0, 1)
+        colors[..., 2] = np.clip(1 - densities, 0, 1)
 
         # and plot everything
         if len(self.fig.axes) == 0:
             # flake8: noqa: F401
             from mpl_toolkits.mplot3d import Axes3D  # This import is needed in order to support 3d plotting
-            ax = self.fig.add_subplot(projection='3d')
+
+            ax = self.fig.add_subplot(projection="3d")
             max_ext = max(self.domain.nelx, self.domain.nely, self.domain.nelz)
-            ax.set(xlabel='x', ylabel='y', zlabel='z',
-                   xlim=[(self.domain.nelx-max_ext)/2, (self.domain.nelx+max_ext)/2],
-                   ylim=[(self.domain.nely-max_ext)/2, (self.domain.nely+max_ext)/2],
-                   zlim=[(self.domain.nelz-max_ext)/2, (self.domain.nelz+max_ext)/2])
+            ax.set(
+                xlabel="x",
+                ylabel="y",
+                zlabel="z",
+                xlim=[(self.domain.nelx - max_ext) / 2, (self.domain.nelx + max_ext) / 2],
+                ylim=[(self.domain.nely - max_ext) / 2, (self.domain.nely + max_ext) / 2],
+                zlim=[(self.domain.nelz - max_ext) / 2, (self.domain.nelz + max_ext) / 2],
+            )
         else:
             ax = self.fig.axes[0]
 
-        if hasattr(self, 'fac'):
+        if hasattr(self, "fac"):
             for i, f in self.fac.items():
                 f.remove()
 
-        self.fac = ax.voxels(sel, facecolors=colors, linewidth=0.5, edgecolors='k')
+        self.fac = ax.voxels(sel, facecolors=colors, linewidth=0.5, edgecolors="k")
 
 
 class PlotGraph(FigModule):
-    """ Plot an X-Y graph
+    """Plot an X-Y graph
 
     Input Signals:
       - ``x`` (`numpy.ndarray`): X-values
@@ -166,12 +178,12 @@ class PlotGraph(FigModule):
 
     def __call__(self, x, *ys):
         self._init_fig()
-        if not hasattr(self, 'ax'):
+        if not hasattr(self, "ax"):
             self.ax = self.fig.add_subplot(111)
             self.ax.set_xlabel(self.sig_in[0].tag)
             self.ax.set_ylabel(self.sig_in[1].tag)
 
-        if not hasattr(self, 'line'):
+        if not hasattr(self, "line"):
             self.line = []
             for i, s in enumerate(self.sig_in[1:]):
                 if self.style is None:
@@ -187,13 +199,13 @@ class PlotGraph(FigModule):
             ymin, ymax = min(ymin, np.min(y)), max(ymax, np.max(y))
         self.ax.set_xlim([np.min(x), np.max(x)])
         dy = ymax - ymin
-        self.ax.set_ylim([ymin-0.05*dy, ymax+0.05*dy])
+        self.ax.set_ylim([ymin - 0.05 * dy, ymax + 0.05 * dy])
 
         self._update_fig()
 
 
 class PlotIter(FigModule):
-    """ Plot iteration history of one or more variables
+    """Plot iteration history of one or more variables
 
     Input Signals:
       - ``*args`` (`Numeric` or `numpy.ndarray`): Y-values to show for each iteration
@@ -205,32 +217,33 @@ class PlotIter(FigModule):
         show (bool): Show the figure on the screen
         ylim: Provide y-axis limits for the plot
     """
+
     def __init__(self, ylim=None, log_scale=False, **kwargs):
-        self.minlim = 1e+200
-        self.maxlim = -1e+200
+        self.minlim = 1e200
+        self.maxlim = -1e200
         self.ylim = ylim
         self.log_scale = log_scale
         super().__init__(**kwargs)
 
     def __call__(self, *args):
         self._init_fig()
-        if not hasattr(self, 'ax'):
+        if not hasattr(self, "ax"):
             self.ax = self.fig.add_subplot(111)
-            self.ax.set_yscale('linear' if not self.log_scale else 'log')
+            self.ax.set_yscale("linear" if not self.log_scale else "log")
             self.ax.set_xlabel("Iteration")
 
-        if not hasattr(self, 'line'):
+        if not hasattr(self, "line"):
             self.line = []
             for i, s in enumerate(self.sig_in):
                 self.line.append(None)
-                self.line[i], = self.ax.plot([], [], '.', label=s.tag)
+                (self.line[i],) = self.ax.plot([], [], ".", label=s.tag)
                 self.ax.legend()
 
         for i, xx in enumerate(args):
             try:
                 xadd = xx.reshape(xx.size)
                 self.line[i].set_ydata(np.concatenate([self.line[i].get_ydata(), xadd]))
-                self.line[i].set_xdata(np.concatenate([self.line[i].get_xdata(), self.iter*np.ones_like(xadd)]))
+                self.line[i].set_xdata(np.concatenate([self.line[i].get_xdata(), self.iter * np.ones_like(xadd)]))
             except AttributeError:  # In case xx is not numpy, it doesn't have "reshape" nor "size" attributes
                 xadd = xx
                 self.line[i].set_ydata(np.append(self.line[i].get_ydata(), xadd))
@@ -239,30 +252,30 @@ class PlotIter(FigModule):
             self.minlim = min(self.minlim, np.min(xadd))
             self.maxlim = max(self.maxlim, np.max(xadd))
 
-        self.ax.set_xlim([-0.5, self.iter+0.5])
+        self.ax.set_xlim([-0.5, self.iter + 0.5])
         if self.ylim is not None:
             self.ax.set_ylim(self.ylim)
         elif np.isfinite(self.minlim) and np.isfinite(self.maxlim):
             if self.log_scale:
-                dy = (np.log10(self.maxlim) - np.log10(self.minlim))*0.05
-                ll = 10**(np.log10(self.minlim) - dy)
-                ul = 10**(np.log10(self.maxlim) + dy)
+                dy = (np.log10(self.maxlim) - np.log10(self.minlim)) * 0.05
+                ll = 10 ** (np.log10(self.minlim) - dy)
+                ul = 10 ** (np.log10(self.maxlim) + dy)
             else:
-                dy = (self.maxlim - self.minlim)*0.05
+                dy = (self.maxlim - self.minlim) * 0.05
                 ll = self.minlim - dy
                 ul = self.maxlim + dy
 
             if ll == ul:
                 dy = abs(np.nextafter(abs(ll), 1) - abs(ll))
-                ll = ll - 1e5*dy
-                ul = ul + 1e5*dy
+                ll = ll - 1e5 * dy
+                ul = ul + 1e5 * dy
             self.ax.set_ylim([ll, ul])
 
         self._update_fig()
 
 
 class WriteToVTI(Module):
-    """ Writes vectors to a Paraview VTI file
+    """Writes vectors to a Paraview VTI file
 
     See also: :attr:`DomainDefinition.write_to_vti()`
 
@@ -280,7 +293,8 @@ class WriteToVTI(Module):
         overwrite (bool): Write a new file for each iteration
         scale (float): Scaling factor for the domain
     """
-    def __init__(self, domain: DomainDefinition, saveto: str, overwrite: bool = False, scale=1.):
+
+    def __init__(self, domain: DomainDefinition, saveto: str, overwrite: bool = False, scale=1.0):
         self.domain = domain
         self.saveto = saveto
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
@@ -298,13 +312,13 @@ class WriteToVTI(Module):
         if self.overwrite:
             filen = pth[0] + pth[1]
         else:
-            filen = pth[0] + '.{0:04d}'.format(self.iter) + pth[1]
+            filen = pth[0] + ".{0:04d}".format(self.iter) + pth[1]
         self.domain.write_to_vti(data, filename=filen, scale=self.scale)
         self.iter += 1
 
 
 class ScalarToFile(Module):
-    """ Writes iteration data to a log file
+    """Writes iteration data to a log file
 
     This function can also handle small vectors of scalars, i.e. eigenfrequencies or multiple constraints.
 
@@ -316,13 +330,14 @@ class ScalarToFile(Module):
         fmt (optional): Value format (e.g. 'e', 'f', '.3e', '.5g', '.3f')
         separator (optional): Value separator, .csv files will automatically use a comma
     """
-    def __init__(self, saveto: str, fmt: str = '.10e', separator: str = '\t'):
+
+    def __init__(self, saveto: str, fmt: str = ".10e", separator: str = "\t"):
         self.saveto = saveto
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
         self.iter = 0
 
         # Test the format
-        3.14.__format__(fmt)
+        (3.14).__format__(fmt)
         self.format = fmt
 
         self.separator = "," if ".csv" in self.saveto else separator
@@ -331,9 +346,9 @@ class ScalarToFile(Module):
         tags = [] if self.iter == 0 else None
 
         # Add iteration as first column
-        dat = [self.iter.__format__('d')]
+        dat = [self.iter.__format__("d")]
         if tags is not None:
-            tags.append('Iteration')
+            tags.append("Iteration")
 
         if self.sig_in is None:
             raise NotImplementedError("Only for signals as inputs")
@@ -341,7 +356,7 @@ class ScalarToFile(Module):
         # Add all signals
         for s in self.sig_in:
             if np.size(np.asarray(s.state)) > 1:
-                it = np.nditer(s.state, flags=['multi_index'])
+                it = np.nditer(s.state, flags=["multi_index"])
                 while not it.finished:
                     dat.append(it.value.__format__(self.format))
                     if tags is not None:

@@ -9,8 +9,15 @@ from .matrix_checks import matrix_is_diagonal, matrix_is_sparse, matrix_is_hermi
 
 
 # flake8: noqa: C901
-def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertriangular=None,
-                          ishermitian=None, issymmetric=None, ispositivedefinite=None):
+def auto_determine_solver(
+    A,
+    isdiagonal=None,
+    islowertriangular=None,
+    isuppertriangular=None,
+    ishermitian=None,
+    issymmetric=None,
+    ispositivedefinite=None,
+):
     """
     Uses parts of Matlab's scheme https://nl.mathworks.com/help/matlab/ref/mldivide.html
     :param A: The matrix
@@ -43,19 +50,31 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
     if islowertriangular is None:  # Check if matrix is lower triangular
         islowertriangular = False if issparse else np.allclose(A, np.tril(A))
     if islowertriangular:
-        warnings.WarningMessage("Lower triangular solver not implemented",
-                                UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
+        warnings.WarningMessage(
+            "Lower triangular solver not implemented",
+            UserWarning,
+            getframeinfo(currentframe()).filename,
+            getframeinfo(currentframe()).lineno,
+        )
 
     if isuppertriangular is None:  # Check if matrix is upper triangular
         isuppertriangular = False if issparse else np.allclose(A, np.triu(A))
     if isuppertriangular:
-        warnings.WarningMessage("Upper triangular solver not implemented",
-                                UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
+        warnings.WarningMessage(
+            "Upper triangular solver not implemented",
+            UserWarning,
+            getframeinfo(currentframe()).filename,
+            getframeinfo(currentframe()).lineno,
+        )
 
     ispermutedtriangular = False
     if ispermutedtriangular:
-        warnings.WarningMessage("Permuted triangular solver not implemented",
-                                UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
+        warnings.WarningMessage(
+            "Permuted triangular solver not implemented",
+            UserWarning,
+            getframeinfo(currentframe()).filename,
+            getframeinfo(currentframe()).lineno,
+        )
 
     # Check if the matrix is complex-valued
     iscomplex = np.iscomplexobj(A)
@@ -81,7 +100,9 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
         # Prefer Intel Pardiso solver as it can solve any matrix TODO: Check for complex matrix
         if SolverSparsePardiso.defined and not iscomplex:
             # TODO check for positive definiteness?  np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0)
-            return SolverSparsePardiso(symmetric=issymmetric, hermitian=ishermitian, positive_definite=ispositivedefinite)
+            return SolverSparsePardiso(
+                symmetric=issymmetric, hermitian=ishermitian, positive_definite=ispositivedefinite
+            )
 
         if ishermitian:
             # Check if diagonal is all positive or all negative -> Cholesky

@@ -17,19 +17,21 @@ except ImportError as e:
 
 
 class AutoMod(Module):
-    """ Module that automatically differentiates the response function """
+    """Module that automatically differentiates the response function"""
 
-    def __init__(self, func: Callable, backend='autograd'):
-        if 'autograd' in backend.lower():
+    def __init__(self, func: Callable, backend="autograd"):
+        if "autograd" in backend.lower():
             if autograd is None:
                 raise ImportError(
-                    f"Could not create this object, as dependency \"autograd\" cannot be found on this system. "
-                    f"Import failed with error: {_autograd_error}")
-        elif 'jax' in backend.lower():
+                    f'Could not create this object, as dependency "autograd" cannot be found on this system. '
+                    f"Import failed with error: {_autograd_error}"
+                )
+        elif "jax" in backend.lower():
             if jax is None:
                 raise ImportError(
-                    f"Could not create this object, as dependency \"jax\" cannot be found on this system. "
-                    f"Import failed with error: {_jax_error}")
+                    f'Could not create this object, as dependency "jax" cannot be found on this system. '
+                    f"Import failed with error: {_jax_error}"
+                )
         else:
             raise ValueError("Only `autograd` or `jax` are supported as backends")
         self.func = func
@@ -37,11 +39,11 @@ class AutoMod(Module):
 
     def __call__(self, *args):
         # Calculate the response and tangent operator (JAX Vector-Jacobian product)
-        if 'autograd' in self.backend.lower():
-            if not hasattr(self, 'vjp_generator'):
+        if "autograd" in self.backend.lower():
+            if not hasattr(self, "vjp_generator"):
                 self.vjp_generator = autograd.make_vjp(self.func, list(range(len(args))))
             self.vjp_fn, y = self.vjp_generator(*args)
-        elif 'jax' in self.backend.lower():
+        elif "jax" in self.backend.lower():
             y, self.vjp_fn = jax.vjp(self.func, *args)
         return y
 

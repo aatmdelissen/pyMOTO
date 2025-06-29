@@ -1,4 +1,5 @@
-""" Assembly modules for finite element analysis """
+"""Assembly modules for finite element analysis"""
+
 import sys
 from typing import Union
 
@@ -14,7 +15,7 @@ except ModuleNotFoundError:
 
 
 class AssembleGeneral(Module):
-    r""" Assembles a sparse matrix according to element scaling :math:`\mathbf{A} = \sum_e x_e \mathbf{A}_e`
+    r"""Assembles a sparse matrix according to element scaling :math:`\mathbf{A} = \sum_e x_e \mathbf{A}_e`
 
     Each element matrix is scaled and with the scaling parameter of that element
     :math:`\mathbf{A} = \sum_e x_e \mathbf{A}_e`.
@@ -39,8 +40,15 @@ class AssembleGeneral(Module):
         add_constant (optional): A constant (e.g. matrix) to add.
     """
 
-    def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray, bc=None, bcdiagval=None,
-                 matrix_type=csc_matrix, add_constant=None):
+    def __init__(
+        self,
+        domain: DomainDefinition,
+        element_matrix: np.ndarray,
+        bc=None,
+        bcdiagval=None,
+        matrix_type=csc_matrix,
+        add_constant=None,
+    ):
         self.elmat = element_matrix
         self.ndof = self.elmat.shape[-1] // domain.elemnodes  # Number of dofs per node
         self.n = self.ndof * domain.nnodes  # Matrix size
@@ -49,7 +57,7 @@ class AssembleGeneral(Module):
         self.dofconn = domain.get_dofconnectivity(self.ndof)
 
         # Row and column indices for the matrix
-        self.rows = np.kron(self.dofconn, np.ones((1, domain.elemnodes*self.ndof), dtype=int)).flatten()
+        self.rows = np.kron(self.dofconn, np.ones((1, domain.elemnodes * self.ndof), dtype=int)).flatten()
         self.cols = np.kron(self.dofconn, np.ones((domain.elemnodes * self.ndof, 1), dtype=int)).flatten()
         self.matrix_type = matrix_type
 
@@ -76,16 +84,18 @@ class AssembleGeneral(Module):
         # Set boundary conditions
         if self.bc is not None:
             # Remove entries that correspond to bc before initializing
-            mat_values = np.concatenate((scaled_el[self.bcselect], self.bcdiagval*np.ones(len(self.bc))))
+            mat_values = np.concatenate((scaled_el[self.bcselect], self.bcdiagval * np.ones(len(self.bc))))
         else:
             mat_values = scaled_el
 
         try:
             mat = self.matrix_type((mat_values, (self.bcrows, self.bccols)), shape=(self.n, self.n))
         except TypeError as e:
-            raise type(e)(str(e) + "\n\tInvalid matrix_type={}. Either scipy.sparse.cscmatrix or "
-                                   "scipy.sparse.csrmatrix are supported"
-                          .format(self.matrix_type)).with_traceback(sys.exc_info()[2]) from None
+            raise type(e)(
+                str(e)
+                + "\n\tInvalid matrix_type={}. Either scipy.sparse.cscmatrix or "
+                "scipy.sparse.csrmatrix are supported".format(self.matrix_type)
+            ).with_traceback(sys.exc_info()[2]) from None
 
         if self.add_constant is not None:
             mat += self.add_constant
@@ -100,7 +110,7 @@ class AssembleGeneral(Module):
         dx = np.zeros_like(self.sig_in[0].state)
         if isinstance(dgdmat, np.ndarray):
             for i in range(len(dx)):
-                indu, indv = np.meshgrid(self.dofconn[i], self.dofconn[i], indexing='ij')
+                indu, indv = np.meshgrid(self.dofconn[i], self.dofconn[i], indexing="ij")
                 dxi = einsum("ij,ij->", self.elmat, dgdmat[indu, indv])
                 dx[i] = np.real(dxi) if np.isrealobj(dx) else dxi
         elif isinstance(dgdmat, DyadCarrier):
@@ -110,7 +120,7 @@ class AssembleGeneral(Module):
 
 
 def get_B(dN_dx, voigt=True):
-    """ Gets the strain-displacement relation (Cook, eq 3.1-9, P.80)
+    """Gets the strain-displacement relation (Cook, eq 3.1-9, P.80)
 
       - 1D : [ε_x]_i = B [u]_i
       - 2D : [ε_x; ε_y; γ_xy]_i = B [u, v]_i
@@ -125,40 +135,47 @@ def get_B(dN_dx, voigt=True):
         B strain-displacement relation of size (#strains x #shapefn.*#dimensions)
     """
     n_dim, n_shapefn = dN_dx.shape
-    n_strains = int((n_dim * (n_dim+1))/2)  # Triangular number: ndim=3 -> nstrains = 3+2+1
-    B = np.zeros((n_strains, n_shapefn*n_dim), dtype=dN_dx.dtype)
+    n_strains = int((n_dim * (n_dim + 1)) / 2)  # Triangular number: ndim=3 -> nstrains = 3+2+1
+    B = np.zeros((n_strains, n_shapefn * n_dim), dtype=dN_dx.dtype)
     if n_dim == 1:
         for i in range(n_shapefn):
             B[i, 0] = dN_dx[i, 0]
     elif n_dim == 2:
         for i in range(n_shapefn):
-            B[:, i*n_dim:(i+1)*n_dim] = np.array([[dN_dx[0, i], 0],
-                                                  [0,           dN_dx[1, i]],
-                                                  [dN_dx[1, i], dN_dx[0, i]]])
+            B[:, i * n_dim : (i + 1) * n_dim] = np.array(
+                [[dN_dx[0, i], 0], [0, dN_dx[1, i]], [dN_dx[1, i], dN_dx[0, i]]]
+            )
     elif n_dim == 3:
         for i in range(n_shapefn):
             if voigt:
-                B[:, i*n_dim:(i+1)*n_dim] = np.array([[dN_dx[0, i], 0,           0],
-                                                      [0,           dN_dx[1, i], 0],
-                                                      [0,           0,           dN_dx[2, i]],
-                                                      [0,           dN_dx[2, i], dN_dx[1, i]],
-                                                      [dN_dx[2, i], 0,           dN_dx[0, i]],
-                                                      [dN_dx[1, i], dN_dx[0, i], 0],
-                                                      ])
+                B[:, i * n_dim : (i + 1) * n_dim] = np.array(
+                    [
+                        [dN_dx[0, i], 0, 0],
+                        [0, dN_dx[1, i], 0],
+                        [0, 0, dN_dx[2, i]],
+                        [0, dN_dx[2, i], dN_dx[1, i]],
+                        [dN_dx[2, i], 0, dN_dx[0, i]],
+                        [dN_dx[1, i], dN_dx[0, i], 0],
+                    ]
+                )
             else:
-                B[:, i * n_dim:(i + 1) * n_dim] = np.array([[dN_dx[0, i], 0, 0],
-                                                            [0, dN_dx[1, i], 0],
-                                                            [0, 0, dN_dx[2, i]],
-                                                            [dN_dx[1, i], dN_dx[0, i], 0],
-                                                            [0, dN_dx[2, i], dN_dx[1, i]],
-                                                            [dN_dx[2, i], 0, dN_dx[0, i]]])
+                B[:, i * n_dim : (i + 1) * n_dim] = np.array(
+                    [
+                        [dN_dx[0, i], 0, 0],
+                        [0, dN_dx[1, i], 0],
+                        [0, 0, dN_dx[2, i]],
+                        [dN_dx[1, i], dN_dx[0, i], 0],
+                        [0, dN_dx[2, i], dN_dx[1, i]],
+                        [dN_dx[2, i], 0, dN_dx[0, i]],
+                    ]
+                )
     else:
         raise ValueError(f"Number of dimensions ({n_dim}) cannot be greater than 3")
     return B
 
 
-def get_D(E: float, nu: float, mode: str = 'strain'):
-    """ Get material constitutive relation for linear elasticity
+def get_D(E: float, nu: float, mode: str = "strain"):
+    """Get material constitutive relation for linear elasticity
 
     Args:
         E: Young's modulus
@@ -168,31 +185,31 @@ def get_D(E: float, nu: float, mode: str = 'strain'):
     Returns:
         Material matrix
     """
-    mu = E/(2*(1+nu))
-    lam = (E*nu) / ((1+nu)*(1-2*nu))
-    c1 = 2*mu + lam
-    if 'strain' in mode.lower():
-        return np.array([[c1,  lam, 0],
-                         [lam, c1,  0],
-                         [0,   0,   mu]])
-    elif 'stress' in mode.lower():
+    mu = E / (2 * (1 + nu))
+    lam = (E * nu) / ((1 + nu) * (1 - 2 * nu))
+    c1 = 2 * mu + lam
+    if "strain" in mode.lower():
+        return np.array([[c1, lam, 0], [lam, c1, 0], [0, 0, mu]])
+    elif "stress" in mode.lower():
         a = E / (1 - nu * nu)
-        return a*np.array([[1,  nu, 0],
-                           [nu, 1,  0],
-                           [0,  0,  (1-nu)/2]])
-    elif '3d' in mode.lower():
-        return np.array([[c1,  lam, lam, 0,  0,  0],
-                         [lam, c1,  lam, 0,  0,  0],
-                         [lam, lam, c1,  0,  0,  0],
-                         [0,   0,   0,   mu, 0,  0],
-                         [0,   0,   0,   0,  mu, 0],
-                         [0,   0,   0,   0,  0,  mu]])
+        return a * np.array([[1, nu, 0], [nu, 1, 0], [0, 0, (1 - nu) / 2]])
+    elif "3d" in mode.lower():
+        return np.array(
+            [
+                [c1, lam, lam, 0, 0, 0],
+                [lam, c1, lam, 0, 0, 0],
+                [lam, lam, c1, 0, 0, 0],
+                [0, 0, 0, mu, 0, 0],
+                [0, 0, 0, 0, mu, 0],
+                [0, 0, 0, 0, 0, mu],
+            ]
+        )
     else:
         raise ValueError("Only for plane-stress, plane-strain, or 3d")
 
 
 class AssembleStiffness(AssembleGeneral):
-    r""" Stiffness matrix assembly by scaling elements in 2D or 3D
+    r"""Stiffness matrix assembly by scaling elements in 2D or 3D
     :math:`\mathbf{K} = \sum_e x_e \mathbf{K}_e`
 
     Input Signal:
@@ -212,17 +229,25 @@ class AssembleStiffness(AssembleGeneral):
         bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
         kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
-    def __init__(self, domain: DomainDefinition, *args,
-                 e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane='strain', **kwargs):
+
+    def __init__(
+        self,
+        domain: DomainDefinition,
+        *args,
+        e_modulus: float = 1.0,
+        poisson_ratio: float = 0.3,
+        plane="strain",
+        **kwargs,
+    ):
         self.E, self.nu = e_modulus, poisson_ratio
 
         # Get material relation
-        D = get_D(self.E, self.nu, '3d' if domain.dim == 3 else plane.lower())
+        D = get_D(self.E, self.nu, "3d" if domain.dim == 3 else plane.lower())
         if domain.dim == 2:
             D *= domain.element_size[2]
 
         nnode = 2**domain.dim  # Number of nodes per element
-        ndof = nnode*domain.dim
+        ndof = nnode * domain.dim
 
         # Element stiffness matrix
         dtype = np.result_type(D, domain.element_size.dtype)
@@ -230,9 +255,9 @@ class AssembleStiffness(AssembleGeneral):
 
         # Numerical integration
         siz = domain.element_size
-        w = np.prod(siz[:domain.dim]/2)
+        w = np.prod(siz[: domain.dim] / 2)
         for n in domain.node_numbering:
-            pos = n*(siz/2)/np.sqrt(3)  # Sampling point
+            pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
             dN_dx = domain.eval_shape_fun_der(pos)
             B = get_B(dN_dx)
             self.stiffness_element += w * B.T @ D @ B  # Add contribution
@@ -241,7 +266,7 @@ class AssembleStiffness(AssembleGeneral):
 
 
 class AssembleMass(AssembleGeneral):
-    r""" Consistent mass matrix or equivalents assembly by scaling elements
+    r"""Consistent mass matrix or equivalents assembly by scaling elements
     :math:`\mathbf{M} = \sum_e x_e \mathbf{M}_e`
 
     Input Signal:
@@ -263,30 +288,39 @@ class AssembleMass(AssembleGeneral):
         **kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
 
-    def __init__(self, domain: DomainDefinition, *args, material_property: float = 1.0, ndof: int = 1,
-                 bcdiagval: float = 0.0, **kwargs):
+    def __init__(
+        self,
+        domain: DomainDefinition,
+        *args,
+        material_property: float = 1.0,
+        ndof: int = 1,
+        bcdiagval: float = 0.0,
+        **kwargs,
+    ):
         # Element mass (or equivalent) matrix
         self.el_mat = np.zeros((domain.elemnodes * ndof, domain.elemnodes * ndof))
 
         # Numerical integration
         siz = domain.element_size
-        w = np.prod(siz[:domain.dim] / 2)
+        w = np.prod(siz[: domain.dim] / 2)
         if domain.dim != 3:
-            material_property *= np.prod(siz[domain.dim:])
+            material_property *= np.prod(siz[domain.dim :])
         Nmat = np.zeros((ndof, domain.elemnodes * ndof))
 
         for n in domain.node_numbering:
             pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
             N = domain.eval_shape_fun(pos)
             for d in range(domain.elemnodes):
-                Nmat[0:ndof, ndof * d:ndof * d + ndof] = np.identity(ndof) * N[d]  # fill up shape function matrix according to ndof
+                Nmat[0:ndof, ndof * d : ndof * d + ndof] = (
+                    np.identity(ndof) * N[d]
+                )  # fill up shape function matrix according to ndof
             self.el_mat += w * material_property * Nmat.T @ Nmat  # Add contribution
 
         super().__init__(domain, self.el_mat, *args, bcdiagval=bcdiagval, **kwargs)
 
 
 class AssemblePoisson(AssembleGeneral):
-    r""" Assembly of matrix to solve Poisson equation (e.g. Thermal conductivity, Electric permittivity)
+    r"""Assembly of matrix to solve Poisson equation (e.g. Thermal conductivity, Electric permittivity)
     :math:`\mathbf{P} = \sum_e x_e \mathbf{P}_e`
 
     Input Signal:
@@ -312,12 +346,12 @@ class AssemblePoisson(AssembleGeneral):
 
         # Numerical Integration
         siz = domain.element_size
-        w = np.prod(siz[:domain.dim]/2)
+        w = np.prod(siz[: domain.dim] / 2)
         if domain.dim != 3:
-            self.material_property *= siz[domain.dim:]
+            self.material_property *= siz[domain.dim :]
 
         for n in domain.node_numbering:
-            pos = n*(siz/2)/np.sqrt(3)  # Sampling point
+            pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
             Bn = domain.eval_shape_fun_der(pos)
             self.poisson_element += w * self.material_property * Bn.T @ Bn  # Add contribution
 
@@ -325,7 +359,7 @@ class AssemblePoisson(AssembleGeneral):
 
 
 class ElementOperation(Module):
-    r""" Generic module for element-wise operations based on nodal information
+    r"""Generic module for element-wise operations based on nodal information
 
     :math:`y_e = \mathbf{B} \mathbf{u}_e`
 
@@ -339,8 +373,10 @@ class ElementOperation(Module):
 
     Args:
         domain: The domain defining element and nodal connectivity
-        element_matrix: The element operator matrix :math:`\mathbf{B}` of size ``(..., #dofs_per_element)`` or ``(..., #nodes_per_element)``
+        element_matrix: The element operator matrix :math:`\mathbf{B}` of size 
+          ``(..., #dofs_per_element)`` or ``(..., #nodes_per_element)``
     """
+
     def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
         if element_matrix.shape[-1] % domain.elemnodes != 0:
             raise IndexError(
@@ -359,7 +395,9 @@ class ElementOperation(Module):
         if self.element_matrix.shape[-1] != self.domain.elemnodes * ndof:
             # Initialize only after first call to response(), because the number of dofs may not yet be known
             em = self.element_matrix.copy()
-            assert em.shape[-1] == self.domain.elemnodes, f"Size of element matrix must match #dofs_per_element ({ndof*self.domain.elemnodes}) or #nodes_per_element ({self.domain.elemnodes})."
+            msg = (f"Size of element matrix must match #dofs_per_element ({ndof * self.domain.elemnodes})",
+                f" or #nodes_per_element ({self.domain.elemnodes}).")
+            assert em.shape[-1] == self.domain.elemnodes, msg
 
             # Element matrix is repeated for each dof
             self.element_matrix = np.zeros((ndof, *self.element_matrix.shape[:-1], ndof * self.domain.elemnodes))
@@ -370,17 +408,17 @@ class ElementOperation(Module):
             self.dofconn = self.domain.get_dofconnectivity(ndof)
 
         assert self.element_matrix.shape[-1] == ndof * self.domain.elemnodes
-        return einsum('...k, lk -> ...l', self.element_matrix, u[self.dofconn], optimize=True)
+        return einsum("...k, lk -> ...l", self.element_matrix, u[self.dofconn], optimize=True)
 
     def _sensitivity(self, dy):
-        du_el = einsum('...k, ...l -> lk', self.element_matrix, dy, optimize=True)
+        du_el = einsum("...k, ...l -> lk", self.element_matrix, dy, optimize=True)
         du = np.zeros_like(self.sig_in[0].state)
         np.add.at(du, self.dofconn, du_el)
         return du
 
 
 class Strain(ElementOperation):
-    r""" Evaluate average mechanical strains in solid elements based on deformation
+    r"""Evaluate average mechanical strains in solid elements based on deformation
 
     The strains are returned in Voigt notation.
     :math:`\mathbf{\epsilon}_e = \mathbf{B} \mathbf{u}_e`
@@ -405,29 +443,30 @@ class Strain(ElementOperation):
     Keyword Args:
         voigt: Use Voigt strain notation (2x off-diagonal strain contribution)
     """
+
     def __init__(self, domain: DomainDefinition, voigt: bool = True):
         # Numerical integration
         B = None
         siz = domain.element_size
-        w = 1/domain.elemnodes  # Average strain at the integration points
+        w = 1 / domain.elemnodes  # Average strain at the integration points
         for n in domain.node_numbering:
             pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
             dN_dx = domain.eval_shape_fun_der(pos)
-            B_add = w*get_B(dN_dx)  # Add contribution
+            B_add = w * get_B(dN_dx)  # Add contribution
             if B is None:
                 B = B_add
             else:
                 B += B_add
 
         if voigt:
-            idx_shear = np.count_nonzero(B, axis=1) == 2*domain.elemnodes  # Shear is combination of two displacements
+            idx_shear = np.count_nonzero(B, axis=1) == 2 * domain.elemnodes  # Shear is combination of two displacements
             B[idx_shear, :] *= 2  # Use engineering strain
 
         super().__init__(domain, B)
 
 
 class Stress(Strain):
-    """ Calculate the average stresses per element
+    """Calculate the average stresses per element
 
     Input Signal:
        - ``u``: Nodal vector of size ``(#dofs_per_node * #nodes)``
@@ -443,20 +482,21 @@ class Stress(Strain):
         poisson_ratio: Poisson ratio
         plane: Plane 'strain' or 'stress'
     """
-    def __init__(self, domain: DomainDefinition,
-                 e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane: str = 'strain'):
 
+    def __init__(
+        self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane: str = "strain"
+    ):
         super().__init__(domain, voigt=True)
 
         # Get material relation
-        D = get_D(e_modulus, poisson_ratio, '3d' if domain.dim == 3 else plane.lower())
+        D = get_D(e_modulus, poisson_ratio, "3d" if domain.dim == 3 else plane.lower())
         if domain.dim == 2:
             D *= domain.element_size[2]
         self.element_matrix = D @ self.element_matrix
 
 
 class ElementAverage(ElementOperation):
-    r""" Determine average value in element of input nodal values
+    r"""Determine average value in element of input nodal values
 
     Input Signal:
        - ``v``: Nodal vector of size ``(#dofs_per_node * #nodes)``
@@ -467,13 +507,14 @@ class ElementAverage(ElementOperation):
     Args:
         domain: The domain defining element and nodal connectivity
     """
+
     def __init__(self, domain: DomainDefinition):
         shapefuns = domain.eval_shape_fun(pos=np.array([0, 0, 0]))
         super().__init__(domain, shapefuns)
 
 
 class NodalOperation(Module):
-    r""" Generic module for nodal operations based on elemental information
+    r"""Generic module for nodal operations based on elemental information
 
     :math:`u_e = \mathbf{A} x_e`
 
@@ -489,29 +530,32 @@ class NodalOperation(Module):
         domain: The domain defining element and nodal connectivity
         element_matrix: The element operator matrix :math:`\mathbf{A}` of size ``(..., #dofs_per_element)``
     """
+
     def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
         if element_matrix.shape[-1] % domain.elemnodes != 0:
-            raise IndexError("Size of last dimension of element operator matrix is not compatible with mesh. "
-                             "Must be dividable by the number of nodes.")
+            raise IndexError(
+                "Size of last dimension of element operator matrix is not compatible with mesh. "
+                "Must be dividable by the number of nodes."
+            )
 
         ndof = element_matrix.shape[-1] // domain.elemnodes
 
         self.element_matrix = element_matrix
         self.dofconn = domain.get_dofconnectivity(ndof)
-        self.ndofs = ndof*domain.nnodes
+        self.ndofs = ndof * domain.nnodes
 
     def __call__(self, x):
-        dofs_el = einsum('...k, ...l -> lk', self.element_matrix, x, optimize=True)
+        dofs_el = einsum("...k, ...l -> lk", self.element_matrix, x, optimize=True)
         dofs = np.zeros(self.ndofs)
         np.add.at(dofs, self.dofconn, dofs_el)
         return dofs
 
     def _sensitivity(self, dx):
-        return einsum('...k, lk -> ...l', self.element_matrix, dx[self.dofconn], optimize=True)
+        return einsum("...k, lk -> ...l", self.element_matrix, dx[self.dofconn], optimize=True)
 
 
 class ThermoMechanical(NodalOperation):
-    r""" Determine equivalent thermo-mechanical load from design vector and elemental temperature difference
+    r"""Determine equivalent thermo-mechanical load from design vector and elemental temperature difference
 
     :math:`f_thermal = \mathbf{A} (x*t_delta)_e`
 
@@ -529,9 +573,17 @@ class ThermoMechanical(NodalOperation):
         alpha (optional): Coefficient of thermal expansion
         plane (optional): Plane 'strain' or 'stress'
     """
-    def __init__(self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, alpha: float = 1e-6, plane: str = 'strain'):
+
+    def __init__(
+        self,
+        domain: DomainDefinition,
+        e_modulus: float = 1.0,
+        poisson_ratio: float = 0.3,
+        alpha: float = 1e-6,
+        plane: str = "strain",
+    ):
         dim = domain.dim
-        D = get_D(e_modulus, poisson_ratio, '3d' if dim == 3 else plane.lower())
+        D = get_D(e_modulus, poisson_ratio, "3d" if dim == 3 else plane.lower())
         if dim == 2:
             Phi = np.array([1, 1, 0])
             D *= domain.element_size[2]
@@ -541,11 +593,11 @@ class ThermoMechanical(NodalOperation):
         # Numerical integration
         BDPhi = np.zeros(domain.elemnodes * dim)
         siz = domain.element_size
-        w = np.prod(siz[:domain.dim] / 2)
+        w = np.prod(siz[: domain.dim] / 2)
         for n in domain.node_numbering:
             pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
             dN_dx = domain.eval_shape_fun_der(pos)
             B = get_B(dN_dx)
             BDPhi += w * B.T @ D @ Phi  # Add contribution
 
-        super().__init__(domain, alpha*BDPhi)
+        super().__init__(domain, alpha * BDPhi)

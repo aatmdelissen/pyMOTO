@@ -4,6 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import spmatrix, coo_matrix
 from ..utils import _parse_to_list
+
 try:  # Import fast optimized einsum
     from opt_einsum import contract as einsum
 except ModuleNotFoundError:
@@ -11,27 +12,27 @@ except ModuleNotFoundError:
 
 
 def isdyad(x):
-    """ Checks if argument is a ``DyadCarrier`` """
+    """Checks if argument is a ``DyadCarrier``"""
     return isinstance(x, DyadCarrier)
 
 
 def isdense(x):
-    """ Checks if argument is a dense ``numpy`` array """
+    """Checks if argument is a dense ``numpy`` array"""
     return isinstance(x, np.ndarray)
 
 
 def isscalarlike(x):
-    """ Checks if argument is either a scalar, an array scalar, or a 0-dim array """
+    """Checks if argument is either a scalar, an array scalar, or a 0-dim array"""
     return np.isscalar(x) or (isdense(x) and x.ndim == 0)
 
 
 def isnullslice(x):
-    """ Checks if argument is ``:`` slice """
+    """Checks if argument is ``:`` slice"""
     return isinstance(x, slice) and x == slice(None, None, None)
 
 
 class DyadCarrier(object):
-    r""" Efficient storage for dyadic or rank-N matrix
+    r"""Efficient storage for dyadic or rank-N matrix
 
     Stores only the vectors instead of creating a full rank-N matrix
     :math:`\mathbf{A} = \sum_k^N \mathbf{u}_k\otimes\mathbf{v}_k`
@@ -51,17 +52,17 @@ class DyadCarrier(object):
         self.v = []
         self.ulen = shape[0]
         self.vlen = shape[1]
-        self.dtype = np.dtype('float64')  # Standard data type
+        self.dtype = np.dtype("float64")  # Standard data type
         self.add_dyad(u, v)
 
     @property
     def shape(self):
-        """ The shape of the matrix (nrows, ncols) """
+        """The shape of the matrix (nrows, ncols)"""
         return (self.ulen, self.vlen)
 
     @property
     def size(self):
-        """ Size of the matrix (nrows x ncols) """
+        """Size of the matrix (nrows x ncols)"""
         if self.ulen < 0 or self.vlen < 0:
             return 0
         else:
@@ -69,12 +70,12 @@ class DyadCarrier(object):
 
     @property
     def n_dyads(self):
-        """ Number of dyads stored """
+        """Number of dyads stored"""
         assert len(self.u) == len(self.v)
         return len(self.u)
 
     def add_dyad(self, u: Iterable, v: Iterable = None, fac: float = None):
-        r""" Adds a list of vectors to the dyad carrier
+        r"""Adds a list of vectors to the dyad carrier
 
         Checks for conforming sizes of `u` and `v`. The data inside the vectors are copied.
 
@@ -136,7 +137,7 @@ class DyadCarrier(object):
                 continue
 
             # Add the vectors
-            self.u.append(ui.copy() if fac is None else fac*ui)
+            self.u.append(ui.copy() if fac is None else fac * ui)
             self.v.append(vi.copy())
 
             # Update the type
@@ -156,16 +157,18 @@ class DyadCarrier(object):
         is_np_slice = isinstance(subscript[0], np.ndarray) and isinstance(subscript[1], np.ndarray)
 
         if is_np_slice and subscript[0].shape != subscript[1].shape:
-            raise IndexError(f"shape mismatch: indexing arrays could not be broadcast together "
-                             f"with shapes {subscript[0].shape} {subscript[1].shape}")
+            raise IndexError(
+                f"shape mismatch: indexing arrays could not be broadcast together "
+                f"with shapes {subscript[0].shape} {subscript[1].shape}"
+            )
 
         usub = [ui[subscript[0]] for ui in self.u]
         vsub = [vi[subscript[1]] for vi in self.v]
 
         if is_uni_slice or is_np_slice:
             res = 0
-            for (ui, vi) in zip(usub, vsub):
-                res += ui*vi
+            for ui, vi in zip(usub, vsub):
+                res += ui * vi
 
             return res
         else:
@@ -197,8 +200,7 @@ class DyadCarrier(object):
         if isscalarlike(other):
             if other == 0:
                 return self.copy()
-            raise NotImplementedError('adding a nonzero scalar from a '
-                                      'dyadcarrier is not supported')
+            raise NotImplementedError("adding a nonzero scalar from a dyadcarrier is not supported")
         elif isdyad(other):
             if other.shape != self.shape and (self.size > 0 and other.size > 0):
                 raise ValueError(f"Inconsistent shapes {self.shape} and {other.shape}")
@@ -223,8 +225,7 @@ class DyadCarrier(object):
         if isscalarlike(other):
             if other == 0:
                 return -self.copy()
-            raise NotImplementedError('subtracting a dyadcarrier from a '
-                                      'nonzero scalar  is not supported')
+            raise NotImplementedError("subtracting a dyadcarrier from a nonzero scalar  is not supported")
         elif isdense(other):
             other = np.broadcast_to(other, self.shape)
             return other - self.todense()
@@ -232,28 +233,36 @@ class DyadCarrier(object):
             return NotImplemented
 
     def __rmul__(self, other):  # other * self
-        return DyadCarrier([other*ui for ui in self.u], self.v, shape=self.shape)
+        return DyadCarrier([other * ui for ui in self.u], self.v, shape=self.shape)
 
     def __mul__(self, other):  # self * other
-        return DyadCarrier(self.u, [vi*other for vi in self.v], shape=self.shape)
+        return DyadCarrier(self.u, [vi * other for vi in self.v], shape=self.shape)
 
     def copy(self):
-        """ Returns a deep copy of the DyadCarrier """
+        """Returns a deep copy of the DyadCarrier"""
         return DyadCarrier(self.u, self.v, shape=self.shape)
 
     def conj(self):
-        """ Returns (a deep copied) complex conjugate of the DyadCarrier """
+        """Returns (a deep copied) complex conjugate of the DyadCarrier"""
         return DyadCarrier([u.conj() for u in self.u], [v.conj() for v in self.v], shape=self.shape)
 
     @property
     def real(self):
-        """ Returns a deep copy of the real part of the DyadCarrier """
-        return DyadCarrier([*[u.real for u in self.u], *[-u.imag for u in self.u]], [*[v.real for v in self.v], *[v.imag for v in self.v]], shape=self.shape)
+        """Returns a deep copy of the real part of the DyadCarrier"""
+        return DyadCarrier(
+            [*[u.real for u in self.u], *[-u.imag for u in self.u]],
+            [*[v.real for v in self.v], *[v.imag for v in self.v]],
+            shape=self.shape,
+        )
 
     @property
     def imag(self):
-        """ Returns a deep copy of the imaginary part of the DyadCarrier """
-        return DyadCarrier([*[u.real for u in self.u], *[u.imag for u in self.u]], [*[v.imag for v in self.v], *[v.real for v in self.v]], shape=self.shape)
+        """Returns a deep copy of the imaginary part of the DyadCarrier"""
+        return DyadCarrier(
+            [*[u.real for u in self.u], *[u.imag for u in self.u]],
+            [*[v.imag for v in self.v], *[v.real for v in self.v]],
+            shape=self.shape,
+        )
 
     def min(self):
         minval = 0.0
@@ -273,7 +282,7 @@ class DyadCarrier(object):
 
     # flake8: noqa: C901
     def contract(self, mat: Union[NDArray, spmatrix] = None, rows: NDArray[int] = None, cols: NDArray[int] = None):
-        r""" Performs a number of contraction operations using the DyadCarrier
+        r"""Performs a number of contraction operations using the DyadCarrier
 
         Calculates the result(s) of the quadratic form:
         :math:`y = \sum_k \mathbf{u}_k^{\text{T}} \mathbf{B} \mathbf{v}_k`
@@ -344,9 +353,9 @@ class DyadCarrier(object):
             Contraction result
         """
 
-        rowvar = 'i'
-        colvar = 'i' if mat is None else 'j'
-        matvar = 'ij'
+        rowvar = "i"
+        colvar = "i" if mat is None else "j"
+        matvar = "ij"
 
         # Batch variables
         isbatchmat = mat is not None and mat.ndim > 2
@@ -379,7 +388,7 @@ class DyadCarrier(object):
             return val
 
         # Continue in batch mode
-        batchvar = ''.join([chr(i+65) for i in range(len(batchsize))])
+        batchvar = "".join([chr(i + 65) for i in range(len(batchsize))])
 
         if isbatchmat:
             matvar = batchvar + matvar
@@ -391,7 +400,7 @@ class DyadCarrier(object):
             colvar = batchvar + colvar
 
         exprvars = (rowvar, colvar) if mat is None else (rowvar, matvar, colvar)
-        expr = ','.join(exprvars) + '->' + batchvar
+        expr = ",".join(exprvars) + "->" + batchvar
 
         val = 0.0 if batchsize is None else np.zeros(batchsize, dtype=np.result_type(mat, self.dtype))
         for ui, vi in zip(self.u, self.v):
@@ -403,7 +412,7 @@ class DyadCarrier(object):
         return val
 
     def contract_multi(self, mats: List[spmatrix], dtype=None):
-        """ Faster version of contraction for a list of sparse matrices """
+        """Faster version of contraction for a list of sparse matrices"""
         if dtype is None:
             dtype = np.result_type(self.dtype, mats[0].dtype)
         val = np.zeros(len(mats), dtype=dtype)
@@ -421,18 +430,21 @@ class DyadCarrier(object):
                     if not isinstance(m, coo_matrix):
                         warnings.warn("Inefficiency: Matrix must be converted to coo_matrix for contraction")
                     mat_coo = m.tocoo()
-                    vali = np.einsum('ij,i,ij->', U[mat_coo.row, :], mat_coo.data, V[mat_coo.col, :])
+                    vali = np.einsum("ij,i,ij->", U[mat_coo.row, :], mat_coo.data, V[mat_coo.col, :])
                 except AttributeError:
                     vali = self.contract(m)
             val[i] = vali
         return val
 
     def todense(self):
-        """ Returns a full (dense) matrix from the DyadCarrier matrix """
-        warning_size = 100e+6  # Bytes
-        if (self.shape[0]*self.shape[1]*self.dtype.itemsize) > warning_size:
-            warnings.warn(f"Expanding a dyad results into a dense matrix. "
-                          f"This is not advised for large matrices {self.shape}", ResourceWarning, stacklevel=2)
+        """Returns a full (dense) matrix from the DyadCarrier matrix"""
+        warning_size = 100e6  # Bytes
+        if (self.shape[0] * self.shape[1] * self.dtype.itemsize) > warning_size:
+            warnings.warn(
+                f"Expanding a dyad results into a dense matrix. This is not advised for large matrices {self.shape}",
+                ResourceWarning,
+                stacklevel=2,
+            )
 
         val = np.zeros((max(0, self.shape[0]), max(0, self.shape[1])), dtype=self.dtype)
 
@@ -442,21 +454,21 @@ class DyadCarrier(object):
         return val
 
     def toarray(self):
-        """ Convert to array, same as todense(). To be consistent with scipy.sparse """
+        """Convert to array, same as todense(). To be consistent with scipy.sparse"""
         return self.todense()
 
     def iscomplex(self):
-        """ Check if the DyadCarrier is of complex type """
+        """Check if the DyadCarrier is of complex type"""
         return np.iscomplexobj(np.array([], dtype=self.dtype))
 
     def diagonal(self, k: int = 0):
-        """ Returns the diagonal of the DyadCarrier matrix """
+        """Returns the diagonal of the DyadCarrier matrix"""
         if (self.shape[0] == 0) or (self.shape[1] == 0):
             return np.zeros(0, dtype=self.dtype)
 
         ustart = max(0, -k)
-        vstart = max(0,  k)
-        n = min(self.shape[0]-ustart, self.shape[1]-vstart)
+        vstart = max(0, k)
+        n = min(self.shape[0] - ustart, self.shape[1] - vstart)
 
         if n < 0:
             return np.zeros(0, dtype=self.dtype)
@@ -464,21 +476,21 @@ class DyadCarrier(object):
         diag = np.zeros(n, dtype=self.dtype)
 
         for ui, vi in zip(self.u, self.v):
-            diag += ui[ustart:ustart+n] * vi[vstart:vstart+n]
+            diag += ui[ustart : ustart + n] * vi[vstart : vstart + n]
 
         return diag
 
     @property
     def T(self):
-        """ Shorthand transpose (returns deep copy) """
+        """Shorthand transpose (returns deep copy)"""
         return self.transpose()
 
     def transpose(self):
-        """ Returns a deep copy of the transposed DyadCarrier matrix"""
+        """Returns a deep copy of the transposed DyadCarrier matrix"""
         return DyadCarrier(self.v, self.u, shape=(self.shape[1], self.shape[0]))
 
     def dot(self, other):
-        """ Inner product """
+        """Inner product"""
         return self.__dot__(other)
 
     def __dot__(self, other):  # self.dot(other)
@@ -503,9 +515,9 @@ class DyadCarrier(object):
         if other.ndim == 1:
             return self.__dot__(other)
 
-        return DyadCarrier(self.u, [vi@other for vi in self.v], shape=(self.shape[0], other.shape[1]))
+        return DyadCarrier(self.u, [vi @ other for vi in self.v], shape=(self.shape[0], other.shape[1]))
 
     def __rmatmul__(self, other):  # other @ self
         if other.ndim == 1:
             return self.__rdot__(other)
-        return DyadCarrier([other@ui for ui in self.u], self.v, shape=(other.shape[0], self.shape[1]))
+        return DyadCarrier([other @ ui for ui in self.u], self.v, shape=(other.shape[0], self.shape[1]))

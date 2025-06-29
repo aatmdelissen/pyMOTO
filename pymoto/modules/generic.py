@@ -1,7 +1,9 @@
-""" Generic modules, valid for general mathematical operations """
+"""Generic modules, valid for general mathematical operations"""
+
 import numpy as np
 from pymoto.core_objects import Module
 from pymoto.utils import _concatenate_to_array, _split_from_array
+
 try:
     from opt_einsum import contract as einsum  # Faster einsum
 except ModuleNotFoundError:
@@ -9,7 +11,7 @@ except ModuleNotFoundError:
 
 
 class MathGeneral(Module):
-    """ General mathematical expression module
+    """General mathematical expression module
 
     This block can evaluate symbolic mathematical expressions. The derivatives are automatically calculated using
     ``sympy``. Variables in this expression can be given by using the signal's global name (:attr:`Signal.tag`), or by
@@ -49,6 +51,7 @@ class MathGeneral(Module):
     References:
       - `Sympy documentation <https://docs.sympy.org/latest/index.html>`_
     """
+
     def __init__(self, expression):
         self.expression = expression
 
@@ -64,7 +67,9 @@ class MathGeneral(Module):
         # Variables
         var_names = []
         for i in range(len(self.sig_in)):
-            var_names += ["inp{}".format(i), ]
+            var_names += [
+                "inp{}".format(i),
+            ]
 
         # Named variables <RHO, X, ...> are converted to <sig0, sig1, ...>
         trn = {}
@@ -85,7 +90,7 @@ class MathGeneral(Module):
         self.df = lambdify(var_names, dx, "numpy")
 
     def __call__(self, *args):
-        if not hasattr(self, 'f'):
+        if not hasattr(self, "f"):
             self.parse_expression()
 
         self.x = args
@@ -107,13 +112,13 @@ class MathGeneral(Module):
 
         # Sum if input is scalar
         for i, sig in enumerate(self.sig_in):
-            dg_dx_add = df_dy*dg_df[i]
+            dg_dx_add = df_dy * dg_df[i]
             if np.isrealobj(dg_dx[i]) and np.iscomplexobj(dg_dx_add):
                 dg_dx_add = np.real(dg_dx_add)
 
             # Add the contribution according to broadcasting rules of NumPy
             # https://numpy.org/doc/stable/user/basics.broadcasting.html
-            if (not hasattr(dg_dx[i], '__len__')) or (hasattr(dg_dx[i], 'ndim') and dg_dx[i].ndim == 0):
+            if (not hasattr(dg_dx[i], "__len__")) or (hasattr(dg_dx[i], "ndim") and dg_dx[i].ndim == 0):
                 # Scalar type or 0-dimensional array
                 dg_dx[i] += np.sum(dg_dx_add)
             elif dg_dx[i].shape != dg_dx_add.shape:
@@ -121,8 +126,8 @@ class MathGeneral(Module):
                 n_leading_dims = dg_dx_add.ndim - dg_dx[i].ndim
                 broadcasted_dims = tuple(range(n_leading_dims))
                 for ii in range(dg_dx_add.ndim - n_leading_dims):
-                    if dg_dx[i].shape[ii] == 1 and dg_dx_add.shape[ii+n_leading_dims] != 1:
-                        broadcasted_dims = (*broadcasted_dims, n_leading_dims+ii)
+                    if dg_dx[i].shape[ii] == 1 and dg_dx_add.shape[ii + n_leading_dims] != 1:
+                        broadcasted_dims = (*broadcasted_dims, n_leading_dims + ii)
 
                 dg_dx_add1 = np.add.reduce(dg_dx_add, axis=broadcasted_dims, keepdims=True)  # Sum broadcasted axis
                 dg_dx[i] += np.squeeze(dg_dx_add1, axis=tuple(range(n_leading_dims)))  # Squeeze out singleton axis
@@ -134,7 +139,7 @@ class MathGeneral(Module):
 
 
 class EinSum(Module):
-    """ General linear algebra module which uses the Numpy function ``einsum``
+    """General linear algebra module which uses the Numpy function ``einsum``
 
     Many linear algebra multiplications can be implemented using this module:
 
@@ -174,11 +179,12 @@ class EinSum(Module):
       - `EinStein summation in Numpy <https://obilaniu6266h16.wordpress.com/2016/02/04/einstein-summation-in-numpy/>`_
       - `Optimized Einsum opt_einsum <https://optimized-einsum.readthedocs.io/en/stable/>`_
     """
+
     def __init__(self, expression: str):
         self.expr = expression
         cmd = self.expr.split("->")
         self.indices_in = [s.strip() for s in cmd[0].split(",")]
-        self.indices_out = cmd[1] if "->" in self.expr else ''
+        self.indices_out = cmd[1] if "->" in self.expr else ""
 
     def __call__(self, *args):
         return einsum(self.expr, *args, optimize=True)
@@ -187,15 +193,13 @@ class EinSum(Module):
         inps = self.get_input_states(as_list=True)
         n_in = len(inps)
 
-        if (self.indices_out == '') and n_in == 1:
+        if (self.indices_out == "") and n_in == 1:
             # In case expression has only one input and scalar output, e.g. "i->", "ij->", the output size cannot
             # be deducted. Therefore, we add these exceptions
             if len(set(self.indices_in[0])) < len(self.indices_in[0]):
                 # exception for repeated indices (e.g. trace, diagonal summing)
                 if inps[0].ndim > 2:
-                    raise TypeError(
-                        "Sensitivities for repeated incides '{}' not supported for any other than trace 'ii->'."
-                        .format(self.expr))
+                    raise NotImplementedError(f"Sensitivities for repeated incides in '{self.expr}' not supported.")
                 mat = np.zeros_like(inps[0])
                 np.fill_diagonal(mat, 1.0)
             else:
@@ -204,8 +208,7 @@ class EinSum(Module):
 
         for ind_in in self.indices_in:
             if len(set(ind_in)) < len(ind_in):
-                raise TypeError("Sensitivities for repeated incides '{}' not supported for any other than trace 'ii->'."
-                                .format(self.expr))
+                raise NotImplementedError(f"Sensitivities for repeated incides in '{self.expr}' not supported.")
 
         df_out = []
         for ar in range(n_in):
@@ -215,9 +218,9 @@ class EinSum(Module):
             arg_complex = [np.iscomplexobj(v) for i, v in enumerate(inps) if i != ar]
             ind_out = self.indices_in[ar]
 
-            op = ",".join(ind_in)+"->"+ind_out
+            op = ",".join(ind_in) + "->" + ind_out
             if not np.iscomplexobj(inps[ar]) and np.any(arg_complex) and np.iscomplexobj(df_in):
-                da_i = np.zeros_like(inps[ar])+0j
+                da_i = np.zeros_like(inps[ar]) + 0j
                 einsum(op, df_in, *arg_in, out=da_i, optimize=True)
                 da_i = da_i.real
             else:
@@ -228,7 +231,8 @@ class EinSum(Module):
 
 
 class ConcatSignal(Module):
-    """ Concatenates data of multiple signals into one big vector """
+    """Concatenates data of multiple signals into one big vector"""
+
     def __call__(self, *args):
         state, self.cumlens = _concatenate_to_array(list(args))
         return state

@@ -8,13 +8,14 @@ from .solvers import LinearSolver
 # ------------------------------------ Pardiso Solver -----------------------------------
 try:
     from pypardiso import PyPardisoSolver
+
     _has_pardiso = True
 except ImportError:
     _has_pardiso = False
 
 
 class SolverSparsePardiso(LinearSolver):
-    """ Solver wrapper Intel MKL Pardiso solver, which is a very fast and flexible multi-threaded solver
+    """Solver wrapper Intel MKL Pardiso solver, which is a very fast and flexible multi-threaded solver
 
     Complex-valued matrices are currently not supported
 
@@ -48,7 +49,7 @@ class SolverSparsePardiso(LinearSolver):
         self._pardiso_solver = None
 
     def _determine_mtype(self, A):
-        """ Determines the matrix-type according to Intel
+        """Determines the matrix-type according to Intel
 
         ``mtype``: Matrix type
           - ``1`` Real and structurally symmetric
@@ -95,7 +96,7 @@ class SolverSparsePardiso(LinearSolver):
             return 11
 
     def update(self, A):
-        """ Factorize the matrix A, the factorization will automatically be used if the same matrix A is passed to the
+        """Factorize the matrix A, the factorization will automatically be used if the same matrix A is passed to the
         solve method. This will drastically increase the speed of solve, if solve is called more than once for the
         same matrix A
 
@@ -107,9 +108,9 @@ class SolverSparsePardiso(LinearSolver):
             self._mtype = self._determine_mtype(A)
 
         if self._mtype in {-2, 2, 6}:
-            A = sps.triu(A, format='coo')  # Only use upper part
+            A = sps.triu(A, format="coo")  # Only use upper part
             # Explicitly set zero diagonal entries, as this is better for Intel Pardiso
-            zero_diag_entries, = np.where(A.diagonal() == 0)
+            (zero_diag_entries,) = np.where(A.diagonal() == 0)
             if len(zero_diag_entries) > 0:
                 A.row = np.append(A.row, zero_diag_entries)
                 A.col = np.append(A.col, zero_diag_entries)
@@ -118,7 +119,7 @@ class SolverSparsePardiso(LinearSolver):
             # assert(np.diff(A.indptr).all())  # Every row must be non-empty
             # assert(max(np.diff(A.indices[A.indptr[:-1]])))  # All diagonals must be non-empty
         if not sps.isspmatrix_csr(A):
-            warnings.warn(f'PyPardiso requires CSR matrix format, not {type(A).__name__}', SparseEfficiencyWarning)
+            warnings.warn(f"PyPardiso requires CSR matrix format, not {type(A).__name__}", SparseEfficiencyWarning)
             A = sps.csr_matrix(A)
         self.A = A
 
@@ -128,8 +129,8 @@ class SolverSparsePardiso(LinearSolver):
         self._pardiso_solver.factorize(A)
         self._pardiso_solver.set_phase(33)
 
-    def solve(self, b, x0=None, trans='N'):
-        """ solve Ax=b for x
+    def solve(self, b, x0=None, trans="N"):
+        """solve Ax=b for x
 
         Args:
             A (scipy.sparse.csr.csr_matrix): sparse square CSR matrix , CSC matrix also possible
@@ -143,9 +144,9 @@ class SolverSparsePardiso(LinearSolver):
         if b.dtype != np.float64:  # Only float64 is supported --> this is also done in _check_b, but fails for int8
             warnings.warn(f"Array b's data type was converted from {b.dtype} to float64")
             b = b.astype(np.float64)
-        if trans == 'N':
+        if trans == "N":
             return self._pardiso_solver.solve(self.A, b)
-        elif trans == 'T' or trans == 'H':
+        elif trans == "T" or trans == "H":
             # T and H are the same, because only real matrix is supported
             # Cannot use _pardiso_solver.solve because it changes flag 12 internally
             iparm_prev = self._pardiso_solver.get_iparm(12)
@@ -158,50 +159,54 @@ class SolverSparsePardiso(LinearSolver):
             raise TypeError("Only N, T, or H transposition is possible")
 
     def _print_iparm(self):
-        """ Print all iparm settings to console """
-        keys = ['Undefined' for _ in self._pardiso_solver.iparm]
-        keys[0] = 'Use default values'
-        keys[1] = 'Fill-in reducing ordering for the input matrix'
-        keys[3] = 'Preconditioned CGS/CG'
-        keys[4] = 'User permutation'
-        keys[5] = 'Write solution on x'
-        keys[6] = 'Number of iterative refinement steps performed'
-        keys[7] = 'Iterative refinement step'
-        keys[8] = 'Tolerance level for the relative residual in the iterative refinement process'
-        keys[9] = 'Pivoting perturbation'
-        keys[10] = 'Scaling vectors'
-        keys[11] = 'Solve with transposed or conjugate transposed matrix A'
-        keys[12] = 'Improved accuracy using (non-) symmetric weighted matching'
-        keys[13] = 'Number of perturbed pivots'
-        keys[14] = 'Peak memory on symbolic factorization'
-        keys[15] = 'Permanent memory on symbolic factorization'
-        keys[16] = 'Size of factors/Peak memory on numerical factorization and solution'
-        keys[17] = 'Report the number of non-zero elements in the factors'
-        keys[18] = 'Report number of floating point operations (in 10^6 floating point operations) that are necessary ' \
-                   'to factor the matrix A'
-        keys[19] = 'Report CG/CGS diagnostics'
-        keys[20] = 'Pivoting for symmetric indefinite matrices'
-        keys[21] = 'Inertia: number of positive eigenvalues'
-        keys[22] = 'Inertia: number of negative eigenvalues'
-        keys[23] = 'Parallel factorization control'
-        keys[24] = 'Parallel forward/backward solve control'
-        keys[26] = 'Matrix checker'
-        keys[27] = 'Single or double precision Intel® oneAPI Math Kernel Library PARDISO'
-        keys[29] = 'Number of zero or negative pivots'
-        keys[30] = 'Partial solve and computing selected components of the solution vectors'
-        keys[33] = 'Optimal number of OpenMP threads for conditional numerical reproducibility (CNR) mode'
-        keys[34] = 'One- or zero-based indexing of columns and rows'
-        keys[35] = 'Schur complement matrix computation control'
-        keys[36] = 'Format for matrix storage'
-        keys[37] = 'Enable low rank update to accelerate factorization for multiple matrices with identical structure ' \
-                   'and similar values'
-        keys[42] = 'Control parameter for the computation of the diagonal of inverse matrix'
-        keys[55] = 'Diagonal and pivoting control'
-        keys[59] = 'Intel® oneAPI Math Kernel Library PARDISO mode'
-        keys[62] = 'Size of the minimum OOC memory for numerical factorization and solution'
+        """Print all iparm settings to console"""
+        keys = ["Undefined" for _ in self._pardiso_solver.iparm]
+        keys[0] = "Use default values"
+        keys[1] = "Fill-in reducing ordering for the input matrix"
+        keys[3] = "Preconditioned CGS/CG"
+        keys[4] = "User permutation"
+        keys[5] = "Write solution on x"
+        keys[6] = "Number of iterative refinement steps performed"
+        keys[7] = "Iterative refinement step"
+        keys[8] = "Tolerance level for the relative residual in the iterative refinement process"
+        keys[9] = "Pivoting perturbation"
+        keys[10] = "Scaling vectors"
+        keys[11] = "Solve with transposed or conjugate transposed matrix A"
+        keys[12] = "Improved accuracy using (non-) symmetric weighted matching"
+        keys[13] = "Number of perturbed pivots"
+        keys[14] = "Peak memory on symbolic factorization"
+        keys[15] = "Permanent memory on symbolic factorization"
+        keys[16] = "Size of factors/Peak memory on numerical factorization and solution"
+        keys[17] = "Report the number of non-zero elements in the factors"
+        keys[18] = (
+            "Report number of floating point operations (in 10^6 floating point operations) that are necessary "
+            "to factor the matrix A"
+        )
+        keys[19] = "Report CG/CGS diagnostics"
+        keys[20] = "Pivoting for symmetric indefinite matrices"
+        keys[21] = "Inertia: number of positive eigenvalues"
+        keys[22] = "Inertia: number of negative eigenvalues"
+        keys[23] = "Parallel factorization control"
+        keys[24] = "Parallel forward/backward solve control"
+        keys[26] = "Matrix checker"
+        keys[27] = "Single or double precision Intel® oneAPI Math Kernel Library PARDISO"
+        keys[29] = "Number of zero or negative pivots"
+        keys[30] = "Partial solve and computing selected components of the solution vectors"
+        keys[33] = "Optimal number of OpenMP threads for conditional numerical reproducibility (CNR) mode"
+        keys[34] = "One- or zero-based indexing of columns and rows"
+        keys[35] = "Schur complement matrix computation control"
+        keys[36] = "Format for matrix storage"
+        keys[37] = (
+            "Enable low rank update to accelerate factorization for multiple matrices with identical structure "
+            "and similar values"
+        )
+        keys[42] = "Control parameter for the computation of the diagonal of inverse matrix"
+        keys[55] = "Diagonal and pivoting control"
+        keys[59] = "Intel® oneAPI Math Kernel Library PARDISO mode"
+        keys[62] = "Size of the minimum OOC memory for numerical factorization and solution"
         for i, (v, k) in enumerate(zip(self._pardiso_solver.iparm, keys)):
             if v != 0:
-                print(f"{i+1}: {v} ({k})")  # i+1 because of 1-based numbering
+                print(f"{i + 1}: {v} ({k})")  # i+1 because of 1-based numbering
 
     def __del__(self):
         try:
@@ -219,7 +224,7 @@ except ImportError:
 
 
 class SolverSparseLU(LinearSolver):
-    """ Solver for sparse (square) matrices using an LU decomposition.
+    """Solver for sparse (square) matrices using an LU decomposition.
 
     Internally, `scipy` uses the SuperLU library, which is relatively slow. It may be sped up using the Python package
     ``scikit-umfpack``, which scipy` is able to use, but must be installed by the user.
@@ -228,22 +233,23 @@ class SolverSparseLU(LinearSolver):
       - `Scipy LU <https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.lu.html>`_
       - `Scipy UMFPACK <https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.use_solver.html>`_
     """
+
     def update(self, A):
-        r"""  Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{U}`, where :math:`\mathbf{L}` is a lower
+        r"""Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{U}`, where :math:`\mathbf{L}` is a lower
         triangular matrix and :math:`\mathbf{U}` is upper triangular.
         """
         self.iscomplex = matrix_is_complex(A)
         self.inv = splu(A)
         return self
 
-    def solve(self, rhs, x0=None, trans='N'):
-        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+    def solve(self, rhs, x0=None, trans="N"):
+        r"""Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{U}^{-1}\mathbf{L}^{-1}\mathbf{b}`.
 
         Adjoint system solves the linear system of equations :math:`\mathbf{A}^\text{H}\mathbf{x} = \mathbf{b}` by
         forward and backward substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{U}^{-\text{H}}\mathbf{b}`
         """
-        if trans not in ['N', 'T', 'H']:
+        if trans not in ["N", "T", "H"]:
             raise TypeError("Only N, T, or H transposition is possible")
         return self.inv.solve(rhs, trans=trans)
 
@@ -256,13 +262,14 @@ try:  # SCIKIT CHOLMOD
     pip install scikit-sparse
     """
     from sksparse import cholmod  # Sparse cholesky solver (CHOLMOD)
+
     _has_sksparse_cholmod = True
 except ImportError:
     _has_sksparse_cholmod = False
 
 
 class SolverSparseCholeskyScikit(LinearSolver):
-    """ Solver for positive-definite Hermitian matrices using a Cholesky factorization.
+    """Solver for positive-definite Hermitian matrices using a Cholesky factorization.
 
     This solver requires the Python package ``scikit-sparse``. This package depends on the library ``suitesparse``,
     which can be more difficult to install on some systems. In case ``suitesparse`` cannot be installed,
@@ -282,14 +289,14 @@ class SolverSparseCholeskyScikit(LinearSolver):
             raise ImportError("scikit-sparse is not installed on this system")
 
     def update(self, A):
-        r""" Factorize the matrix using Cholmod. In case the matrix :math:`\mathbf{A}` is non-Hermitian, the
+        r"""Factorize the matrix using Cholmod. In case the matrix :math:`\mathbf{A}` is non-Hermitian, the
         system of equations is solved in a least-squares sense:
         :math:`\min \left| \mathbf{A}\mathbf{x} - \mathbf{b} \right|^2`.
         The solution of this minimization is
         :math:`\mathbf{x}=(\mathbf{A}^\text{H}\mathbf{A})^{-1}\mathbf{A}^\text{H}\mathbf{b}`.
         """
         self.A = A
-        if not hasattr(self, 'inv'):
+        if not hasattr(self, "inv"):
             self.inv = cholmod.analyze(A)
 
         # Do the Cholesky factorization
@@ -297,8 +304,8 @@ class SolverSparseCholeskyScikit(LinearSolver):
 
         return self
 
-    def solve(self, rhs, x0=None, trans='N'):
-        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+    def solve(self, rhs, x0=None, trans="N"):
+        r"""Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
         substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{L}^{-1}\mathbf{b}` in case of an
         Hermitian matrix.
 
@@ -306,9 +313,9 @@ class SolverSparseCholeskyScikit(LinearSolver):
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
 
         """
-        if trans not in ['N', 'T', 'H']:
+        if trans not in ["N", "T", "H"]:
             raise TypeError("Only N, T, or H transposition is possible")
-        if trans == 'T':
+        if trans == "T":
             return self.inv(rhs.conj()).conj()
         else:
             return self.inv(rhs)
@@ -318,13 +325,14 @@ class SolverSparseCholeskyScikit(LinearSolver):
 try:  # CVXOPT cholmod
     import cvxopt
     import cvxopt.cholmod
+
     _has_cvxopt_cholmod = True
 except ImportError:
     _has_cvxopt_cholmod = False
 
 
 class SolverSparseCholeskyCVXOPT(LinearSolver):
-    """ Solver for positive-definite Hermitian matrices using a Cholesky factorization.
+    """Solver for positive-definite Hermitian matrices using a Cholesky factorization.
 
     This solver requires the Python package ``cvxopt``.
 
@@ -343,7 +351,7 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
         self.inv = None
 
     def update(self, A):
-        r""" Factorize the matrix using CVXOPT's Cholmod as :math:`\mathbf{A}=\mathbf{L}\mathbf{L}^\text{H}`. """
+        r"""Factorize the matrix using CVXOPT's Cholmod as :math:`\mathbf{A}=\mathbf{L}\mathbf{L}^\text{H}`."""
         if not isinstance(A, cvxopt.spmatrix):
             if not isinstance(A, sps.coo_matrix):
                 Kcoo = sps.coo_matrix(A)
@@ -362,14 +370,16 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
 
         return self
 
-    def solve(self, rhs, x0=None, trans='N'):
-        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
-        substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{L}^{-1}\mathbf{b}`. """
-        if trans not in ['N', 'T', 'H']:
+    def solve(self, rhs, x0=None, trans="N"):
+        r"""Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by forward and backward
+        substitution of :math:`\mathbf{x} = \mathbf{L}^{-\text{H}}\mathbf{L}^{-1}\mathbf{b}`."""
+        if trans not in ["N", "T", "H"]:
             raise TypeError("Only N, T, or H transposition is possible")
         if rhs.dtype != self._dtype:
-            warnings.warn(f"{type(self).__name__}: Type warning: rhs value type ({rhs.dtype}) is converted to {self._dtype}")
-        if trans == 'T':
+            warnings.warn(
+                f"{type(self).__name__}: Type warning: rhs value type ({rhs.dtype}) is converted to {self._dtype}"
+            )
+        if trans == "T":
             B = cvxopt.matrix(rhs.conj().astype(self._dtype))
         else:
             B = cvxopt.matrix(rhs.astype(self._dtype))
@@ -378,4 +388,4 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
         cvxopt.cholmod.solve(self.inv, B, nrhs=nrhs)
 
         x = np.array(B).flatten() if rhs.ndim == 1 else np.array(B)
-        return x.conj() if trans == 'T' else x
+        return x.conj() if trans == "T" else x

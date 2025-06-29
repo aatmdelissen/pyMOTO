@@ -4,7 +4,7 @@ from .matrix_checks import matrix_is_hermitian, matrix_is_symmetric, matrix_is_c
 
 
 class LinearSolver:
-    """ Base class of all linear solvers
+    """Base class of all linear solvers
 
     Keyword Args:
         A (matrix): Optionally provide a matrix, which is used in :method:`update` right away.
@@ -21,7 +21,7 @@ class LinearSolver:
             self.update(A)
 
     def update(self, A):
-        """ Updates with a new matrix of the same structure
+        """Updates with a new matrix of the same structure
 
         Args:
             A (matrix): The new matrix of size ``(N, N)``
@@ -31,8 +31,8 @@ class LinearSolver:
         """
         raise NotImplementedError(f"Solver not implemented {self._err_msg}")
 
-    def solve(self, rhs, x0=None, trans='N'):
-        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}`
+    def solve(self, rhs, x0=None, trans="N"):
+        r"""Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}`
 
         Args:
             rhs: Right hand side :math:`\mathbf{b}` of shape ``(N)`` or ``(N, K)`` for multiple right-hand-sides
@@ -48,8 +48,8 @@ class LinearSolver:
         raise NotImplementedError(f"Solver not implemented {self._err_msg}")
 
     @staticmethod
-    def residual(A, x, b, trans='N'):
-        r""" Calculates the (relative) residual of the linear system of equations
+    def residual(A, x, b, trans="N"):
+        r"""Calculates the (relative) residual of the linear system of equations
 
         The residual is calculated as
         :math:`r = \frac{\left| \mathbf{A} \mathbf{x} - \mathbf{b} \right|}{\left| \mathbf{b} \right|}`
@@ -64,19 +64,19 @@ class LinearSolver:
             Residual value
         """
         assert x.shape == b.shape
-        if trans == 'N':
+        if trans == "N":
             mat = A
-        elif trans == 'T':
+        elif trans == "T":
             mat = A.T
-        elif trans == 'H':
+        elif trans == "H":
             mat = A.conj().T
         else:
             raise TypeError("Only N, T, or H transposition is possible")
-        return np.linalg.norm(mat@x - b, axis=0) / np.linalg.norm(b, axis=0)
+        return np.linalg.norm(mat @ x - b, axis=0) / np.linalg.norm(b, axis=0)
 
 
 def get_diagonal_indices(mat):
-    """ Get the row/column indices for entries in the matrix that are diagonal (has all zeros in its row and column) """
+    """Get the row/column indices for entries in the matrix that are diagonal (has all zeros in its row and column)"""
     assert mat.ndim == 2, "Not a matrix"
     n = min(*mat.shape)  # Matrix size
     bmat = mat != 0
@@ -87,7 +87,7 @@ def get_diagonal_indices(mat):
 
 
 class LDAWrapper(LinearSolver):
-    r""" Linear dependency aware solver (LDAS)
+    r"""Linear dependency aware solver (LDAS)
 
     This solver uses previous solutions of the system :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` to reduce computational
     effort. In case the solution :math:`\mathbf{x}` is linearly dependent on the previous solutions, the solution
@@ -102,10 +102,12 @@ class LDAWrapper(LinearSolver):
 
     References:
     Koppen, S., van der Kolk, M., van den Boom, S., & Langelaar, M. (2022).
-    Efficient computation of states and sensitivities for compound structural optimisation problems using a Linear Dependency Aware Solver (LDAS).
-    Structural and Multidisciplinary Optimization, 65(9), 273.
-    DOI: 10.1007/s00158-022-03378-8
+      Efficient computation of states and sensitivities for compound structural optimisation problems using 
+        a Linear Dependency Aware Solver (LDAS).
+      Structural and Multidisciplinary Optimization, 65(9), 273.
+      DOI: 10.1007/s00158-022-03378-8
     """
+
     def __init__(self, solver: LinearSolver, tol=1e-7, A=None, symmetric=None, hermitian=None):
         self.solver = solver
         self.tol = tol
@@ -119,14 +121,14 @@ class LDAWrapper(LinearSolver):
         self.diagonal_idx = []
         self.nondiagonal_idx = slice(None)
         self._did_solve = False  # For debugging purposes
-        self._last_rtol = 0.
+        self._last_rtol = 0.0
         self.hermitian = hermitian
         self.symmetric = symmetric
         self.complex = None
         super().__init__(A)
 
     def update(self, A):
-        """ Clear the internal stored solution vectors and update the internal ``solver`` """
+        """Clear the internal stored solution vectors and update the internal ``solver``"""
         if self.symmetric is None:
             self.symmetric = matrix_is_symmetric(A)
 
@@ -164,7 +166,7 @@ class LDAWrapper(LinearSolver):
 
         # Non-diagonal part of the matrix
         # Reconstruct using the database using modified Gram-Schmidt
-        for (x, b) in zip(x_data, b_data):
+        for x, b in zip(x_data, b_data):
             assert x.ndim == b.ndim == 1
             # assert x.size == b.size == rhs_loc.shape[0]
             alpha = rhs_loc[isel, ...].T @ b.conj() / (b.conj() @ b)
@@ -173,17 +175,17 @@ class LDAWrapper(LinearSolver):
             add_sol = alpha * x[:, None]
 
             if np.iscomplexobj(rem_rhs) and not np.iscomplexobj(rhs_loc):
-                if np.linalg.norm(np.imag(rem_rhs)) < 1e-10*np.linalg.norm(np.real(rem_rhs)):
+                if np.linalg.norm(np.imag(rem_rhs)) < 1e-10 * np.linalg.norm(np.real(rem_rhs)):
                     rem_rhs = np.real(rem_rhs)
                 else:
-                    warnings.warn('LDAS: Complex vector cannot be subtracted from real rhs')
+                    warnings.warn("LDAS: Complex vector cannot be subtracted from real rhs")
                     continue
 
             if np.iscomplexobj(add_sol) and not np.iscomplexobj(sol):
-                if np.linalg.norm(np.imag(add_sol)) < 1e-10*np.linalg.norm(np.real(add_sol)):
+                if np.linalg.norm(np.imag(add_sol)) < 1e-10 * np.linalg.norm(np.real(add_sol)):
                     add_sol = np.real(add_sol)
                 else:
-                    warnings.warn('LDAS: Complex vector cannot be added to real solution')
+                    warnings.warn("LDAS: Complex vector cannot be added to real solution")
                     continue
 
             rhs_loc[isel, ...] -= rem_rhs
@@ -238,8 +240,8 @@ class LDAWrapper(LinearSolver):
         else:
             return sol
 
-    def solve(self, rhs, x0=None, trans='N'):
-        r""" Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by performing a modified
+    def solve(self, rhs, x0=None, trans="N"):
+        r"""Solves the linear system of equations :math:`\mathbf{A} \mathbf{x} = \mathbf{b}` by performing a modified
         Gram-Schmidt over the previously calculated solutions :math:`\mathbf{U}` and corresponding right-hand-sides
         :math:`\mathbf{F}`. This is used to construct an approximate solution
         :math:`\tilde{\mathbf{x}} = \sum_k \alpha_k \mathbf{u}_k` in the subspace of :math:`\mathbf{U}`.
@@ -251,7 +253,7 @@ class LDAWrapper(LinearSolver):
         The right-hand-side :math:`\mathbf{b}` can be of size ``(N)`` or ``(N, K)``, where ``N`` is the size of matrix
         :math:`\mathbf{A}` and ``K`` is the number of right-hand sides.
         """
-        ''' Required    Symm. matrix    Herm. matrix    Any matrix (uses adjoint storage)
+        """ Required    Symm. matrix    Herm. matrix    Any matrix (uses adjoint storage)
                         A^T = A         A^H = A
             A x = b
             A^T x = b   A x = b         A x^* = b^*     A^H x^* = b^*
@@ -259,26 +261,34 @@ class LDAWrapper(LinearSolver):
             
             For symmetric or Hermitian matrices, only the normal storage is required. For any other matrix, the `T` and 
             `H` mode will require the adjoint storage space.
-        '''
+        """
         trans = trans.upper()
-        if trans not in ['N', 'T', 'H']:
+        if trans not in ["N", "T", "H"]:
             raise TypeError("Only N, T, or H transposition is possible")
 
         # Use conjugation?
-        use_conj = (trans == 'H') if self.symmetric else (trans == 'T')
+        use_conj = (trans == "H") if self.symmetric else (trans == "T")
         # Use adjoint storage?
-        use_adj = trans != 'N' and not (self.symmetric or self.hermitian)
+        use_adj = trans != "N" and not (self.symmetric or self.hermitian)
 
         rhs = rhs.conj() if use_conj else rhs
         if use_adj:  # Use adjoint storage
-            ret = self._do_solve_1rhs(self.A.conj().T, rhs,
-                                      self.xadj_stored, self.badj_stored,
-                                      lambda b, x_init: self.solver.solve(b, trans='H', x0=x_init),
-                                      x0=x0)
+            ret = self._do_solve_1rhs(
+                self.A.conj().T,
+                rhs,
+                self.xadj_stored,
+                self.badj_stored,
+                lambda b, x_init: self.solver.solve(b, trans="H", x0=x_init),
+                x0=x0,
+            )
         else:  # Use the normal storage
-            ret = self._do_solve_1rhs(self.A, rhs,
-                                      self.x_stored, self.b_stored,
-                                      lambda b, x_init: self.solver.solve(b, trans='N', x0=x_init),
-                                      x0=x0)
+            ret = self._do_solve_1rhs(
+                self.A,
+                rhs,
+                self.x_stored,
+                self.b_stored,
+                lambda b, x_init: self.solver.solve(b, trans="N", x0=x_init),
+                x0=x0,
+            )
 
         return ret.conj() if use_conj else ret

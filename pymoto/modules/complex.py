@@ -56,7 +56,7 @@ from pymoto import Module
 
 
 class MakeComplex(Module):
-    """ Makes a complex variable from two real inputs :math:`z(x,y) = x + iy`
+    """Makes a complex variable from two real inputs :math:`z(x,y) = x + iy`
 
     Input Signals:
         - ``x``: Real component
@@ -65,11 +65,12 @@ class MakeComplex(Module):
     Output Signal:
         - ``z``: Complex value
     """
+
     def __call__(self, x, y):
-        return x + 1j*y
+        return x + 1j * y
 
     def _sensitivity(self, dz):
-        return np.real(dz), np.real(1j*dz)
+        return np.real(dz), np.real(1j * dz)
 
 
 class SplitComplex(Module):
@@ -81,11 +82,11 @@ class SplitComplex(Module):
             dzr = 0.0
         if dzi is None:
             dzi = 0.0
-        return dzr - 1j*dzi
+        return dzr - 1j * dzi
 
 
 class RealPart(Module):
-    r""" Takes the real part of a complex value :math:`x = \text{Re}(z)`
+    r"""Takes the real part of a complex value :math:`x = \text{Re}(z)`
 
     Input Signal:
         - ``z``: Complex value
@@ -93,6 +94,7 @@ class RealPart(Module):
     Output Signal:
         - ``x``: Real part
     """
+
     def __call__(self, z):
         return np.real(z)
 
@@ -101,7 +103,7 @@ class RealPart(Module):
 
 
 class ImagPart(Module):
-    r""" Takes the imaginary part of a complex value :math:`y = \text{Im}(z)`
+    r"""Takes the imaginary part of a complex value :math:`y = \text{Im}(z)`
 
     Input Signal:
         - ``z``: Complex value
@@ -109,15 +111,16 @@ class ImagPart(Module):
     Output Signal:
         - ``y``: Imaginary part
     """
+
     def __call__(self, z):
         return np.imag(z)
 
     def _sensitivity(self, dy):
-        return -1j*dy
+        return -1j * dy
 
 
 class ComplexNorm(Module):
-    r""" Takes the complex norm :math:`A = \sqrt(z z^*)`
+    r"""Takes the complex norm :math:`A = \sqrt(z z^*)`
 
     Input Signal:
         - ``z``: Complex value
@@ -125,10 +128,11 @@ class ComplexNorm(Module):
     Output Signal:
         - ``A``: Complex norm (real valued)
     """
+
     def __call__(self, z):
         return np.absolute(z)
 
     def _sensitivity(self, dA):
         z = self.sig_in[0].state
         A = self.sig_out[0].state
-        return 1/A*dA*np.conj(z)
+        return 1 / A * dA * np.conj(z)

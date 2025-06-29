@@ -1,4 +1,4 @@
-__version__ = '1.5.1'
+__version__ = "1.5.1"
 
 from .common.domain import DomainDefinition
 
@@ -28,27 +28,59 @@ from .modules.scaling import Scaling
 from .routines import finite_difference, minimize_oc, minimize_mma
 
 __all__ = [
-    'Signal', 'Module', 'Network', 'make_signals',
-    'finite_difference', 'minimize_oc', 'minimize_mma',
-
+    "Signal",
+    "Module",
+    "Network",
+    "make_signals",
+    "finite_difference",
+    "minimize_oc",
+    "minimize_mma",
     # Common
-    'MMA',
-    'DyadCarrier',
-    'DomainDefinition',
-    'solvers',
-
+    "MMA",
+    "DyadCarrier",
+    "DomainDefinition",
+    "solvers",
     # Helpers
-    "AggScaling", "AggActiveSet",
-
+    "AggScaling",
+    "AggActiveSet",
     # Modules
-    "MathGeneral", "EinSum", "ConcatSignal",
-    "Inverse", "LinSolve", "EigenSolve", "SystemOfEquations", "StaticCondensation",
-    "AssembleGeneral", "AssembleStiffness", "AssembleMass", "AssemblePoisson",
-    "ElementOperation", "Strain", "Stress", "ElementAverage", "NodalOperation", "ThermoMechanical",
-    "FilterConv", "Filter", "DensityFilter", "OverhangFilter",
-    "FigModule", "PlotDomain", "PlotGraph", "PlotIter", "WriteToVTI", "ScalarToFile",
-    "MakeComplex", "SplitComplex", "RealPart", "ImagPart", "ComplexNorm",
+    "MathGeneral",
+    "EinSum",
+    "ConcatSignal",
+    "Inverse",
+    "LinSolve",
+    "EigenSolve",
+    "SystemOfEquations",
+    "StaticCondensation",
+    "AssembleGeneral",
+    "AssembleStiffness",
+    "AssembleMass",
+    "AssemblePoisson",
+    "ElementOperation",
+    "Strain",
+    "Stress",
+    "ElementAverage",
+    "NodalOperation",
+    "ThermoMechanical",
+    "FilterConv",
+    "Filter",
+    "DensityFilter",
+    "OverhangFilter",
+    "FigModule",
+    "PlotDomain",
+    "PlotGraph",
+    "PlotIter",
+    "WriteToVTI",
+    "ScalarToFile",
+    "MakeComplex",
+    "SplitComplex",
+    "RealPart",
+    "ImagPart",
+    "ComplexNorm",
     "AutoMod",
-    "Aggregation", "PNorm", "SoftMinMax", "KSFunction",
+    "Aggregation",
+    "PNorm",
+    "SoftMinMax",
+    "KSFunction",
     "Scaling",
 ]

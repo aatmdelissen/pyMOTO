@@ -60,7 +60,7 @@ dev = [
     "jax[cpu]",
 ]
 
-## SETUPTOOLS CONFIGURATION
+## ----- Setuptools Configuration -----
 [tool.setuptools.packages.find]
 include = ["pymoto*"]
 namespaces = false
@@ -73,6 +73,13 @@ pymoto = ["common/*.py", "modules/*.py"]
 version = { attr = "pymoto.__version__" }
 readme = { file = "README.md" }
 
-## CONDA CONFIGURATION
+## ----- Conda Configuration -----
 [tool.setuptools_conda]
 noarch = true
+
+## ----- Ruff Configuration -----
+[tool.ruff]
+lint.select = ["E", "F"]
+lint.fixable = ["A", "B", "C", "D", "E", "F"]   # Fix all if possible
+line-length = 120
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # Allow unused variables when underscore-prefixed.
