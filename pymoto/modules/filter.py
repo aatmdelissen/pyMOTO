@@ -220,7 +220,7 @@ class Filter(Module):
 
     Keyword Args:
         nonpadding (numpy.array[int]): An array with indices at places where
-          :math:`s_i = \max(\mathbf{s}) \: \forall\: i \notin \mathcal{N}`. For a density filter this mimics having 
+          :math:`s_i = \max(\mathbf{s}) \: \forall\: i \notin \mathcal{N}`. For a density filter this mimics having
           values of `0` outside of the domain, thus emulating padding of the boundaries.
     """
 

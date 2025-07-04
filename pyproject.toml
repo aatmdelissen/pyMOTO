@@ -52,7 +52,11 @@ Issues = "https://github.com/aatmdelissen/pyMOTO/issues"
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "flake8",
+    "ruff",
+    "pre-commit"
+]
+
+ext = [
     "cvxopt",
     "scikit-sparse",
     "pypardiso",
@@ -79,6 +83,7 @@ noarch = true
 
 ## ----- Ruff Configuration -----
 [tool.ruff]
+exclude = ["tests/**", "examples/**", "docs/**"]
 lint.select = ["E", "F"]
 lint.fixable = ["A", "B", "C", "D", "E", "F"]   # Fix all if possible
 line-length = 120

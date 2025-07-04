@@ -155,11 +155,13 @@ class Signal:
                 except TypeError:
                     self.sensitivity *= 0
             except TypeError:
-                stderr_warning((
-                    "reset() - Cannot keep allocation because the operands *= or [] are not defined for ",
-                    f"sensitivity type '{type(self.sensitivity).__name__}'",
-                    self._err_str()
-                ))
+                stderr_warning(
+                    (
+                        "reset() - Cannot keep allocation because the operands *= or [] are not defined for ",
+                        f"sensitivity type '{type(self.sensitivity).__name__}'",
+                        self._err_str(),
+                    )
+                )
                 self.sensitivity = None
         else:
             self.sensitivity = None

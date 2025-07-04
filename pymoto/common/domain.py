@@ -244,7 +244,7 @@ class DomainDefinition:
         In 3D
         .. math::
             N_1(x,y,z) = \frac{1}{V} \left(\frac{w}{2}-x\right) \left(\frac{h}{2}-y\right) \left(\frac{d}{2}-z\right)
-        
+
             \dotsc
 
         with :math:`V = whd`

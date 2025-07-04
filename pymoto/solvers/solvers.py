@@ -102,7 +102,7 @@ class LDAWrapper(LinearSolver):
 
     References:
     Koppen, S., van der Kolk, M., van den Boom, S., & Langelaar, M. (2022).
-      Efficient computation of states and sensitivities for compound structural optimisation problems using 
+      Efficient computation of states and sensitivities for compound structural optimisation problems using
         a Linear Dependency Aware Solver (LDAS).
       Structural and Multidisciplinary Optimization, 65(9), 273.
       DOI: 10.1007/s00158-022-03378-8

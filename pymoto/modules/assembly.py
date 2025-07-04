@@ -373,7 +373,7 @@ class ElementOperation(Module):
 
     Args:
         domain: The domain defining element and nodal connectivity
-        element_matrix: The element operator matrix :math:`\mathbf{B}` of size 
+        element_matrix: The element operator matrix :math:`\mathbf{B}` of size
           ``(..., #dofs_per_element)`` or ``(..., #nodes_per_element)``
     """
 
@@ -395,8 +395,10 @@ class ElementOperation(Module):
         if self.element_matrix.shape[-1] != self.domain.elemnodes * ndof:
             # Initialize only after first call to response(), because the number of dofs may not yet be known
             em = self.element_matrix.copy()
-            msg = (f"Size of element matrix must match #dofs_per_element ({ndof * self.domain.elemnodes})",
-                f" or #nodes_per_element ({self.domain.elemnodes}).")
+            msg = (
+                f"Size of element matrix must match #dofs_per_element ({ndof * self.domain.elemnodes})",
+                f" or #nodes_per_element ({self.domain.elemnodes}).",
+            )
             assert em.shape[-1] == self.domain.elemnodes, msg
 
             # Element matrix is repeated for each dof

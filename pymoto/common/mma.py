@@ -417,8 +417,12 @@ class MMA:
             rel_fchange = abs(fcur - fprev) / abs(fcur)
             if rel_fchange < self.tolf:
                 if self.verbosity >= 1:
-                    print(("MMA converged: Relative function change |Δf|/|f| ", 
-                        f"({rel_fchange}) below tolerance ({self.tolf})"))
+                    print(
+                        (
+                            "MMA converged: Relative function change |Δf|/|f| ",
+                            f"({rel_fchange}) below tolerance ({self.tolf})",
+                        )
+                    )
                 break
 
             # Calculate and save sensitivities
