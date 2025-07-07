@@ -19,7 +19,7 @@ from .modules.autodiff import AutoMod
 from .modules.complex import MakeComplex, RealPart, ImagPart, ComplexNorm
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
 from .modules.generic import MathGeneral, EinSum, ConcatSignal
-from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile
+from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, TransientToVTI
 from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations, StaticCondensation
 from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, SoftMinMax, KSFunction
 from .modules.scaling import Scaling
@@ -47,7 +47,7 @@ __all__ = [
     "AssembleGeneral", "AssembleStiffness", "AssembleMass", "AssemblePoisson",
     "ElementOperation", "Strain", "Stress", "ElementAverage", "NodalOperation", "ThermoMechanical",
     "FilterConv", "Filter", "DensityFilter", "OverhangFilter",
-    "FigModule", "PlotDomain", "PlotGraph", "PlotIter", "WriteToVTI", "ScalarToFile",
+    "FigModule", "PlotDomain", "PlotGraph", "PlotIter", "WriteToVTI", "ScalarToFile", "TransientToVTI",
     "MakeComplex", "RealPart", "ImagPart", "ComplexNorm",
     "AutoMod",
     "Aggregation", "PNorm", "SoftMinMax", "KSFunction",
