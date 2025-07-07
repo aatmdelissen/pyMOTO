@@ -234,7 +234,7 @@ class LinSolve(Module):
         dep_tol: Tolerance for detecting linear dependence of solution vectors (default = ``1e-5``)
         hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
         symmetric: Flag to omit the automatic detection for symmetric matrix, saves some work for large matrices
-        solver: Manually override the LinearSolver used, instead of the the solver from :func:`auto_determine_solver`
+        solver: Manually override the LinearSolver used, instead of the solver from :func:`auto_determine_solver`
 
     Attributes:
         use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
