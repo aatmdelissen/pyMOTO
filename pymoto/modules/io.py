@@ -420,3 +420,69 @@ class Print(Module):
             else:
                 tag = self.sig_in[i].tag
             print(f"{tag} = {x}")
+
+
+class TransientToVTI(Module):
+    """ Writes transient response vectors to a Paraview VTI file
+
+    This module utilizes a series file to properly associate the correct time with each timestep:
+    https://gitlab.kitware.com/paraview/paraview/blob/v5.5.0/Documentation/release/ParaView-5.5.0.md#json-based-new-meta-file-format-for-series-added
+
+    See also: :attr:`DomainDefinition.write_to_vti()`
+
+    The size of the vectors should be a multiple of ``nel`` or ``nnodes``. Based on their size they are marked as
+    cell-data or point-data in the VTI file. For 2D data (size is equal to ``2*nnodes``), the z-dimension is padded
+    with zeros to have 3-dimensional data. Also block-vectors of multiple dimensions (*e.g.* ``(2, 3*nnodes)``) are
+    accepted, which get the suffixed as ``_00``.
+
+    Input Signals:
+      - ``*args`` (`numpy.ndarray`): Vectors to write to VTI. The signal tags are used as name.
+
+    Args:
+        domain: The domain layout
+        transient_tags(list): Tag name of Signal(s) that vary over time
+        saveto (str): Location to save folders with transient responses for specific iterations
+        delta_t (float): Length of timestep
+        interval (int): Iteration interval for saving data
+        scale (float): Scaling factor for the domain
+    """
+
+    def _prepare(self, domain: DomainDefinition, transient_tags: list, saveto: str, delta_t: float, interval: int=10, scale=1.):
+        self.domain = domain
+        self.path = os.path.split(saveto)
+        Path(saveto).parent.mkdir(parents=True, exist_ok=True)
+        self.scale = scale
+        self.transient_tags = transient_tags
+        self.it = 0
+        self.interval = interval
+        self.dt = delta_t
+
+    def _response(self, *args):
+        if self.it % self.interval == 0:
+            #prepare folder of transient responses for specific optimization iteration
+            saveto = self.path[0] + '/transient_{0:03d}/'.format(self.it) + self.path[1]
+
+            #prepare time series file
+            Path(saveto).parent.mkdir(parents=True, exist_ok=True)
+            f = open(saveto + '.series', 'a')
+            f.write("{\n")
+            f.write("\t\"file-series-version\" : \"1.0\",\n")
+            f.write("\t\"files\" : [\n")
+
+            #prepare data from signals
+            data = {}
+            for s in self.sig_in:
+                data[s.tag] = s.state
+            pth = os.path.splitext(saveto)
+            datavtk = data.copy()
+
+            #loop over time steps, then generate new vtk file and add reference to series file for each time step
+            for t in range(data[self.transient_tags[0]].shape[1]):
+                for r in self.transient_tags:
+                    datavtk[r] = data[r][:, t]
+                filename = pth[0] + pth[1] + '.{0:04d}'.format(t)
+                self.domain.write_to_vti(datavtk, filename=filename, scale=self.scale)
+                f.write('\t\t{{ "name" : "{0}", "time": {1} }},\n'.format(self.path[1]+'.{0:04d}'.format(t) + '.vti', t*self.dt))
+            f.write("\t]\n}")
+
+        self.it += 1
