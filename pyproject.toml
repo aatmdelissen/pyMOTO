@@ -23,9 +23,9 @@ dependencies = [
 license = {text = "MIT"}
 
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering :: Mechanics",
+    "Topic :: Scientific/Engineering",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
@@ -74,5 +74,5 @@ version = { attr = "pymoto.__version__" }
 readme = { file = "README.md" }
 
 ## CONDA CONFIGURATION
-[tool.dist_conda]
+[tool.setuptools_conda]
 noarch = true
