@@ -368,15 +368,15 @@ class TransientToVTI(Module):
 
     The size of the vectors should be a multiple of ``nel`` or ``nnodes``. Based on their size they are marked as
     cell-data or point-data in the VTI file. For 2D data (size is equal to ``2*nnodes``), the z-dimension is padded
-    with zeros to have 3-dimensional data. Also block-vectors of multiple dimensions (*e.g.* ``(2, 3*nnodes)``) are
-    accepted, which get the suffixed as ``_00``.
+    with zeros to have 3-dimensional data. Also, non-transient block-vectors of multiple dimensions
+    (*e.g.* ``(2, 3*nnodes)``) are accepted, which get the suffixed as ``_00``.
 
     Input Signals:
       - ``*args`` (`numpy.ndarray`): Vectors to write to VTI. The signal tags are used as name.
 
     Args:
         domain: The domain layout
-        transient_tags(list): Tag name of Signal(s) that vary over time
+        transient_tags (list): Tag name of Signal(s) that vary over time
         saveto (str): Location to save folders with transient responses for specific iterations
         delta_t (float): Length of timestep
         interval (int): Iteration interval for saving data
@@ -396,7 +396,7 @@ class TransientToVTI(Module):
     def _response(self, *args):
         if self.it % self.interval == 0:
             #prepare folder of transient responses for specific optimization iteration
-            saveto = self.path[0] + '/transient_{0:03d}/'.format(self.it) + self.path[1]
+            saveto = self.path[0] + '/transient_it{0:03d}/'.format(self.it) + self.path[1]
 
             #prepare time series file
             Path(saveto).parent.mkdir(parents=True, exist_ok=True)
