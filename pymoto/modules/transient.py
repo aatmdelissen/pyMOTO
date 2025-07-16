@@ -3,6 +3,29 @@ from pymoto import Module, DyadCarrier
 from pymoto.solvers import auto_determine_solver, LDAWrapper
 
 class TransientThermal(Module):
+    r""" Solves the transient thermal problem :math:`\mathbf{K}\mathbf{T} + \mathbf{C}\dot{\mathbf{T}} = \mathbf{Q}`
+
+    Solves the transient thermal problem :math:`\mathbf{K}\mathbf{T} + \mathbf{C}\dot{\mathbf{T}} = \mathbf{Q}`, which
+    becomes :math:`(1-\theta)\mathbf{Q}^{\text{n-1}} + \theta\mathbf{Q}^{\text{n}} =
+    (-\frac{\mathbf{C}}{\Delta t} + (1-\theta)\mathbf{K})\mathbf{T}^{\text{n-1}} +
+    (\frac{\mathbf{C}}{\Delta t} + \theta\mathbf{K})\mathbf{T}^{\text{n}}` for timestep ``n`` using numerical
+    timestepping.
+
+    Input Signals:
+      - ``K`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{K}` of size ``(n, n)``
+      - ``C`` (`dense or sparse matrix`): The damping matrix :math:`\mathbf{C}` of size ``(n, n)``
+      - ``Q`` (`dense matrix`): Right-hand-side matrix of size ``(n, Ntimesteps)``
+
+    Output Signals:
+      - ``T`` (`matrix`): Solution matrix of size ``(n, Ntimesteps)``
+
+    Keyword Args:
+        T_0: Initial temperature vector of size (n)
+        end: End time of transient simulation
+        dt: Size of time step
+        theta: Time-stepping algorithm, 0.0 for forward Euler, 0.5 for Crank-Nicolson, 1.0 for backward Euler
+        solver: Manually override the LinearSolver used, instead of the solver from :func:`auto_determine_solver`
+        """
     def _prepare(self, T_0, end, dt, theta = 1.0, solver = None):
         self.T_0 = T_0
         self.steps = int(end/dt)
