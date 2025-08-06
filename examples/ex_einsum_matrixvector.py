@@ -1,36 +1,40 @@
-""" Example Einsum: Matrix-vector product
+""" 
+Einstein summation: Matrix-vector product
+=========================================
+
+This example demonstrates how to use the `pymoto.EinSum` module to perform a matrix-vector product.
 """
-from pymoto import Signal, finite_difference, EinSum
+import pymoto as pym
 import numpy as np
 
 if __name__ == "__main__":
     print(__doc__)
 
-    # --- SETUP ---
-    # Matrix-vector product
-    A = Signal("A")
-    b = Signal("b")
-    y1 = Signal("Ab")
+    # --- INITIALIZATION ---
+    A = pym.Signal("A")
+    b = pym.Signal("b")
+
     N = 5  # Size
     A.state = np.random.rand(N, N)
     b.state = np.random.rand(N)
-    print("{0} = {1}".format(A.tag, A.state))
-    print("{0} = {1}".format(b.tag, b.state))
-
-    m_matvec = EinSum([A, b], y1, "ij,j->i")
+    print(f"{A.tag} = {A.state}")
+    print(f"{b.tag} = {b.state}")
 
     # --- FORWARD ANALYSIS ---
-    m_matvec.response()
+    with pym.Network() as fn:
+        # Matrix-vector product
+        y1 = pym.EinSum("ij,j->i")(A, b)
+        y1.tag = "y1"
 
-    print("The response is {0} = {1}".format(y1.tag, y1.state))
+    print(f"The response is {y1.tag} = {y1.state}")
 
     # --- BACKPROPAGATION ---
-    dgdy1 = np.ones_like(y1.state)
+    dgdy1 = np.ones_like(y1.state)  # Seed the output sensitivity
     y1.sensitivity = dgdy1
-    m_matvec.sensitivity()
+    fn.sensitivity()  # Run the backpropagation
     print("\nThe sensitivities are:")
-    print("dg/d{0} = {1}".format(A.tag, A.sensitivity))
-    print("dg/d{0} = {1}".format(b.tag, b.sensitivity))
+    print(f"dg/d{A.tag} = {A.sensitivity}")
+    print(f"dg/d{b.tag} = {b.sensitivity}")
 
     # --- Finite difference check ---
-    finite_difference(m_matvec)
+    pym.finite_difference([A, b], y1)

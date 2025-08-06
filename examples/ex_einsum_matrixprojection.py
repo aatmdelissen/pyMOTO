@@ -1,37 +1,43 @@
-""" Example Einsum: Matrix projection
+""" 
+Einstein summation: Matrix projection
+=====================================
+
+This example demonstrates how to use the `pymoto.EinSum` module to perform a matrix projection operation, specifically 
+calculating V^T B V, where B is a square matrix and V is a block-vector.
 """
-from pymoto import Signal, finite_difference, EinSum
+import pymoto as pym
 import numpy as np
 
 if __name__ == "__main__":
     print(__doc__)
 
-    # --- SETUP ---
-    # Matrix projection V^T B V
-    B = Signal("B")
-    V = Signal("V")
-    y2 = Signal("VtBV")
+    # --- INITIALIZATION ---
+    
+    B = pym.Signal("B")
+    V = pym.Signal("V")
+
     N = 5  # Size
     M = 2
     B.state = np.random.rand(N, N)
     V.state = np.random.rand(N, M)
-    print("{0} = {1}".format(B.tag, B.state))
-    print("{0} = {1}".format(V.tag, V.state))
-
-    m_matproj = EinSum([V, B, V], y2, "ji, jk, kl -> il")
+    print(f"{B.tag} = {B.state}")
+    print(f"{V.tag} = {V.state}")
 
     # --- FORWARD ANALYSIS ---
-    m_matproj.response()
+    with pym.Network() as fn:
+        # Matrix projection V^T B V
+        y2 = pym.EinSum("ji, jk, kl -> il")(V, B, V)
+        y2.tag = "VtBV"
 
-    print("The response is {0} =\n {1}".format(y2.tag, y2.state))
+    print(f"\nThe response is {y2.tag} =\n {y2.state}\n")
 
     # --- BACKPROPAGATION ---
-    dgdy2 = np.ones_like(y2.state)
+    dgdy2 = np.ones_like(y2.state)  # Seed the output sensitivity
     y2.sensitivity = dgdy2
-    m_matproj.sensitivity()
-    print("The sensitivities are:")
-    print("dg/d{0} = \n{1}".format(B.tag, B.sensitivity))
-    print("dg/d{0} = \n{1}".format(V.tag, V.sensitivity))
+    fn.sensitivity()  # Run the backpropagation
+    print("\nThe sensitivities are:")
+    print(f"dg/d{B.tag} = \n{B.sensitivity}")
+    print(f"dg/d{V.tag} = \n{V.sensitivity}")
 
     # --- Finite difference check ---
-    finite_difference(m_matproj)
+    pym.finite_difference([B, V], y2)
