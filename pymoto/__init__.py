@@ -19,7 +19,7 @@ from .modules.autodiff import AutoMod
 from .modules.complex import MakeComplex, SplitComplex, RealPart, ImagPart, ComplexNorm
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
 from .modules.generic import MathGeneral, EinSum, ConcatSignal
-from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile
+from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, Print
 from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations, StaticCondensation
 from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, SoftMinMax, KSFunction
 from .modules.scaling import Scaling
@@ -72,6 +72,7 @@ __all__ = [
     "PlotIter",
     "WriteToVTI",
     "ScalarToFile",
+    "Print",
     "MakeComplex",
     "SplitComplex",
     "RealPart",

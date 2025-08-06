@@ -96,12 +96,12 @@ class DomainDefinition:
             self.nely = 0
         if self.nelz is None:
             self.nelz = 0
-        self.unitx, self.unity, self.unitz = unitx, unity, unitz
-        self.origin = np.array([0.0, 0.0, 0.0])
-
+        
         self.dim = 1 if (self.nelz == 0 and self.nely == 0) else (2 if self.nelz == 0 else 3)
+        
+        self.origin = np.array([0.0, 0.0, 0.0])
+        self.unitx, self.unity, self.unitz = unitx, unity, unitz
 
-        self.element_size = np.array([unitx, unity, unitz])
         assert np.prod(self.element_size[: self.dim]) > 0.0, "Element volume needs to be positive"
 
         self.nel = self.nelx * self.nely * max(self.nelz, 1)  # Total number of elements
@@ -144,6 +144,21 @@ class DomainDefinition:
         )
         self.nodes = self.get_nodenumber(ndi, ndj, ndk)
 
+    @property
+    def element_size(self):
+        """Element size in each direction"""
+        return np.array([self.unitx, self.unity, self.unitz])
+    
+    @property
+    def domain_size(self):
+        """Domain size in each direction"""
+        return np.array([self.nelx * self.unitx, self.nely * self.unity, self.nelz * self.unitz])[:self.dim]
+    
+    @property
+    def size(self):
+        """Number of elements in each direction"""
+        return np.array([self.nelx, self.nely, self.nelz])[:self.dim]
+
     def get_elemnumber(self, eli: Union[int, np.ndarray], elj: Union[int, np.ndarray], elk: Union[int, np.ndarray] = 0):
         """Gets the element number(s) for element(s) with given Cartesian indices (i, j, k)
 
@@ -171,6 +186,27 @@ class DomainDefinition:
             The node number(s) corresponding to selected indices
         """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
+
+    def get_dofnumber(self, nod_idx: Union[int, np.ndarray], dof_idx: Union[int, np.ndarray] = None, ndof: int = 2):
+        """Gets the degree of freedom number(s) for node(s) with given node index(es)
+
+        Args:
+            nod_idx : Node index; can be integer or array
+            dof_idx : Dof indes; can be integer or array, if None it will be set to all dofs
+            ndof : Number of degrees of freedom per node
+
+        Returns:
+            The dof number(s) corresponding to selected node index(es)
+        """
+        if dof_idx is None:
+            dof_idx = np.arange(ndof)
+        
+        if np.ndim(dof_idx) == 0 or np.ndim(nod_idx) == 0:
+            return nod_idx*ndof + dof_idx
+        else:
+            nod_idx1 = np.expand_dims(nod_idx, axis=tuple(-(np.arange(np.ndim(dof_idx))+1)))
+            dof_idx1 = np.expand_dims(dof_idx, axis=tuple(np.arange(np.ndim(nod_idx))))
+            return nod_idx1 * ndof + dof_idx1
 
     def get_node_indices(self, nod_idx: Union[int, np.ndarray] = None):
         """Gets the Cartesian index (i, j, k) for given node number(s)
@@ -218,7 +254,7 @@ class DomainDefinition:
         Returns:
             The dof numbers corresponding to each element of size (# total elements, # dofs per element)
         """
-        return np.repeat(self.conn * ndof, ndof, axis=-1) + np.tile(np.arange(ndof), self.elemnodes)
+        return np.reshape(self.get_dofnumber(self.conn, ndof=ndof), (self.conn.shape[0], -1))
 
     def eval_shape_fun(self, pos: np.ndarray):
         r"""Evaluate the linear shape functions of the finite element

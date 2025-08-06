@@ -41,7 +41,7 @@ def finite_difference(
     if function is None:  # Default grab the global network, if none is provided
         function = Network.active[0]
 
-    print("=========================================================================================================\n")
+    print("\n=========================================================================================================")
     print(f'Starting finite difference of "{type(function).__name__}" with dx = {dx}, and tol = {tol}')
 
     # In case a Network is passed, only the blocks connecting input and output need execution

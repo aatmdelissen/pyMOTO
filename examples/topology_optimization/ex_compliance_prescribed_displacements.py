@@ -1,4 +1,7 @@
 """
+Compliance with prescribed displacements
+========================================
+
 Example of the design for stiffness of a structure subjected to prescribed displacements
  using topology optimization with:
 (i) maximum stiffness between prescribed displacements and support, and
@@ -13,8 +16,6 @@ DOI: http://dx.doi.org/10.1016/j.mechmachtheory.2022.104743
 """
 
 import numpy as np
-
-# flake8: noqa
 import pymoto as pym
 
 # Problem settings
@@ -22,74 +23,65 @@ nx, ny = 40, 40  # Domain size
 xmin, filter_radius, volfrac = 1e-9, 2, 0.5  # Density settings
 nu, E = 0.3, 1.0  # Material properties
 
-scaling_volume_constraint = 10.0
-
 if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny)
 
     # Node and dof groups
-    nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
-    nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
-    dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-    dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-    dofs_left_horizontal = dofs_left[0::2]
-    dofs_left_vertical = dofs_left[1::2]
+    nodes_left = domain.nodes[0, :].flatten()
+    nodes_right = domain.nodes[-1, :].flatten()
+    dofs_left_x = domain.get_dofnumber(nodes_left, 0, 2).flatten()
+    dofs_left_y = domain.get_dofnumber(nodes_left, 1, 2).flatten()
+    dofs_right = domain.get_dofnumber(nodes_right, np.arange(2), 2).flatten()
 
     all_dofs = np.arange(0, 2 * domain.nnodes)
-    prescribed_dofs = np.unique(np.hstack([dofs_left_horizontal, dofs_right, dofs_left_vertical]))
+    prescribed_dofs = np.unique(np.concatenate([dofs_left_x, dofs_right, dofs_left_y]))
     free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
 
     # Setup solution vectors and rhs
     ff = np.zeros_like(free_dofs, dtype=float)
     u = np.zeros_like(all_dofs, dtype=float)
 
-    u[dofs_left_vertical] = 1.0
+    u[dofs_left_y] = 1.0
     up = u[prescribed_dofs]
 
     # Initial design
-    signal_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
+    s_x = pym.Signal('x', state=volfrac * np.ones(domain.nel))
 
     # Setup optimization problem
-    network = pym.Network()
+    with pym.Network() as fn:
+        # Density filtering
+        s_xfilt = pym.DensityFilter(domain, radius=filter_radius)(s_x)
+        s_xfilt.tag = 'xfiltered'
 
-    # Density filtering
-    signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
+        # SIMP penalization
+        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
-    # SIMP penalization
-    signal_penalized_variables = network.append(
-        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
+        # Matrix assembly
+        s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu)(s_xsimp)
 
-    # Assembly
-    signal_stiffness = network.append(
-        pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu))
+        # Solve system of equations
+        s_u, s_f = pym.SystemOfEquations(prescribed=prescribed_dofs)(s_K, ff, up)
 
-    # Solve system of equations
-    up = pym.Signal('up', state=up)
-    ff = pym.Signal('ff', state=ff)
-    signal_state = network.append(pym.SystemOfEquations([signal_stiffness, ff, up], prescribed=prescribed_dofs))
+        # Calculate compliance value
+        s_c = pym.EinSum('i,i->')(s_u, s_f)
 
-    # Calculate compliance value
-    signal_compliance = network.append(pym.EinSum([signal_state[0], signal_state[1]], expression='i,i->'))
+        # Objective function
+        s_gobj =pym.Scaling(scaling=-1)(s_c)
+        s_gobj.tag = "Objective"
 
-    # Objective function
-    signal_objective = network.append(pym.Scaling([signal_compliance], scaling=-1))
-    signal_objective.tag = "Objective"
+        # Volume
+        s_vol = pym.EinSum('i->')(s_xfilt)
+        s_vol.tag = "volume"
 
-    # Volume
-    signal_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
-    signal_volume.tag = "volume"
+        # Volume constraint
+        s_gvol = pym.Scaling(scaling=10.0, maxval=volfrac * domain.nel)(s_vol)
+        s_gvol.tag = "Volume constraint"
 
-    # Volume constraint
-    signal_volume_constraint = network.append(
-        pym.Scaling(signal_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
-    signal_volume_constraint.tag = "Volume constraint"
-
-    # Plotting
-    network.append(pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design"))
-
-    opt_responses = [signal_objective, signal_volume_constraint]  # Optimization responses
-    network.append(pym.PlotIter(opt_responses))
+        # Plotting
+        pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
+        optimization_responses = [s_gobj, s_gvol]
+        pym.PlotIter()(*optimization_responses)
 
     # Run optimization
-    pym.minimize_mma(network, [signal_variables], opt_responses, verbosity=2)
+    pym.minimize_mma(s_x, optimization_responses, verbosity=2)

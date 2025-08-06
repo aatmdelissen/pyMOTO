@@ -311,7 +311,7 @@ class WriteToVTI(Module):
         # Parse data to write
         data = {}
         for i, x in enumerate(args):
-            if self.sig_in is None or not issubclass(self.sig_in[i], Signal):
+            if self.sig_in is None or not isinstance(self.sig_in[i], Signal):
                 data['inp{i:d}'] = x  # Give some default name
             else:   
                 data[self.sig_in[i].tag] = x
@@ -394,3 +394,19 @@ class ScalarToFile(Module):
             f.write("\n")
 
         self.iter += 1
+
+
+class Print(Module):
+    """ Prints the input signals to console
+
+    Input Signals:
+      - ``*args``: Values to print. The signal tags are used as name.
+    """
+    def __call__(self, *args):
+         for i, x in enumerate(args):
+            if self.sig_in is None or not isinstance(self.sig_in[i], Signal):
+                tag = 'inp{i:d}'  # Give some default name
+            else:   
+                tag = self.sig_in[i].tag
+            print(f"{tag} = {x}")
+            

@@ -1,7 +1,7 @@
-"""Example for a structural compliance topology optimization based on the 99 line Matlab script of Sigmund.
-Using pyMOTO the number of lines can be reduced to only 69 lines, which includes blank lines for readability and 
-additional comments to clarify the functionality of this example.
-
+""" PyMOTO 69-line topology optimization example
+Example for a structural compliance topology optimization based on the 99 line Matlab script of Sigmund.
+Using pyMOTO the number of lines can be reduced to only 69 lines (while providing the same level of detail), which 
+includes blank lines for readability and additional comments to clarify the functionality of this example.
 References:
     Sigmund (2001), "A 99 line topology optimization code written in Matlab" (https://doi.org/10.1007/s001580050176)
 """
