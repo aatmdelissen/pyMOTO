@@ -7,7 +7,7 @@ import matplotlib
 matplotlib.use("TkAgg")  # Change default backend -- TkAgg does not freeze during calculations
 import matplotlib.pyplot as plt
 
-from pymoto import Module
+from pymoto import Module, Signal
 from .assembly import DomainDefinition
 
 
@@ -289,30 +289,41 @@ class WriteToVTI(Module):
 
     Args:
         domain: The domain layout
-        saveto (str): Location to save the VTI file
-        overwrite (bool): Write a new file for each iteration
-        scale (float): Scaling factor for the domain
+        saveto: Location to save the VTI file
+        overwrite (optional): Overwrite the VTI file for each iteration
+        scale (optional): Scaling factor for the domain
+        interval (optional): Interval at which to write the VTI file, defaults to 1 (every iteration)
     """
 
-    def __init__(self, domain: DomainDefinition, saveto: str, overwrite: bool = False, scale=1.0):
+    def __init__(self, domain: DomainDefinition, saveto: str, overwrite: bool = False, scale=1.0, interval=1):
         self.domain = domain
         self.saveto = saveto
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
         self.iter = 0
         self.scale = scale
         self.overwrite = overwrite
+        self.interval = interval
 
     def __call__(self, *args):
+        if self.iter % self.interval != 0:
+            return
+        
+        # Parse data to write
         data = {}
-        if self.sig_in is None:
-            raise NotImplementedError("Only for signals as inputs")
-        for s in self.sig_in:
-            data[s.tag] = s.state
+        for i, x in enumerate(args):
+            if self.sig_in is None or not issubclass(self.sig_in[i], Signal):
+                data['inp{i:d}'] = x  # Give some default name
+            else:   
+                data[self.sig_in[i].tag] = x
+
+        # Determine filename
         pth = os.path.splitext(self.saveto)
         if self.overwrite:
             filen = pth[0] + pth[1]
         else:
             filen = pth[0] + ".{0:04d}".format(self.iter) + pth[1]
+
+        # Write to VTI
         self.domain.write_to_vti(data, filename=filen, scale=self.scale)
         self.iter += 1
 
@@ -355,6 +366,8 @@ class ScalarToFile(Module):
 
         # Add all signals
         for s in self.sig_in:
+            if not isinstance(s, Signal):
+                raise TypeError(f"Expected Signal, got {type(s)}")
             if np.size(np.asarray(s.state)) > 1:
                 it = np.nditer(s.state, flags=["multi_index"])
                 while not it.finished:
