@@ -43,19 +43,24 @@ class AutoMod(Module):
             if not hasattr(self, "vjp_generator"):
                 self.vjp_generator = autograd.make_vjp(self.func, list(range(len(args))))
             self.vjp_fn, y = self.vjp_generator(*args)
+            if len(_parse_to_list(y)) > 1:
+                raise ValueError("The function should return a single output, but multiple outputs were detected.")
+            return [autograd.tracer.getval(yi) for yi in _parse_to_list(y)]
         elif "jax" in self.backend.lower():
             y, self.vjp_fn = jax.vjp(self.func, *args)
-        return y
+            return y
 
     def _sensitivity(self, *dfdv):
         # Gather the output sensitivities
         if all([df is None for df in dfdv]):
             return
+        
+        dfdv_in = list(dfdv)
         for i in range(len(dfdv)):
             if dfdv[i] is None:  # JAX does not accept None as 0
-                dfdv[i] = np.zeros_like(self.sig_out[i].state)
+                dfdv_in[i] = np.zeros_like(self.sig_out[i].state)
 
-        dfdv = tuple(dfdv) if len(dfdv) > 1 else dfdv[0]
+        dfdv_in = tuple(dfdv_in) if len(dfdv_in) > 1 else dfdv_in[0]
 
         # Calculate backward sensitivity
-        return _parse_to_list(self.vjp_fn(dfdv))
+        return _parse_to_list(self.vjp_fn(dfdv_in))

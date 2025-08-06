@@ -1,24 +1,17 @@
-from jax.config import config  # JAX must be installed on the system!
+""" 
+Automatic differentiation
+=========================
+
+This example shows how to use the `pymoto.AutoMod` module to automatically differentiate a response function.
+"""
 import numpy as np
 import pymoto as pym
-config.update("jax_enable_x64", True)  # Use double64 instead of the standard float32
 
 
-class MyNewModule(pym.AutoMod):
-    """ This is my module that does awesome stuff AND is automatically differentiated with JAX
-
-    Since this module is inherited from ``AutoMod``, its sensitivity behavior is automatically handled by JAX
-    """
-
-    def _prepare(self, val):
-        """ This function is called during initialization. It can be used to set some parameters """
-        self.val = val
-
-    def _response(self, x1, A, x2):
-        """ Forward functionality of my new module
-        This function calculates a response based on a multiple input values, here for example 2. Multiple outputs can
-        easily be added. Also, different response behaviours can be implemented, based on the number of inputs (function
-        overloading). The 'self' object can be used to save state variables.
+def my_new_function(x1, A, x2, val=1.3):
+        """ User-defined functionality which is to be differentiated.
+        This function calculates a response based on a multiple input values, here for example 3.
+        It is possible to use both vector and scalar inputs, as well as complex numbers.
 
         Args:
             x1: First vector
@@ -33,32 +26,23 @@ class MyNewModule(pym.AutoMod):
             raise RuntimeError("You forgot to set x1 and/or x2")
 
         # Calculate response
-        v1 = x1 * x2
-        v2 = x1 @ (A @ x2.conj()) + v1 + self.val
+        v = x1 @ (A @ x2) + x1 * x2 + val
 
         # Return the results
-        return v1, v2
+        return v
 
 
 if __name__ == "__main__":
     print(__doc__)
     print("_" * 80)
-    print("PART 1: Setup")
 
     # Initialize signals we want to use in our program
     x1 = pym.Signal("x1")
     A = pym.Signal("A")
     x2 = pym.Signal("x2")
-    y1 = pym.Signal("y1")
-    y2 = pym.Signal("y2")
 
-    # The module can be instantiated using the constructor
-    print("\nInstantiate directly:")
-    the_mod = MyNewModule([x1, A, x2], [y1, y2], 3.8)
-
-    # Set the initial values
-    which = 'vector'
-    complex = True
+    which = 'vector'  # Choose 'scalar' or 'vector' to test the module
+    complex = True  # Choose True or False to test complex numbers
     if which == 'scalar':
         x1.state = 2.0
         x2.state = 3.0
@@ -73,5 +57,16 @@ if __name__ == "__main__":
             x1.state = x1.state + 1j*np.random.rand(4)
             x2.state = x2.state + 1j*np.random.rand(4)
             A.state = A.state + 1j*np.random.rand(4, 4)
-    the_mod.response()
-    pym.finite_difference(the_mod)
+
+    # The module can be instantiated using the constructor
+    y = pym.AutoMod(my_new_function)(x1, A, x2)
+    y.tag = "y"
+    print(f"The response is {y.tag} = {y.state}")
+
+    # Check the response values; they are the same as the original function
+    y_chk = my_new_function(x1.state, A.state, x2.state)
+    print(f"The expected response is = {y_chk}")
+    assert np.allclose(y.state, y_chk)
+     
+    # Check the sensitivities; these are automatically calculated using the autodiff module
+    pym.finite_difference([x1, A, x2], y)
