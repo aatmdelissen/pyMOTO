@@ -26,15 +26,27 @@ class TransientThermal(Module):
         theta: Time-stepping algorithm, 0.0 for forward Euler, 0.5 for Crank-Nicolson, 1.0 for backward Euler
         solver: Manually override the LinearSolver used, instead of the solver from :func:`auto_determine_solver`
         """
-    def _prepare(self, T_0, end, dt, theta = 1.0, solver = None):
-        self.T_0 = T_0
-        self.steps = int(end/dt)
+    def _prepare(self, dt, end = None, x0 = None, theta = 1.0, solver = None):
+        self.x0 = x0
+        self.end = end
         self.dt = dt
         self.theta = theta
         assert 0.0 <= self.theta <= 1.0, "theta must be between 0.0 and 1.0"
         self.solver = solver
 
-    def _response(self, K, C, Q):
+    def _response(self, b, K, C, *args):
+        # initial checks
+        M = args[0] if len(args) > 0 else None
+        assert K.shape == C.shape, "K and C must have same shape"
+        assert self.end is not None or b.ndim is not 1, "Insufficient information to determine time steps"
+
+        # determine time steps
+        if b.ndim == 1:
+            self.steps = int(self.end/self.dt)
+            b = np.tile(b, (self.steps + 1, 1)).T
+        else:
+            self.steps = b.shape[1]
+
         # prepare matrices for solve
         C_step = C.multiply(1 / self.dt)
         K_forward = K.multiply(self.theta)
@@ -55,19 +67,20 @@ class TransientThermal(Module):
         self.solver.update(self.mat_forward)
 
         # initialize temperatures
-        self.temperature = np.zeros((self.mat_forward.shape[0], self.steps + 1))
-        self.temperature[:, 0] = self.T_0
+        self.state = np.zeros((self.mat_forward.shape[0], self.steps + 1))
+        if self.x0 is not None:
+            self.state[:, 0] = self.x0
 
         # perform solve for every time step
         for i in range(self.steps):
-            rhs = self.theta * Q[:, i + 1] + (1 - self.theta) * Q[:, i] - self.mat_backward.dot(self.temperature[:, i])
-            self.temperature[:, i + 1] = self.solver.solve(rhs)
+            rhs = self.theta * b[:, i + 1] + (1 - self.theta) * Q[:, i] - self.mat_backward.dot(self.state[:, i])
+            self.state[:, i + 1] = self.solver.solve(rhs)
 
-        return self.temperature
+        return self.state
 
     def _sensitivity(self, dfdt):
         # initialize adjoint variables
-        lams = np.zeros_like(self.temperature)
+        lams = np.zeros_like(self.state)
         lams[:, -1] = self.solver.solve(-dfdt[:, -1])
 
         # perform adjoint solve for every time step
@@ -76,13 +89,13 @@ class TransientThermal(Module):
             lams[:, i] = self.solver.solve(rhs)
 
         # sensitivities to system matrices
-        tempsK = self.theta*self.temperature[:, 1:] + (1-self.theta)*self.temperature[:, :-1]
+        tempsK = self.theta*self.state[:, 1:] + (1-self.theta)*self.state[:, :-1]
         dK = DyadCarrier(list(lams[:, 1:].T), list(tempsK.T))
-        dC = DyadCarrier(list(lams[:, 1:].T), list((1/self.dt)*np.diff(self.temperature).T))
+        dC = DyadCarrier(list(lams[:, 1:].T), list((1/self.dt)*np.diff(self.state).T))
 
         # sensitivities to input heat
-        dQ = np.zeros_like(self.sig_in[2].state)
-        dQ[:, 1:] -= self.theta*lams[:, 1:]
-        dQ[:, :-1] -= (1-self.theta)*lams[:, 1:]
+        db = np.zeros_like(self.sig_in[2].state)
+        db[:, 1:] -= self.theta*lams[:, 1:]
+        db[:, :-1] -= (1-self.theta)*lams[:, 1:]
 
-        return dK, dC, dQ
+        return db, dK, dC
