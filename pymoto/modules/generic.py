@@ -75,7 +75,7 @@ class MathGeneral(Module):
         # Named variables <RHO, X, ...> are converted to <sig0, sig1, ...>
         trn = {}
         for i, s in enumerate(self.sig_in):
-            if len(s.tag):
+            if hasattr(s, 'tag') and len(s.tag):
                 if s.tag.lower() in var_names and s.tag.lower() in self.expression:
                     raise RuntimeError("Name '{}' multiple defined".format(s.tag.lower()))
                 trn[s.tag.lower()] = var_names[i]
@@ -102,12 +102,12 @@ class MathGeneral(Module):
 
         # Initialize sensitivities with zeroed out memory. This should ensure identical type of state and sensitivity
         dg_dx = []
-        for s in self.sig_in:
+        for xi in self.x:
             try:
-                dg_dxi = s.state.copy()
+                dg_dxi = xi.copy()
                 dg_dxi[...] = 0
             except (AttributeError, TypeError):  # Not numpy or zero-dimension array
-                dg_dxi = s.state * 0
+                dg_dxi = xi * 0
             # assert (isinstance(dg_dxi, type(s.state)))
             dg_dx.append(dg_dxi)
 
