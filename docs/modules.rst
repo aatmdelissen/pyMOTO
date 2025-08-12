@@ -27,6 +27,7 @@ Mathematical Modules
    pymoto.Scaling
    pymoto.ConcatSignal
    pymoto.VecSet
+   pymoto.AddMatrix
 
 Constraint Aggregation
 ------------------------------

@@ -2,6 +2,7 @@
 
 import numpy as np
 from pymoto.core_objects import Module
+from pymoto import DyadCarrier
 from pymoto.utils import _concatenate_to_array, _split_from_array
 
 try:
@@ -278,3 +279,47 @@ class VecSet(Module):
         dx = dy.copy()
         dx[self.indices] = 0
         return dx
+
+
+class AddMatrix(Module):
+    """Compute linear combination of sparse matrices
+
+    :math:`Y = \sum_i a_i \mathbf{A}_i`
+
+    Any number of matrices can be added, as long as the input signals are in the form 
+    `[scalar, matrix, scalar, matrix, ...]`.
+
+    Input signals:
+        a_1: Scalar
+        A_1: Sparse matrix
+        a_2 (optional): Second scalar
+        A_2 (optional): Second matrix
+        ... pairs of further scalar and matrices
+
+    Output signal:
+        Linear combination of matrices
+    """
+
+    def __call__(self, *args):
+        assert len(args)%2 == 0, "An even number of inputs must be given in the form of (a1, A1, a2, A2, ...)"
+        Y = 0
+        for ai, Ai in zip(args[0::2], args[1::2]):
+            Y = Y + ai * Ai
+        return Y
+
+    def _sensitivity(self, dY: DyadCarrier):
+        args = self.get_input_states()
+        out = []
+        for ai, Ai in zip(args[0::2], args[1::2]):
+            dai = dY.contract(Ai)
+            if np.isreal(ai):
+                dai = dai.real
+            
+            dAi = ai * dY
+            if np.isrealobj(Ai):
+                dAi = dAi.real
+            
+            out.append(dai.real if np.isreal(ai) else dai)
+            out.append(dAi.real if np.isrealobj(Ai) else dAi)
+
+        return out
