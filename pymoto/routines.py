@@ -364,7 +364,8 @@ def minimize_oc(
     f = 0.0
     for it in range(maxit):
         # Calculate response
-        function.response()
+        if it > 0 or objective.state is None:
+            function.response()
         fprev, f = f, objective.state
         rel_fchange = abs(f - fprev) / abs(f)
         if rel_fchange < tolf:

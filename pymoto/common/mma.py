@@ -324,7 +324,7 @@ class MMA:
         self.offset = None
 
         # Setting up for constriants
-        self.m = len(self.responses) - 1
+        self.m = max(1, len(self.responses) - 1) # At minimum 1 for the dummy constraint in mmasub()
         self.a = kwargs.get("a", np.zeros(self.m))
         if len(self.a) != self.m:
             raise RuntimeError(f"Length of the a vector ({len(self.a)}) should be equal to # constraints ({self.m}).")
@@ -398,8 +398,9 @@ class MMA:
             if self.fn_callback is not None:
                 self.fn_callback()
 
-            # Calculate response
-            self.funbl.response()
+            if self.iter > 0 or any([s.state is None for s in self.responses]):
+                # Calculate response; first iteration may already be calculated
+                self.funbl.response()
 
             xval, _ = _concatenate_to_array([s.state for s in self.variables])
 
@@ -503,6 +504,10 @@ class MMA:
             self.dx = self.xmax - self.xmin
         if self.offset is None:
             self.offset = self.asyinit * np.ones(self.n)
+        # Quickfix: in case of only an objective function, add a dummy constraint with zero sensitivities
+        if g.size == 1:
+            g = np.hstack((g, -1.0))
+            dg = np.vstack((dg, np.zeros(self.n)))
 
         # # ASYMPTOTES
         # Calculation of the asymptotes low and upp :
@@ -577,19 +582,24 @@ class MMA:
         if self.verbosity >= 2:
             # Display iteration status message
             msgs = ["g{0:d}({1:s}): {2:+.4e}".format(i, s.tag, g[i]) for i, s in enumerate(self.responses)]
-            max_infeasibility = max(g[1:])
-            is_feasible = max_infeasibility <= 0
+            if len(self.responses) > 1:
+                max_infeasibility = max(g[1:len(self.responses)])
+                is_feasible = max_infeasibility <= 0
+                feasibility_tag = "[f] " if is_feasible else "[ ] "
+            else:
+                feasibility_tag = ""  # No constraints, so always feasible :)
 
-            feasibility_tag = "f" if is_feasible else " "
-            print("It. {0: 4d}, [{1:1s}] {2}".format(self.iter, feasibility_tag, ", ".join(msgs)))
+            print("It. {0: 4d}, {1:s}{2}".format(self.iter, feasibility_tag, ", ".join(msgs)))
 
         if self.verbosity >= 3:
             # Report design feasibility
-            iconst_max = np.argmax(g[1:])
-            print(
-                f"  | {np.sum(g[1:] > 0)} / {len(g) - 1} violated constraints, "
-                f"max. violation ({self.responses[iconst_max + 1].tag}) = {'%.2g' % g[iconst_max + 1]}"
-            )
+            g_orig = g[:len(self.responses)]
+            if g_orig[1:].size > 0:
+                iconst_max = np.argmax(g_orig[1:])
+                print(
+                    f"  | {np.sum(g_orig[1:] > 0)} / {len(g_orig) - 1} violated constraints, "
+                    f"max. violation ({self.responses[iconst_max + 1].tag}) = {'%.2g' % g_orig[iconst_max + 1]}"
+                )
 
             # Print design changes
             change_msgs = []
