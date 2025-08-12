@@ -18,7 +18,7 @@ from .modules.assembly import ElementOperation, Strain, Stress, ElementAverage, 
 from .modules.autodiff import AutoMod
 from .modules.complex import MakeComplex, SplitComplex, RealPart, ImagPart, ComplexNorm
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
-from .modules.generic import MathGeneral, EinSum, ConcatSignal
+from .modules.generic import MathGeneral, EinSum, ConcatSignal, VecSet
 from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, Print
 from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations, StaticCondensation
 from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, SoftMinMax, KSFunction
@@ -47,6 +47,7 @@ __all__ = [
     "MathGeneral",
     "EinSum",
     "ConcatSignal",
+    "VecSet",
     "Inverse",
     "LinSolve",
     "EigenSolve",

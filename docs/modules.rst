@@ -26,6 +26,7 @@ Mathematical Modules
    pymoto.EigenSolve
    pymoto.Scaling
    pymoto.ConcatSignal
+   pymoto.VecSet
 
 Constraint Aggregation
 ------------------------------
@@ -147,4 +148,5 @@ Iterative solvers
 .. autosummary::
    :toctree: stubs
    :nosignatures:
+   
    pymoto.solvers.CG

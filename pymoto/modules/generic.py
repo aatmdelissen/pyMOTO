@@ -42,7 +42,7 @@ class MathGeneral(Module):
     Input signals:
         ``*args`` (`float` or `np.ndarray`): Any number of numerical inputs which match the provided expression
 
-    Output Signal:
+    Output signal:
         ``y`` (`float` or `np.ndarray`): Result of the mathematical operation
 
     Args:
@@ -167,7 +167,7 @@ class EinSum(Module):
     Input signals:
         ``*args`` (`np.ndarray`): Any number of inputs that are passed to ``einsum`` and match the expression
 
-    Output Signal:
+    Output signal:
         ``y`` (`np.ndarray`): Result of the ``einsum`` operation
 
     Args:
@@ -249,3 +249,32 @@ class ConcatSignal(Module):
             except TypeError:
                 dsens[i] = type(s.state)(dx[i])
         return dsens
+
+
+class VecSet(Module):
+    """Sets the values of a vector at specified indices to a given value
+    
+    Input signal:
+        ``x`` (`np.ndarray`): Input vector to modify
+
+    Output signal:
+        ``y`` (`np.ndarray`): Modified vector with specified indices set to a given value
+
+    Args:
+        indices: Indices in the input vector to set to the specified value
+        value: Value(s) to set at the specified indices
+    """
+
+    def __init__(self, indices, value):
+        self.indices = indices
+        self.value = value
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        y = x.copy()
+        y[self.indices] = self.value
+        return y
+
+    def _sensitivity(self, dy: np.ndarray) -> np.ndarray:
+        dx = dy.copy()
+        dx[self.indices] = 0
+        return dx
