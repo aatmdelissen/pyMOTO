@@ -62,14 +62,15 @@ class AssembleGeneral(Module):
         self.matrix_type = matrix_type
 
         # Boundary conditions
-        self.bc = np.asarray(bc).flatten()
         self.bcdiagval = np.max(element_matrix) if bcdiagval is None else bcdiagval
         if bc is not None:
+            self.bc = np.asarray(bc).flatten()
             bc_inds = np.bitwise_or(np.isin(self.rows, self.bc), np.isin(self.cols, self.bc))
             self.bcselect = np.argwhere(np.bitwise_not(bc_inds)).flatten()
             self.bcrows = np.concatenate((self.rows[self.bcselect], self.bc))
             self.bccols = np.concatenate((self.cols[self.bcselect], self.bc))
         else:
+            self.bc = None
             self.bcselect = None
             self.bcrows = self.rows
             self.bccols = self.cols
