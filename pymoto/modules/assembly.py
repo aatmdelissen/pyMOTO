@@ -62,7 +62,7 @@ class AssembleGeneral(Module):
         self.matrix_type = matrix_type
 
         # Boundary conditions
-        self.bc = bc
+        self.bc = np.asarray(bc).flatten()
         self.bcdiagval = np.max(element_matrix) if bcdiagval is None else bcdiagval
         if bc is not None:
             bc_inds = np.bitwise_or(np.isin(self.rows, self.bc), np.isin(self.cols, self.bc))
