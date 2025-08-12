@@ -187,7 +187,7 @@ class DomainDefinition:
         """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
-    def get_dofnumber(self, nod_idx: Union[int, np.ndarray], dof_idx: Union[int, np.ndarray] = None, ndof: int = 2):
+    def get_dofnumber(self, nod_idx: Union[int, list[int], np.ndarray], dof_idx: Union[int, list[int], np.ndarray] = None, ndof: int = 2):
         """Gets the degree of freedom number(s) for node(s) with given node index(es)
 
         Args:
@@ -198,6 +198,10 @@ class DomainDefinition:
         Returns:
             The dof number(s) corresponding to selected node index(es)
         """
+        if isinstance(nod_idx, list):
+            nod_idx = np.asarray(nod_idx)
+        if isinstance(dof_idx, list):
+            dof_idx = np.asarray(dof_idx)
         if dof_idx is None:
             dof_idx = np.arange(ndof)
         
