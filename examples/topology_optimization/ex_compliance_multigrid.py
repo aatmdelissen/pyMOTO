@@ -1,6 +1,23 @@
 """ 
-Compliance
-Minimal example for a compliance topology optimization with multigrid preconditioned CG as solver """
+Topopt with multigrid preconditioned CG solver
+==============================================
+
+Example for a compliance topology optimization with multigrid preconditioned CG as solver. This speeds up the 
+optimization significantly, especially for large-scale problems. This is achieved by projecting the finite element 
+problem onto a series of coarser grids, and only factorizing the finite element matrix at the coarsest grid. The 
+solution is then interpolated back to the fine grid. This process is used as preconditioner for the CG iterations,
+enabling fast convergence.
+
+This example is based on `ex_compliance.py` and only differs in the solver used. The user has full control over the 
+number of multigrid levels and their internal settings (see `pymoto.solvers.GeometricMultigrid` and 
+`pym.solvers.CG for more details).
+
+References:
+- Amir, O., Aage, N., & Lazarov, B. S. (2014). 
+  On multigrid-CG for efficient topology optimization. 
+  Structural and Multidisciplinary Optimization, 49(5), 815-829.
+  DOI: https://doi.org/10.1007/s00158-013-1015-5
+"""
 import numpy as np
 import pymoto as pym
 
@@ -86,7 +103,7 @@ if __name__ == "__main__":
         # solver = pym.solvers.SolverSparseCholeskyCVXOPT()  # Requires cvxopt installed
         # solver = pym.solvers.SolverSparseCholeskyScikit()  # Requires scikit installed
 
-        ''' Iterative solver: CG with Geometric Multi-grid preconditioning '''
+        ''' Iterative solver: CG with geometric multigrid preconditioning '''
         # Set up fine level multigrid operator
         mg1 = pym.solvers.GeometricMultigrid(domain)
         mgs = [mg1] # List of multigrid levels, starting with the finest grid
@@ -141,10 +158,10 @@ if __name__ == "__main__":
         pym.PlotIter()(sg0, sg1)  # Plot iteration history
 
     # Do the optimization with MMA
-    # pym.minimize_mma([sx], [sg0, sg1], function=func)
+    pym.minimize_mma([sx], [sg0, sg1], function=func)
 
     # Do the optimization with OC
-    pym.minimize_oc(sx, sg0, function=func)
+    # pym.minimize_oc(sx, sg0, function=func)
 
     # Here you can do some post processing
     print("The optimization has finished!")

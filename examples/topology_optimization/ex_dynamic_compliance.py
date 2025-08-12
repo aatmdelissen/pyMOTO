@@ -1,35 +1,31 @@
 """
+Dynamic compliance
+==================
 Example of the design of cantilever for minimum dynamic compliance.
 
-Implemented by @artofscience (s.koppen@tudelft.nl) based on:
-
-Silva, O. M., Neves, M. M., & Lenzi, A. (2019).
-A critical analysis of using the dynamic compliance as objective function
-in topology optimization of one-material structures
-considering steady-state forced vibration problems.
-Journal of Sound and Vibration, 444, 1-20.
-DOI: https://doi.org/10.1016/j.jsv.2018.12.030
+References:
+    Silva, O. M., Neves, M. M., & Lenzi, A. (2019).
+    A critical analysis of using the dynamic compliance as objective function in topology optimization of one-material 
+    structures considering steady-state forced vibration problems.
+    Journal of Sound and Vibration, 444, 1-20.
+    DOI: https://doi.org/10.1016/j.jsv.2018.12.030
 """
-from math import pi
-
 import numpy as np
-
 import pymoto as pym
 
 # Problem settings
-lx, ly = 1, 0.5
-nx, ny = int(lx * 100), int(ly * 100)  # Domain size
+lx, ly = 1, 0.5  # Domain size
+ny = 50
+nx = int(lx/ly)*ny
 unitx, unity = lx / nx, ly / ny
 unitz = 1.0  # out-of-plane thickness
 
 xmin, filter_radius, volfrac = 1e-6, 2, 0.49  # Density settings
-nu = 0.3  # Material properties
 
-E = 210e9  # 210 GPa
-rho = 7860  # kg/m3
+E, nu, rho = 210e9, 0.3, 7860  # Properties of steel in SI units [Pa], [-], [kg/m3]
 
 # fundamental eigenfreq is 372.6 Hz, above this frequency the optimization will not result in a nice design
-omega = 370 * (2 * pi)
+omega = 370 * (2 * np.pi)
 
 # force
 force_magnitude = -9000
@@ -38,99 +34,75 @@ force_magnitude = -9000
 alpha, beta = 1e-3, 1e-8
 
 
-class DynamicMatrix(pym.Module):
-    """ Constructs dynamic stiffness matrix with Rayleigh damping """
-
-    def _prepare(self, alpha=0.5, beta=0.5):
-        self.alpha = alpha
-        self.beta = beta
-
-    def _response(self, K, M, omega):
-        return K + 1j * omega * (self.alpha * M + self.beta * K) - omega ** 2 * M
-
-    def _sensitivity(self, dZ: pym.DyadCarrier):
-        K, M, omega = [s.state for s in self.sig_in]
-        dZr, dZi = dZ.real, dZ.imag
-        dK = dZr - (omega * self.beta) * dZi
-        dM = (-omega ** 2) * dZr - (omega * self.alpha) * dZi
-        dZrM = dZr.contract(M)
-        dZiK = dZi.contract(K)
-        dZiM = dZi.contract(M)
-        domega = -self.beta * dZiK - self.alpha * dZiM - 2 * omega * dZrM
-        return dK, dM, domega
-
-
 if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny, unitx=unitx, unity=unity, unitz=unitz)
 
     # Node and dof groups
-    nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
-    dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
+    nodes_left = domain.nodes[0, :]
+    dofs_left = domain.get_dofnumber(nodes_left, [0, 1], ndof=2)
 
     # Setup rhs for loadcase
     f = np.zeros(domain.nnodes * 2)  # Generate a force vector
     f[2 * domain.get_nodenumber(nx, ny // 2) + 1] = force_magnitude
 
-    # Initial design
-    s_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
+    # Design vector signal
+    s_x = pym.Signal('x', state=volfrac * np.ones(domain.nel))
 
     # Setup optimization problem
-    fn = pym.Network()
+    with pym.Network() as fn:
+        # Density filtering
+        s_xfilt = pym.DensityFilter(domain, radius=filter_radius)(s_x)
+        s_xfilt.tag = 'Filtered density'
 
-    # Filtering
-    s_filtered_variables = fn.append(pym.DensityFilter(s_variables, domain=domain, radius=filter_radius))
+        # Plot the design
+        pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
-    # SIMP penalization
-    s_penalized_variables = fn.append(pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
+        # SIMP penalization
+        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
-    # Assemble stiffness matrix
-    s_K = fn.append(pym.AssembleStiffness(s_penalized_variables, domain=domain, bc=dofs_left,
-                                          e_modulus=E, poisson_ratio=nu))
+        # Assembly of stiffness matrix
+        s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu, bc=dofs_left)(s_xsimp)
 
-    # Assemble mass matrix
-    s_M = fn.append(pym.AssembleMass(s_penalized_variables, domain=domain, bc=dofs_left,
-                                     material_property=rho, ndof=domain.dim))
+        # Assemble mass matrix
+        s_M = pym.AssembleMass(domain, bc=dofs_left, material_property=rho, ndof=2)(s_xsimp)
 
-    # Calculate the eigenfrequencies only once
-    calculate_eigenfrequencies = True
-    if calculate_eigenfrequencies:
-        fn.response()
-        m_eig = pym.EigenSolve([s_K, s_M], hermitian=True, nmodes=3)
-        m_eig.response()
-        eigfreq = np.sqrt(m_eig.sig_out[0].state)
-        print(f"Eigenvalues are {eigfreq} rad/s or {eigfreq / (2 * pi)} Hz")
+        # Calculate the eigenfrequencies only once
+        calculate_eigenfrequencies = True
+        if calculate_eigenfrequencies:
+            s_eig, _ = pym.EigenSolve(hermitian=True, nmodes=3)(s_K, s_M) 
+ 
+            eigfreq = np.sqrt(s_eig.state)
+            print(f"Eigenvalues are {eigfreq} rad/s or {eigfreq / (2 * np.pi)} Hz")
 
-    # Build dynamic stiffness matrix Z
-    s_omega = pym.Signal('omega', omega)
-    s_Z = fn.append(DynamicMatrix([s_K, s_M, s_omega], alpha=alpha, beta=beta))
+        # Build dynamic stiffness matrix Z = K + iω(αM + βK) - ω^2 M
+        s_Z = pym.AddMatrix()(1 + 1j*omega*beta, s_K, -omega**2 + 1j*omega*alpha, s_M)
 
-    # Solve
-    s_force = pym.Signal('f', state=f)
-    s_displacement = fn.append(pym.LinSolve([s_Z, s_force], pym.Signal('u')))
+        # Solve linear system of equations
+        s_u = pym.LinSolve()(s_Z, f)
 
-    # Output displacement (is a complex value)
-    s_dynamic_compliance = fn.append(pym.EinSum([s_displacement, s_force], expression='i,i->'))
+        # Output displacement (is a complex value)
+        s_cdyn = pym.EinSum('i,i->')(s_u, f)
 
-    # Absolute value (amplitude of response)
-    s_dynamic_norm = fn.append(pym.ComplexNorm(s_dynamic_compliance))
+        # Absolute value (amplitude of response)
+        s_ampl = pym.ComplexNorm()(s_cdyn)
 
-    # Objective
-    s_objective = fn.append(pym.Scaling([s_dynamic_norm], scaling=100.0))
-    s_objective.tag = "Objective"
+        # Objective
+        s_objective = pym.Scaling(scaling=100.0)(s_ampl)
+        s_objective.tag = "Objective"
 
-    # Volume
-    s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
+        # Volume
+        s_volume = pym.EinSum('i->')(s_xfilt)
 
-    # Volume constraint
-    s_volume_constraint = fn.append(pym.Scaling(s_volume, scaling=10.0, maxval=volfrac * domain.nel))
-    s_volume_constraint.tag = "Volume constraint"
+        # Volume constraint
+        s_volume_constraint = pym.Scaling(scaling=10.0, maxval=volfrac * domain.nel)(s_volume)
+        s_volume_constraint.tag = "Volume constraint"
 
-    # Plotting
-    module_plotdomain = pym.PlotDomain(s_filtered_variables, domain=domain, saveto="out/design")
-    responses = [s_objective, s_volume_constraint]
-    module_plotiter = pym.PlotIter(responses)
-    fn.append(module_plotdomain, module_plotiter)
+        # List of optimization responses: first the objective and all others the constraints
+        responses = [s_objective, s_volume_constraint]
+        
+        # Show iteration history
+        pym.PlotIter()(*responses)
 
     # Optimization
-    pym.minimize_mma(fn, [s_variables], responses, verbosity=2)
+    pym.minimize_mma(s_x, responses, verbosity=2)

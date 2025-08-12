@@ -1,8 +1,8 @@
-""" PyMOTO 69-line topology optimization example
+"""PyMOTO 69-line topology optimization example
 Example for a structural compliance topology optimization based on the 99 line Matlab script of Sigmund.
-Using pyMOTO the number of lines can be reduced to only 69 lines (while providing the same level of detail), which 
-includes blank lines for readability and additional comments to clarify the functionality of this example.
-References:
+Using pyMOTO the number of lines can be reduced to only 69 lines (while providing the same level of detail), which
+even includes blank lines for readability and additional comments to clarify the functionality of this example.
+Reference:
     Sigmund (2001), "A 99 line topology optimization code written in Matlab" (https://doi.org/10.1007/s001580050176)
 """
 
@@ -23,8 +23,7 @@ el = (E/ (12 * (1 + nu) * (1 - 2 * nu)) * np.array([
     [-ka + kb / 2, kf, -ka / 2 - kb / 2, -3 / 2, ka + kb, 3 / 2, ka / 2 - kb, -kf],
     [-kf, ka / 2 - kb, -3 / 2, -ka / 2 - kb / 2, 3 / 2, ka + kb, kf, -ka + kb / 2],
     [-ka / 2 - kb / 2, 3 / 2, -ka + kb / 2, -kf, ka / 2 - kb, kf, ka + kb, -3 / 2],
-    [3 / 2, -ka / 2 - kb / 2, kf, ka / 2 - kb, -kf, -ka + kb / 2, -3 / 2, ka + kb],
-    ]))
+    [3 / 2, -ka / 2 - kb / 2, kf, ka / 2 - kb, -kf, -ka + kb / 2, -3 / 2, ka + kb]]))
 
 
 # OC update scheme
@@ -57,13 +56,14 @@ with pym.Network() as func:
     pym.PlotDomain(domain=domain, saveto="out/design")(sxfilt), pym.PlotIter()(sg0)  # Show design and iter history
 
 # Perform the actual optimization, using OC
+print("Initial g0 {0:.3e}, vol {1:.3f}".format(sg0.state, np.sum(sx.state) / (nx * ny)))
 loop, change = 0, 1.0
 while change > 0.01:
     loop += 1
-    func.response()  # Forward analysis (note: the first is already calculated once and could be skipped)
     func.reset()  # Clear previous sensitivities
     sg0.sensitivity = 1.0  # Seed the last sensitivity with a value of 1.0
     func.sensitivity()  # Backpropagation to calculate all sensitivities
     sx.state, change = oc_update(sx.state, sx.sensitivity)
+    func.response()  # Forward analysis (note: the first is already calculated so only done after the first update)
     vol = np.sum(sx.state) / (nx * ny)
     print("It {0: 3d}, g0 {1:.3e}, vol {2:.3f}, change {3:.2f}".format(loop, sg0.state, vol, change))

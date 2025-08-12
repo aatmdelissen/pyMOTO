@@ -3,16 +3,15 @@ Compliance with prescribed displacements
 ========================================
 
 Example of the design for stiffness of a structure subjected to prescribed displacements
- using topology optimization with:
+using topology optimization with:
 (i) maximum stiffness between prescribed displacements and support, and
 (ii) constrained by maximum volume.
 
-Reference:
-
-Koppen, S., Langelaar, M., & van Keulen, F. (2022). 
-A simple and versatile topology optimization formulation for flexure synthesis. 
-Mechanism and Machine Theory, 172, 104743.
-DOI: http://dx.doi.org/10.1016/j.mechmachtheory.2022.104743
+References:
+- Koppen, S., Langelaar, M., & van Keulen, F. (2022). 
+  A simple and versatile topology optimization formulation for flexure synthesis. 
+  Mechanism and Machine Theory, 172, 104743. 
+  DOI: http://dx.doi.org/10.1016/j.mechmachtheory.2022.104743
 """
 
 import numpy as np

@@ -1,5 +1,7 @@
 """
-Example of the design of a compliant mechanism using topology optimization with:
+Compliant mechanism (springs)
+=============================
+Example of the design of a compliant mechanism inverter using topology optimization with:
 (i) maximum output displacement due to input load
 (ii) constrained maximum volume
 (iii) spring attached to output
@@ -10,18 +12,19 @@ Note: this problem formulation only works with
 (ii) non-design domains at the input and output, and
 (iii) active volume constraint
 (iv) input spring stiffness not equal to output spring stiffness
+Even with these items taken into consideration, convergence is still troublesome as the inverter requires the 
+displacement (initially positive) to pass trough zero in order to become negative. Other formulations offer better 
+convergence properties, such as using mechanism modes and constraint modes as is done in 
+`ex_compliant_mechanism_kinetostatic.py` or purely based on compliance values in `ex_compliant_mechanism.py`.
 
-Implemented by @artofscience (s.koppen@tudelft.nl) based on:
-
-Bendsoe, M. P., & Sigmund, O. (2003).
-Topology optimization: theory, methods, and applications.
-Springer Science & Business Media.
-DOI: https://doi.org/10.1007/978-3-662-05086-6
+References:
+- Bendsoe, M. P., & Sigmund, O. (2003).
+  Topology optimization: theory, methods, and applications.
+  Springer Science & Business Media.
+  DOI: https://doi.org/10.1007/978-3-662-05086-6
 """
 import numpy as np
 from scipy.sparse import csc_matrix
-
-# flake8: noqa
 import pymoto as pym
 
 # Problem settings
@@ -29,109 +32,84 @@ nx, ny = 80, 80  # Domain size
 xmin, filter_radius, volfrac = 1e-6, 2, 0.3  # Density settings
 nu, E = 0.3, 100  # Material properties
 
-scaling_objective = 10.0
-
-input_spring_stiffness = 10.0
+# Spring stiffnesses for the virtual springs at the input and output
+input_spring_stiffness = 5.0
 output_spring_stiffness = 15.0
 
+nondesigndomain_size = 4  # Size of the non-design domain at the input and output
+
 use_volume_constraint = True
-scaling_volume_constraint = 10.0
-
-domain_size = 4
-
-
-class VecSet(pym.Module):
-    def _prepare(self, indices, value):
-        self.indices = indices
-        self.value = value
-
-    def _response(self, x):
-        y = x.copy()
-        y[self.indices] = self.value
-        return y
-
-    def _sensitivity(self, dy):
-        dx = dy.copy()
-        dx[self.indices] = 0
-        return dx
-
 
 if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny)
 
     # Node and dof groups
-    nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
-    nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
+    nodes_left = domain.nodes[0, :].flatten()
+    nodes_right = domain.nodes[-1, :].flatten()
 
-    dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-    dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-    dofs_left_x = dofs_left[0::2]
-    dofs_left_y = dofs_left[1::2]
-    dof_input = dofs_left_y[0]  # Input dofs for mechanism
-    dof_output = dofs_left_y[-1]  # Output dofs for mechanism
+    dofs_right = domain.get_dofnumber(nodes_right, [0, 1], ndof=2).flatten()
+    dofs_left_x = 2*nodes_left
+    dof_input = 2*nodes_left[0] + 1  # Input dof for mechanism
+    dof_output = 2*nodes_left[-1] + 1  # Output dof for mechanism
 
-    prescribed_dofs = np.union1d(dofs_left_x, dofs_right)
+    fixed_dofs = np.union1d(dofs_left_x, dofs_right)
 
-    # Setup rhs for two loadcases
+    # Setup rhs for input force
     f = np.zeros(domain.nnodes * 2, dtype=float)
     f[dof_input] = 1.0
 
-    # Initial design
-    signal_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
+    # Signal with design variables
+    s_x = pym.Signal('x', state=volfrac * np.ones(domain.nel))
 
     # Setup optimization problem
-    network = pym.Network()
+    with pym.Network() as fn:
+        # Setup non-design domains
+        input_domain = domain.elements[:nondesigndomain_size, :nondesigndomain_size]
+        output_domain = domain.elements[:nondesigndomain_size, -nondesigndomain_size:]
+        non_design_domain = np.union1d(input_domain, output_domain)
+        s_xnondes = pym.VecSet(indices=non_design_domain, value=1.0)(s_x)
 
-    # Setup non-design domains
-    input_domain = domain.get_elemnumber(*np.meshgrid(range(domain_size), range(domain_size)))
-    output_domain = domain.get_elemnumber(*np.meshgrid(range(domain_size), np.arange(ny - domain_size, ny)))
-    non_design_domain = np.union1d(input_domain, output_domain)
-    signal_variables_2 = network.append(VecSet(signal_variables, indices=non_design_domain, value=1.0))
+        # Density filtering
+        s_xfilt = pym.DensityFilter(domain, radius=filter_radius)(s_xnondes)
+        s_xfilt.tag = 'Filtered density'
 
-    # Filtering
-    signal_filtered_variables = network.append(
-        pym.DensityFilter(signal_variables_2, domain=domain, radius=filter_radius))
+        # Plot the design
+        pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
-    # Penalization
-    signal_penalized_variables = network.append(
-        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
+        # SIMP penalization
+        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
-    # Assembly
-    istiff = np.array([dof_input, dof_output])
-    sstiff = np.array([input_spring_stiffness, output_spring_stiffness])
+        # Assembly (with added constant stiffness for springs)
+        istiff = np.array([dof_input, dof_output])
+        sstiff = np.array([input_spring_stiffness, output_spring_stiffness])
+        K_const = csc_matrix((sstiff, (istiff, istiff)), shape=(domain.nnodes*2, domain.nnodes*2))
+        s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu, bc=fixed_dofs, add_constant=K_const)(s_xsimp)
 
-    K_const = csc_matrix((sstiff, (istiff, istiff)), shape=(domain.nnodes*2, domain.nnodes*2))
-    signal_stiffness = network.append(
-        pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu,
-                              bc=prescribed_dofs, add_constant=K_const))
+        # Solve for the displacements
+        s_u = pym.LinSolve()(s_K, f)
 
-    # Solve
-    signal_force = pym.Signal('f', state=f)
-    signal_displacements = network.append(pym.LinSolve([signal_stiffness, signal_force]))
+        # Objective is the displacement at the output
+        s_gobj = pym.Scaling(scaling=10.0)(s_u[dof_output])
+        s_gobj.tag = "Objective"
 
-    # Output displacement
-    signal_output_displacement = signal_displacements[dof_output]
+        # List of optimization responses: first the objective and all others the constraints
+        optimization_responses = [s_gobj]
 
-    # Objective
-    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=scaling_objective))
-    signal_objective.tag = "Objective"
+        # Add volume constraint if requested
+        if use_volume_constraint:
+            # Volume
+            s_vol = pym.EinSum('i->')(s_xfilt)
+            s_vol.tag = "Volume"
 
-    # Volume
-    signal_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
-    signal_volume.tag = "volume"
+            # Volume constraint
+            s_gvol = pym.Scaling(scaling=10.0, maxval=volfrac * domain.nel)(s_vol)
+            s_gvol.tag = "Volume constraint"
 
-    # Volume constraint
-    signal_volume_constraint = network.append(pym.Scaling(signal_volume, scaling=10.0, maxval=volfrac * domain.nel))
-    signal_volume_constraint.tag = "Volume constraint"
+            optimization_responses.append(s_gvol)
 
-    # Plotting
-    module_plotdomain = pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design")
-    responses = [signal_objective]
-    if use_volume_constraint:
-        responses.append(signal_volume_constraint)
-    module_plotiter = pym.PlotIter(responses)
-    network.append(module_plotdomain, module_plotiter)
+        # Plot iteration history
+        pym.PlotIter()(*optimization_responses)
 
     # Optimization
-    pym.minimize_mma(network, [signal_variables], responses, verbosity=2)
+    pym.minimize_mma(s_x, optimization_responses, verbosity=2)

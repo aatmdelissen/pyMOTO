@@ -1,4 +1,13 @@
-""" Minimal example for a compliance topology optimization """
+"""
+Compliance minimization
+=======================
+
+This example demonstrates how to minimize the compliance of a 2D or 3D structure, using pyMOTO. Two different physics
+are implemented: a static mechanical analysis (= stiffness maximization) and a static thermal analysis (= conductivity 
+maximization). The example contains the essential components needed to run a topology optimization problem, including a 
+density filter, material interpolation, finite-element assembly, solution to the linear system of equations, and an 
+optimizer (OC or MMA).
+"""
 import numpy as np
 
 import pymoto as pym

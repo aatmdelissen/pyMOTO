@@ -1,15 +1,17 @@
 """
-Example of the design of a thermoelastic structure, with combined heat and mechanical load.
+Thermo-mechanical optimization
+==============================
 
-Implementation by @artofscience (s.koppen@tudelft.nl) based on:
-Adapted by @JoranZwet to incorporate thermal analysis and expansion based on non-uniform temperature
+Example of the design of a thermoelastic structure, with combined heat and mechanical load. First the heat equations are 
+solved to determine the temperature distribution. After that, the mechanical load due to thermal expansion is calculated
+based on the temperatures. The compliance of the heat-expansion load combined with the mechanical load is minimized.
 
-Gao, T., & Zhang, W. (2010).
-Topology optimization involving thermo-elastic stress loads.
-Structural and multidisciplinary optimization, 42, 725-738.
-DOI: https://doi.org/10.1007/s00158-010-0527-5
+References:
+- Gao, T., & Zhang, W. (2010).
+  Topology optimization involving thermo-elastic stress loads.
+  Structural and multidisciplinary optimization, 42, 725-738.
+  DOI: https://doi.org/10.1007/s00158-010-0527-5
 """
-
 import numpy as np
 import pymoto as pym
 
@@ -17,95 +19,85 @@ import pymoto as pym
 nx, ny = 60, 80  # Domain size
 xmin, filter_radius = 1e-9, 2
 
-load = -100.0  # point load
-heatload = 1.0
-scaling_objective = 10.0
+load = -100.0  # Mechanical force
+heatload = 1.0  # Thermal heat load
 
 volfrac = 0.25
-scaling_volume_constraint = 1.0
 
 
 if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny)
 
-    nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
-    dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
+     # Node and dof groups
+    nodes_right = domain.nodes[-1, :]
+    nodes_left = domain.nodes[0, :]
 
-    # Node and dof groups
-    nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
-
-    dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-    dofs_left_x = dofs_left[0::2]
-
-    all_dofs = np.arange(0, 2 * domain.nnodes)
-    prescribed_dofs = np.unique(np.hstack([dofs_left_x, dofs_right]))
-    free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
+    dofs_right = domain.get_dofnumber(nodes_right, [0, 1], ndof=2).flatten()
+    dofs_left_x = domain.get_dofnumber(nodes_left, 0, ndof=2).flatten()
+   
+    fixed_dofs = np.unique(np.hstack([dofs_left_x, dofs_right]))
 
     # Setup rhs for loadcase
     f = np.zeros(domain.nnodes * 2)  # Generate a force vector
-    f[2 * domain.get_nodenumber(0, 0) + 1] = load
+    f[2 * domain.nodes[0, 0] + 1] = load
     q = np.zeros(domain.nnodes)  # Generate a heat vector
-    q[domain.get_nodenumber(0, 0)] = heatload
+    q[domain.nodes[0, 0]] = heatload
 
     # Initial design
-    s_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
+    s_x = pym.Signal('x', state=volfrac * np.ones(domain.nel))
 
     # Setup optimization problem
-    fn = pym.Network()
+    with pym.Network() as fn:
+        # Density filtering
+        s_xfilt = pym.DensityFilter(domain, radius=filter_radius)(s_x)
+        s_xfilt.tag = 'Filtered density'
 
-    # Filtering
-    s_filtered_variables = fn.append(pym.DensityFilter(s_variables, domain=domain, radius=filter_radius))
-    s_filtered_variables.tag = "design"
+        # Plot the design
+        pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
-    # RAMP with q = 2
-    s_penalized_variables = fn.append(pym.MathGeneral(s_filtered_variables, expression=f"{xmin} + {1 - xmin}*(inp0 / (3 - 2*inp0))"))
+        # RAMP with q = 2
+        s_xRAMP = pym.MathGeneral(f"{xmin} + {1 - xmin}*(inp0 / (3 - 2*inp0))")(s_xfilt)
 
-    # Assemble stiffness and conductivity matrix
-    s_K = fn.append(pym.AssembleStiffness(s_penalized_variables, domain=domain, bc=prescribed_dofs))
-    s_KT = fn.append(pym.AssemblePoisson(s_penalized_variables, domain=domain, bc=nodes_right))
+        # Assemble stiffness and conductivity matrix
+        s_K = pym.AssembleStiffness(domain, bc=fixed_dofs)(s_xRAMP)
+        s_KT = pym.AssemblePoisson(domain, bc=nodes_right)(s_xRAMP)
 
-    # Solve for temperature
-    s_heat = pym.Signal('q', state=q)
-    s_temperature = fn.append(pym.LinSolve([s_KT, s_heat]))
-    s_temperature.tag = "temperature"
+        # Solve for temperature
+        s_T = pym.LinSolve()(s_KT, q)
+        s_T.tag = "temperature"
 
-    # Determine thermo-mechanical load
-    s_TE = fn.append(pym.ElementAverage(s_temperature, domain=domain))
-    s_xT = fn.append(pym.MathGeneral([s_TE, s_filtered_variables], expression="inp0 * inp1"))
-    s_thermal_load = fn.append(pym.ThermoMechanical(s_xT, domain=domain, alpha=1.0))
+        # Determine thermo-mechanical load
+        s_Telem = pym.ElementAverage(domain)(s_T)
+        s_xT = pym.MathGeneral("inp0 * inp1")(s_Telem, s_xfilt)
+        s_thermal_load = pym.ThermoMechanical(domain, alpha=1.0)(s_xT)
 
-    # Solve for displacements
-    s_force = pym.Signal('f', state=f)
-    s_load = fn.append(pym.MathGeneral([s_force, s_thermal_load], expression="inp0 + inp1"))
+        # Combine thermo-mechanical and purely mechanical loads
+        s_load = pym.MathGeneral("inp0 + inp1")(f, s_thermal_load)
 
-    s_up = pym.Signal('up', state=np.zeros(len(prescribed_dofs), dtype=float))
-    s_disp, s_reactions = fn.append(pym.SystemOfEquations([s_K, s_load[free_dofs], s_up], prescribed=prescribed_dofs, free=free_dofs))
-    s_disp.tag = "displacement"
+        # Solve mechanical system of equations
+        s_disp = pym.LinSolve()(s_K, s_load)
+        s_disp.tag = "displacement"
 
-    # Compliance
-    s_compliance = fn.append(pym.EinSum([s_disp, s_reactions], expression='i,i->'))
+        # Compliance
+        s_compliance = pym.EinSum('i,i->')(s_disp, s_load)
 
-    # Objective
-    s_objective = fn.append(pym.Scaling([s_compliance], scaling=scaling_objective))
-    s_objective.tag = "Objective"
+        # Objective
+        s_objective = pym.Scaling(scaling=10)(s_compliance)
+        s_objective.tag = "Objective"
 
-    # Plotting
-    fn.append(pym.PlotDomain(s_filtered_variables, domain=domain, saveto="out/design.png"))
-    responses = [s_objective]
+        # Output to Paraview VTI format
+        pym.WriteToVTI(domain, saveto="out/dat.vti")(s_xfilt, s_T, s_disp)
 
-    # Output to VTK
-    fn.append(pym.WriteToVTI([s_filtered_variables, s_temperature, s_disp], domain=domain, saveto="out/dat.vti"))
+        # Volume
+        s_volume = pym.EinSum(expression='i->')(s_xfilt)
 
-    # Volume
-    s_volume = fn.append(pym.EinSum(s_filtered_variables, expression='i->'))
+        # Volume constraint
+        s_volume_constraint = pym.Scaling(scaling=1, maxval=volfrac * domain.nel)(s_volume)
+        s_volume_constraint.tag = "Volume constraint"
 
-    # Volume constraint
-    s_volume_constraint = fn.append(pym.Scaling(s_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
-    s_volume_constraint.tag = "Volume constraint"
-    responses.append(s_volume_constraint)
-
-    fn.append(pym.PlotIter(responses))
+        # Show iteration history
+        pym.PlotIter()(s_objective, s_volume_constraint)
 
     # Optimization
-    pym.minimize_mma(fn, [s_variables], responses, verbosity=3, maxit=100)
+    pym.minimize_mma(s_x, [s_objective, s_volume_constraint], verbosity=3, maxit=100)

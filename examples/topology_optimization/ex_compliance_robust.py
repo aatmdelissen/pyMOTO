@@ -8,11 +8,11 @@ three variants: a nominal design, an eroded design and a dilated design. The wor
 in the objective function. Note that for a compliance minimization problem, the eroded design is always the worst. 
 Hence it is called the 'poor-man's robust formuation'.
 
-Implemented based on:
-Wang, F., Lazarov, B. S., & Sigmund, O. (2011).
-On projection methods, convergence and robust formulations in topology optimization.
-Structural and multidisciplinary optimization, 43, 767-784.
-DOI: https://doi.org/10.1007/s00158-010-0602-y
+References:
+- Wang, F., Lazarov, B. S., & Sigmund, O. (2011).
+  On projection methods, convergence and robust formulations in topology optimization.
+  Structural and multidisciplinary optimization, 43, 767-784.
+  DOI: https://doi.org/10.1007/s00158-010-0602-y
 """
 import numpy as np
 import pymoto as pym

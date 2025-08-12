@@ -1,18 +1,20 @@
 """
+Compliant mechanism (static condensation)
+=========================================
 Example of the design of a compliant mechanism using topology optimization with:
 (i) maximum stiffness of input and output ports, and
 (ii) desired geometric advantage of -1
 (iii) desired maximum stiffness of the compliant deformation pattern (inversion)
 
-Implemented by @artofscience (s.koppen@tudelft.nl) based on:
+This example uses static condensation to calculate the mechanism and constraint mode compliances in an efficient way.
 
-Koppen, S. (2022).
-Topology optimization of compliant mechanisms with multiple degrees of freedom.
-DOI: http://dx.doi.org/10.4233/uuid:21994a92-e365-4679-b6ac-11a2b70572b7
+References:
+- Koppen, S. (2022).
+  Topology optimization of compliant mechanisms with multiple degrees of freedom.]
+  PhD thesis, Delft University of Technology.
+  DOI: http://dx.doi.org/10.4233/uuid:21994a92-e365-4679-b6ac-11a2b70572b7
 """
 import numpy as np
-
-# flake8: noqa
 import pymoto as pym
 
 # Problem settings
@@ -20,104 +22,85 @@ nx, ny = 100, 100  # Domain size
 xmin, filter_radius, volfrac = 1e-6, 2, 0.35  # Density settings
 nu, E = 0.3, 100  # Material properties
 
-scaling_objective = 100.0
+u_desired = np.array([1.0, -1.1])  # Intended geometric advantage of the mechanism [u_in, u_out]
 
-compliance_constraint_value = 0.1
-scaling_compliance_constraint = 10.0
-
+compliance_constraint_value = 0.1  # Maximum compliance of the requested mechanism mode
 use_volume_constraint = True
-scaling_volume_constraint = 10.0
-
-v = np.ones(2, dtype=float)
-v[1] *= -1.1  # intended geometric advantage
 
 if __name__ == "__main__":
     # Set up the domain
     domain = pym.DomainDefinition(nx, ny)
 
     # Node and dof groups
-    nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
-    nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
+    nodes_left = domain.nodes[0, :].flatten()
+    nodes_right = domain.nodes[-1, :].flatten()
 
-    dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-    dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-    dofs_left_x = dofs_left[0::2]
-    dofs_left_y = dofs_left[1::2]
-    dof_input = dofs_left_y[0]  # Input dofs for mechanism
-    dof_output = dofs_left_y[-1]  # Output dofs for mechanism
+    dofs_right = domain.get_dofnumber(nodes_right, [0, 1], ndof=2).flatten()
+    dofs_left_x = 2*nodes_left
+
+    dof_input = 2*nodes_left[0] + 1  # Input dof for mechanism
+    dof_output = 2*nodes_left[-1] + 1  # Output dof for mechanism
 
     all_dofs = np.arange(0, 2 * domain.nnodes)
-    prescribed_dofs = np.unique(np.hstack([dofs_left_x, dofs_right, dof_input, dof_output]))
-    free_dofs = np.setdiff1d(all_dofs, prescribed_dofs)
+    prescribed_dofs = np.array(list({*dofs_left_x, *dofs_right})) 
+    io_dofs = np.array([dof_input, dof_output])
+    free_dofs = np.setdiff1d(all_dofs, np.concatenate([io_dofs, prescribed_dofs]))
 
-    # Setup solution vectors and rhs for two loadcases
-    ff = np.zeros((free_dofs.size, 2), dtype=float)
-    u = np.zeros((2 * domain.nnodes, 2), dtype=float)
-    u[dof_input, :] = 1.0
-    u[dof_output, 0] = 1.0
-    u[dof_output, 1] = -1.0
-
-    up = u[prescribed_dofs, :]
-    prescribed_dofs = np.unique(np.hstack([dofs_left_x, dofs_right]))
-    gdi = np.unique(np.hstack([dof_input, dof_output]))
-    free_dofs = np.setdiff1d(all_dofs, np.unique(np.hstack([gdi, prescribed_dofs])))
-
-    # Initial design
-    signal_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
+    # Signal with design variables
+    s_x = pym.Signal('x', state=volfrac * np.ones(domain.nel))
 
     # Setup optimization problem
-    network = pym.Network()
+    with pym.Network() as fn:
+        # Density filtering
+        s_xfilt = pym.DensityFilter(domain, radius=filter_radius)(s_x)
+        s_xfilt.tag = 'Filtered density'
 
-    # Density filtering
-    signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
+        # Plot the design
+        pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
-    # SIMP penalization
-    signal_penalized_variables = network.append(
-        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
+        # SIMP penalization
+        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
-    # Assembly
-    signal_stiffness = network.append(
-        pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu))
+        # Assembly of stiffness matrix
+        s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu)(s_xsimp)
 
-    # Static condensation
-    signal_condensed_stiffness = network.append(pym.StaticCondensation(signal_stiffness, main=gdi, free=free_dofs))
+        # Static condensation of the dofs of interest
+        s_Kr = pym.StaticCondensation(main=io_dofs, free=free_dofs)(s_K)
 
-    # Compliances
-    s_v = pym.Signal('u', state=v)
-    signal_state = network.append(pym.EinSum([s_v, signal_condensed_stiffness, s_v], expression='i,ik,k->'))
+        # Compliance of the mechanism mode
+        s_cmech = pym.EinSum('i,ik,k->')(u_desired, s_Kr, u_desired)
 
-    # compliance constraint
-    signal_compliance_constraint = network.append(
-        pym.Scaling(signal_state, scaling=scaling_compliance_constraint, maxval=compliance_constraint_value))
-    signal_compliance_constraint.tag = "Compliance constraint"
+        # Compliance constraint on the mechanism mode
+        s_gcmech = pym.Scaling(scaling=10.0, maxval=compliance_constraint_value)(s_cmech)
+        s_gcmech.tag = "Mechanism compliance"
 
-    # Compliances
-    f = np.eye(2, dtype=float)
-    s_f = pym.Signal('f', state=f)
-    s_u = network.append(pym.LinSolve([signal_condensed_stiffness, s_f]))
+        # Inverse of the reduced stiffness matrix (=compliance matrix)
+        s_Y = pym.Inverse()(s_Kr)
 
-    s_compliances = network.append(pym.EinSum([s_u, s_f], expression='ij,ij->'))
+        # Sum the diagonal only (input and output compliance); off-diagonal terms are input-output compliance
+        s_c = pym.EinSum('ii->')(s_Y)
 
-    # Objective function
-    signal_objective = network.append(pym.Scaling([s_compliances], scaling=1.0 * scaling_objective))
-    signal_objective.tag = "Objective"
+        # Objective function
+        s_gobj = pym.Scaling(scaling=100.0)(s_c)
+        s_gobj.tag = "Objective"
 
-    # Volume
-    signal_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
-    signal_volume.tag = "Volume"
+        # List of optimization responses: first the objective and all others the constraints
+        optimization_responses = [s_gobj, s_gcmech]
 
-    # Volume constraint
-    signal_volume_constraint = network.append(
-        pym.Scaling(signal_volume, scaling=scaling_volume_constraint, maxval=volfrac * domain.nel))
-    signal_volume_constraint.tag = "Volume constraint"
+        # Add volume constraint if requested
+        if use_volume_constraint:
+            # Volume
+            s_vol = pym.EinSum('i->')(s_xfilt)
+            s_vol.tag = "Volume"
 
-    # Plotting
-    network.append(pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design"))
+            # Volume constraint
+            s_gvol = pym.Scaling(scaling=10.0, maxval=volfrac * domain.nel)(s_vol)
+            s_gvol.tag = "Volume constraint"
 
-    opt_responses = [signal_objective, signal_compliance_constraint]
-    if use_volume_constraint:
-        opt_responses.append(signal_volume_constraint)
-    network.append(pym.PlotIter(opt_responses))
+            optimization_responses.append(s_gvol)
+        
+        # Plot iteration history
+        pym.PlotIter()(*optimization_responses)
 
     # Optimization
-    pym.minimize_mma(network, [signal_variables], opt_responses, verbosity=2)
+    pym.minimize_mma(s_x, optimization_responses, verbosity=2)
