@@ -3,7 +3,7 @@ import warnings
 import inspect
 import time
 import copy
-from typing import Union, List, Any, Iterable, Set
+from typing import Union, List, Any, Iterable, Set, Tuple
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from .utils import _parse_to_list
@@ -359,7 +359,7 @@ BoundMethodT = Union[Callable, BoundMethod]
 SignalsT = Union[Signal, Iterable[Signal]]
 
 
-def _check_function_signature(fn: BoundMethodT, n_args: int = None) -> tuple[int, int]:
+def _check_function_signature(fn: BoundMethodT, n_args: int = None) -> Tuple[int, int]:
     """Checks the function signature against given signal list
 
     - Only positional-only or positional-or-keyword arguments are allowed
