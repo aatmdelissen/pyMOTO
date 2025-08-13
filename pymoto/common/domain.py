@@ -3,7 +3,8 @@ import sys
 import base64
 import struct
 import warnings
-from typing import Union
+from typing import Union, Iterable
+from numpy.typing import NDArray
 import numpy as np
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
@@ -36,6 +37,9 @@ def get_path(x, y):
         ]
     )
     return Path(verts, codes)
+
+
+IndexType = Union[int, Iterable[int], NDArray[np.integer]]
 
 
 class DomainDefinition:
@@ -159,7 +163,7 @@ class DomainDefinition:
         """Number of elements in each direction"""
         return np.array([self.nelx, self.nely, self.nelz])[:self.dim]
 
-    def get_elemnumber(self, eli: Union[int, np.ndarray], elj: Union[int, np.ndarray], elk: Union[int, np.ndarray] = 0):
+    def get_elemnumber(self, eli: IndexType, elj: IndexType, elk: IndexType = 0):
         """Gets the element number(s) for element(s) with given Cartesian indices (i, j, k)
 
         Args:
@@ -172,9 +176,7 @@ class DomainDefinition:
         """
         return (elk * self.nely + elj) * self.nelx + eli
 
-    def get_nodenumber(
-        self, nodi: Union[int, np.ndarray], nodj: Union[int, np.ndarray], nodk: Union[int, np.ndarray] = 0
-    ):
+    def get_nodenumber(self, nodi: IndexType, nodj: IndexType, nodk: IndexType = 0):
         """Gets the node number(s) for nodes with given Cartesian indices (i, j, k)
 
         Args:
@@ -187,7 +189,7 @@ class DomainDefinition:
         """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
-    def get_dofnumber(self, nod_idx: Union[int, list[int], np.ndarray], dof_idx: Union[int, list[int], np.ndarray] = None, ndof: int = 2):
+    def get_dofnumber(self, nod_idx: IndexType, dof_idx: IndexType = None, ndof: int = 2):
         """Gets the degree of freedom number(s) for node(s) with given node index(es)
 
         Args:
@@ -198,9 +200,9 @@ class DomainDefinition:
         Returns:
             The dof number(s) corresponding to selected node index(es)
         """
-        if isinstance(nod_idx, list):
+        if not isinstance(nod_idx, int):
             nod_idx = np.asarray(nod_idx)
-        if isinstance(dof_idx, list):
+        if not isinstance(dof_idx, int):
             dof_idx = np.asarray(dof_idx)
         if dof_idx is None:
             dof_idx = np.arange(ndof)
@@ -212,7 +214,7 @@ class DomainDefinition:
             dof_idx1 = np.expand_dims(dof_idx, axis=tuple(np.arange(np.ndim(nod_idx))))
             return nod_idx1 * ndof + dof_idx1
 
-    def get_node_indices(self, nod_idx: Union[int, np.ndarray] = None):
+    def get_node_indices(self, nod_idx: IndexType = None):
         """Gets the Cartesian index (i, j, k) for given node number(s)
 
         Args:
@@ -230,11 +232,11 @@ class DomainDefinition:
         nodk = nod_idx // ((self.nelx + 1) * (self.nely + 1))
         return np.stack([nodi, nodj, nodk], axis=0)
 
-    def get_node_position(self, nod_idx: Union[int, np.ndarray] = None):
+    def get_node_position(self, nod_idx: IndexType = None):
         ijk = self.get_node_indices(nod_idx)
         return (self.element_size[: self.dim] * ijk.T).T
 
-    def get_elemconnectivity(self, i: Union[int, np.ndarray], j: Union[int, np.ndarray], k: Union[int, np.ndarray] = 0):
+    def get_elemconnectivity(self, i: IndexType, j: IndexType, k: IndexType = 0):
         """Get the connectivity for element identified with Cartesian indices (i, j, k)
         This is where the nodal numbers are defined
 
