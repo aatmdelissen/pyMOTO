@@ -1,0 +1,56 @@
+/* .sphx-glr-thumbcontainer {
+    min-height: 320px !important;
+    margin: 20px !important;
+}
+.sphx-glr-thumbcontainer .figure {
+    width: 250px !important;
+}
+.sphx-glr-thumbcontainer img {
+    max-height: 250px !important;
+    width: 250px !important;
+}
+.sphx-glr-thumbcontainer a.internal {
+    padding: 270px 10px 0 !important;
+} */
+:root, html[data-theme="light"], body[data-theme="light"]{
+  --sg-download-a-background-color: #2980b9;
+  --sg-download-a-hover-background-color: rgb(0, 166, 214);
+  --sg-thumb-hover-border: rgb(0, 166, 214);
+  --sg-download-a-background-image: none;
+  --sg-download-a-color: #ffffff;
+}
+
+/* Change download button */
+div.sphx-glr-download a {
+  border-radius: 0px;
+  display: inline-flex
+}
+
+/* Wider buttons */
+.sphx-glr-thumbnails {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+/* Remove picture, make gallery look nicer */
+.sphx-glr-thumbcontainer {
+  background: #E3E3E3;
+  -moz-border-radius: 0px;
+  -webkit-border-radius: 0px;
+  border-radius: 0px;
+  padding: 20px 2cap 20px;
+}
+
+/* Hide image */
+.sphx-glr-thumbcontainer img {
+  display: none;
+
+}
+
+
+
+.sphx-glr-thumbcontainer a.internal {
+  padding: none
+}
+.sphx-glr-thumbcontainer[tooltip]:hover::after {
+  font-size: small;
+}

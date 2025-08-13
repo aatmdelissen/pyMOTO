@@ -6,16 +6,7 @@ All requirements for generating documentation are listed in `requirements.txt`. 
 
 ```pip install -r requirements.txt```
 
-### Package explanation
-`pip install sphinx` for documentation
-
-`pip install sphinx_rtd_theme` for nice looking website
-
-`pip install m2r` or `pip install myst-parser` for markdown (and latex formula) support
-
-`pip install sphinxcontrib-mermaid` for graphs
-
-## Initial setup of documentation
+## Initial setup of documentation (only needs to be done once for a new projects)
 `mkdir docs` Initial setup
 
 `sphinx-quickstart` Initial automatic setup for directory and file structure
@@ -23,6 +14,5 @@ All requirements for generating documentation are listed in `requirements.txt`. 
 ## Make documentation
 `cd docs/` Navigate to the documentation folder
 
-`sphinx-apidoc -f -o source/ ../pymoto/`
-
-`make html`
+`make html` or `sphinx-build . _build` (prepend with `uv run` when using uv)
+Additional options: [sphinx-build](https://www.sphinx-doc.org/en/master/man/sphinx-build.html)

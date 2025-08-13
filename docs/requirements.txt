@@ -1,8 +1,11 @@
-sphinx
-sphinx_rtd_theme
-myst-parser
-sphinxcontrib-mermaid
+sphinx  # For documentation generation
+sphinx_rtd_theme  # For nice looking documentation
+myst-parser  # To parse markdown files
+sphinxcontrib-mermaid  # For graphs
+myst-sphinx-gallery  # For example gallery
 numpy
 sympy
 scipy
 matplotlib
+jupyter  # Jupyter notebook
+ipympl  # Pyplot widget for jupyter notebook
