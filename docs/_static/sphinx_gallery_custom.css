@@ -38,19 +38,21 @@ div.sphx-glr-download a {
   -webkit-border-radius: 0px;
   border-radius: 0px;
   padding: 20px 2cap 20px;
+  text-align: center;
 }
 
 /* Hide image */
 .sphx-glr-thumbcontainer img {
   display: none;
-
 }
-
-
 
 .sphx-glr-thumbcontainer a.internal {
-  padding: none
+    padding: 0px;
+
 }
+
+/* Longer description */
 .sphx-glr-thumbcontainer[tooltip]:hover::after {
   font-size: small;
+  text-align: left;
 }

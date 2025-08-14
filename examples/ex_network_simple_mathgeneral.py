@@ -1,10 +1,16 @@
-""" 
-Expressions in MathGeneral
-==========================
+r"""MathGeneral: General math expressions
+========================================
 
-Identical to :ref:`sphx_glr_ex_network_simple.py`, but by using MathGeneral module. This demonstrates the possiblity for 
-a user to enter a formula as a string. Next to this, it is possible to use this module for other data-types than 
-scalars, such as vectors.
+Evaluating general mathematical expressions with automatic symbolic differentiated sensitivities
+
+This example is identical in behavior to :ref:`sphx_glr_auto_examples_ex_network_simple.py`, but uses the 
+:py:class:`pymoto.MathGeneral` module instead of custom modules. The :py:class:`pymoto.MathGeneral` module allows the
+user to enter a string with a mathematical formula, which is symbolically differentiated using :py:mod:`sympy`. 
+
+Side note: :py:class:`pymoto.MathGeneral` is able to operate on both scalar data or :py:mod:`numpy`-array data (vectors 
+and matrices) in an element-wise fashion. This is very useful, for instance for evaluation of SIMP equation 
+:math:`\rho = x_0 + (1-x_0)x^3` used in :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliance.py`, or the 
+Heaviside projection functions used in :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliance_robust.py`.
 """
 import pymoto as pym
 

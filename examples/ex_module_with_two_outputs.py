@@ -1,8 +1,10 @@
-""" 
-Creating a module with two outputs
+"""Custom: Module with two outputs
 ==================================
 
-In this example it is shown how you can create your own simple module with two outputs in pymoto. 
+The creation of a module with two outputs is demonstrated
+
+Some modules may need to return two outputs (for instance, eigenvalues and eigenvectors, or absolute value and angle).
+Implementation of a module that returns two values requires some special handling for the sensitivity function.
 """
 import pymoto as pym
 

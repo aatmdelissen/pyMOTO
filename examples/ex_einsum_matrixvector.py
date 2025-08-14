@@ -1,8 +1,12 @@
-""" 
-Einstein summation: Matrix-vector product
-=========================================
+"""EinSum: Matrix-vector product
+================================
 
-This example demonstrates how to use the `pymoto.EinSum` module to perform a matrix-vector product.
+Using EinSum to perform matrix-vector product 
+
+:math:`\mathbf{y}=\mathbf{A}\mathbf{b}`
+
+No sensitivities need to be defined by the user, as these are automatically deduced from the requested multiplication
+operation in :py:class:`pymoto.EinSum`.
 """
 import pymoto as pym
 import numpy as np

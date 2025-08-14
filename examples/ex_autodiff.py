@@ -1,8 +1,11 @@
-""" 
-Automatic differentiation
-=========================
+"""AutoMod: Automatic differentiation
+=====================================
 
-This example shows how to use the `pymoto.AutoMod` module to automatically differentiate a response function.
+Automatically generate sensitivities using automatic differentiation
+
+Using automatic differentiation (:py:mod:`jax` or :py:mod:`autograd`) the derivatives are generated of a user-defined 
+function. Sensitivities do not need to be implemented by hand, but are automatically generated using the 
+:py:class:`pymoto.AutoMod` module.
 """
 import numpy as np
 import pymoto as pym

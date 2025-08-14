@@ -1,9 +1,11 @@
-""" 
-Creating module with initialization
-===================================
+"""Custom: Module with initialization
+=====================================
 
-This examples demonstrates how to make a module with an ininitialization function. Constant values and other parameters 
-can be passed here. 
+This examples demonstrates how to make a module with an ininitialization function. 
+
+Constant values and other parameters can be passed into the :py:func:`__init__` function, allowing more complex 
+functionality in a module. The values passed into :py:func:`__init__` can be used in the response and sensitivity
+calculation.
 """
 import pymoto as pym
 

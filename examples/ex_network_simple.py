@@ -1,13 +1,16 @@
-""" 
-Simple scalar network
-=====================
+"""Custom: Simple scalar network
+================================
 
-This example demonstrates how a simple Module is implemented. Different methods of data storage inside the Module are
-shown, and the ordering of the Modules in the Network can be changed to obtain other behavior. Basic usage of Signals,
-sensitivity calculation, and finite-difference validation is demonstrated.
+Creating a network with multiple custom modules
 
-This example is similar to :ref:`sphx_glr_ex_network_simple_mathgeneral.py`, but uses manually implemented sensitivities 
-instead of automatically generated ones (with `pymoto.MathGeneral`).
+This example demonstrates how multiple simple modules are implemented. Different methods of data storage inside the 
+odule are shown. Next to that, the effect of ordering the modules in a :py:class:`pymoto.Network` is demonstrated. This 
+allows for different mathematical behavior, while keeping the same implementation of modules: no additional effort needs 
+to be made to keep the sensitivities consistent. Also basic usage of :py:class:`pymoto.Signal`, response and sensitivity 
+calculation, and validation with :py:func:`pymoto.finite_difference` is demonstrated.
+
+This example is identical in behavior to :ref:`sphx_glr_auto_examples_ex_network_simple_mathgeneral.py`, but uses 
+manually implemented sensitivities instead of automatically generated ones.
 """
 import pymoto as pym
 import math

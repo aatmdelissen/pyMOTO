@@ -1,8 +1,11 @@
-""" 
-Creating a simple module
-=======================
+"""Custom: Creating a simple module
+===================================
 
-In this example it is shown how you can create your own basic module in pymoto. 
+How to create a simple custom module
+
+In this example it is shown how you can create your own basic module in `pymoto` that multiplies two values. Both the 
+response (forward) and sensitivity (backward) are implemented and are tested with the 
+:py:func:`pymoto.finite_difference` function.
 """
 import pymoto as pym
 
