@@ -19,6 +19,7 @@ Mathematical Modules
 
    pymoto.EinSum
    pymoto.MathGeneral
+   pymoto.AutoMod
    pymoto.Inverse
    pymoto.LinSolve
    pymoto.SystemOfEquations

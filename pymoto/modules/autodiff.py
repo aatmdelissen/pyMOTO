@@ -17,7 +17,11 @@ except ImportError as e:
 
 
 class AutoMod(Module):
-    """Module that automatically differentiates the response function"""
+    """Module that automatically differentiates the response function
+
+    This module requires either :py:mod:`jax` or :py:mod:`autograd` to be installed. Note that this module is still 
+    under development, so always check if behavior is as expected when using this module.
+    """
 
     def __init__(self, func: Callable, backend="autograd"):
         if "autograd" in backend.lower():
