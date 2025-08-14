@@ -202,10 +202,10 @@ class DomainDefinition:
         """
         if not isinstance(nod_idx, int):
             nod_idx = np.asarray(nod_idx)
-        if not isinstance(dof_idx, int):
-            dof_idx = np.asarray(dof_idx)
         if dof_idx is None:
             dof_idx = np.arange(ndof)
+        if not isinstance(dof_idx, int):
+            dof_idx = np.asarray(dof_idx)
         
         if np.ndim(dof_idx) == 0 or np.ndim(nod_idx) == 0:
             return nod_idx*ndof + dof_idx
