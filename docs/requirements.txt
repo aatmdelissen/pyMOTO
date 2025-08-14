@@ -3,6 +3,7 @@ sphinx_rtd_theme  # For nice looking documentation
 myst-parser  # To parse markdown files
 sphinxcontrib-mermaid  # For graphs
 myst-sphinx-gallery  # For example gallery
+sphinx-gallery # For examples gallery
 numpy
 sympy
 scipy
