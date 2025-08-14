@@ -1,10 +1,17 @@
-""" 
-Eigenfrequency maximization
-===========================
+"""Eigenfrequency maximization
+==============================
+
 Minimal example for an eigenfrequency topology optimization 
 
+This example contains some specific modules used in dynamic problems
+
+- :py:class:`pymoto.VecSet` To set a non-design domain which is a mass that needs to be supported in this case
+- :py:class:`pymoto.AssembleMass` For mass matrix assembly
+- :py:class:`pymoto.EigenSolve` Calculates the (generalized) eigenvalue problem yielding the eigenfrequencies and modes
+- :py:class:`pymoto.WriteToVTI` Used here to export the design and eigenmodes to a Paraview VTI file
+
 References:
-- Du, J., Olhoff, N. (2007)
+  Du, J., Olhoff, N. (2007)
   Topological design of freely vibrating continuum structures for maximum values of simple and multiple eigenfrequencies and frequency gaps. 
   Structural and Multidisciplinary Optimization 34, 91-110 (2007). 
   DOI: https://doi.org/10.1007/s00158-007-0101-y

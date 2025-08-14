@@ -1,24 +1,32 @@
-"""
-Compliant mechanism (springs)
-=============================
-Example of the design of a compliant mechanism inverter using topology optimization with:
-(i) maximum output displacement due to input load
-(ii) constrained maximum volume
-(iii) spring attached to output
-(iv) (optional) spring attached to input
+"""Compliant mechanism (springs)
+================================
 
-Note: this problem formulation only works with
-(i) spring with positive output stiffness, and
-(ii) non-design domains at the input and output, and
-(iii) active volume constraint
-(iv) input spring stiffness not equal to output spring stiffness
+Example showing the (in)efficacy of design of a compliant mechanism inverter using the traditional method of springs
+
+The topology optimization considers:
+
+1. Maximum output displacement due to input load
+2. Constrained maximum volume
+3. Spring attached to output
+4. (Optional) spring attached to input
+
+However, this problem formulation only works with
+
+1. Spring with positive output stiffness
+2. Non-design domains at the input and output
+3. Active volume constraint
+4. Input spring stiffness not equal to output spring stiffness
+
 Even with these items taken into consideration, convergence is still troublesome as the inverter requires the 
 displacement (initially positive) to pass trough zero in order to become negative. Other formulations offer better 
 convergence properties, such as using mechanism modes and constraint modes as is done in 
-`ex_compliant_mechanism_kinetostatic.py` or purely based on compliance values in `ex_compliant_mechanism.py`.
+:ref:`sphx_glr_auto_examples_topology_optimization_ex_compliant_mechanism_kinetostatic.py` or purely based on compliance 
+values in :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliant_mechanism.py`.
+
+The spring stiffnesses are added as a constant matrix using the :py:class:`pymoto.AssembleStiffness` module.
 
 References:
-- Bendsoe, M. P., & Sigmund, O. (2003).
+  Bendsoe, M. P., & Sigmund, O. (2003).
   Topology optimization: theory, methods, and applications.
   Springer Science & Business Media.
   DOI: https://doi.org/10.1007/978-3-662-05086-6

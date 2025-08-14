@@ -1,16 +1,18 @@
-"""
-Compliant mechanism (static condensation)
-=========================================
-Example of the design of a compliant mechanism using topology optimization with:
-(i) maximum stiffness of input and output ports, and
-(ii) desired geometric advantage of -1
-(iii) desired maximum stiffness of the compliant deformation pattern (inversion)
+"""Compliant mechanism (static condensation)
+============================================
 
-This example uses static condensation to calculate the mechanism and constraint mode compliances in an efficient way.
+Usage of static condensation to design a compliant mechanism
+
+This example uses :py:class:`pymoto.StaticCondensation` to calculate the mechanism and constraint mode compliances in an 
+efficient way. The optimization problem considers
+
+1. Maximum stiffness of input and output ports
+2. Desired geometric advantage specified by the user
+3. Desired maximum stiffness of the compliant deformation pattern
 
 References:
-- Koppen, S. (2022).
-  Topology optimization of compliant mechanisms with multiple degrees of freedom.]
+  Koppen, S. (2022).
+  Topology optimization of compliant mechanisms with multiple degrees of freedom.
   PhD thesis, Delft University of Technology.
   DOI: http://dx.doi.org/10.4233/uuid:21994a92-e365-4679-b6ac-11a2b70572b7
 """

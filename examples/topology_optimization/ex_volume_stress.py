@@ -1,10 +1,17 @@
-"""
-Stress constraint
-=================
-Example of the design of cantilever for minimum volume subjected to stress constraints.
+"""Stress constraint
+====================
+
+Example of the design of cantilever for minimum volume subjected to stress constraints
+
+It uses the following specific modules:
+
+- :py:class:`pymoto.Stress` To calculate stresses from mechanical deformations
+- :py:class:`pymoto.EinSum` Used to calculate von Mises stresses
+- :py:class:`pymoto.Scaling` In this case used for scaling of all the stress constraints
+- :py:class:`pymoto.PlotDomain` Next to the design itself, it can show the stress distribution
 
 References:
-- Verbart, A., Langelaar, M., & Keulen, F. V. (2017).
+  Verbart, A., Langelaar, M., & Keulen, F. V. (2017).
   A unified aggregation and relaxation approach for stress-constrained topology optimization.
   Structural and Multidisciplinary Optimization, 55, 663-679.
   DOI: https://doi.org/10.1007/s00158-016-1524-0

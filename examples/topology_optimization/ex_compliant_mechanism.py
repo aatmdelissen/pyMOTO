@@ -1,16 +1,15 @@
-"""
-Compliant mechanism
-===================
+"""Compliant mechanism
+======================
 
 Example of the design of a compliant mechanism using topology optimization
 
 It considers the following conditions:
 
- 1. maximum output displacement due to input load
- 2. constrained minimum input and output stiffness
+1. maximum output displacement due to input load
+2. constrained minimum input and output stiffness
 
 In this example of compliant mechanism design, no springs are required on input and output nodes. Also convergence is 
-improved compared to `ex_compliant_mechanism_springs.py`. 
+improved compared to :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliant_mechanism_springs.py`. 
 
 References:
   Koppen, S. (2022).

@@ -1,14 +1,22 @@
-"""
-Compliance with prescribed displacements
-========================================
+"""Compliance with prescribed displacements
+===========================================
 
 Example of the design for stiffness of a structure subjected to prescribed displacements
-using topology optimization with:
-(i) maximum stiffness between prescribed displacements and support, and
-(ii) constrained by maximum volume.
+
+This example peforms the topology optimization considering:
+
+1. Maximum stiffness between prescribed displacements and support
+2. Constrained by maximum volume
+
+The optimization is similar to :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliance.py`, which applies a 
+load instead of a prescribed displacement. When optimizing for a maximum stiffness design, the compliance 
+:math:`c=\mathbf{u}\cdot\mathbf{f}` must be *minimized* when applying a load, while it must be *maximized* when a 
+displacement is prescribed.
+
+To solve a system of equations with applied displacement, the :py:class:`pymoto.SystemOfEquations` module is used.
 
 References:
-- Koppen, S., Langelaar, M., & van Keulen, F. (2022). 
+  Koppen, S., Langelaar, M., & van Keulen, F. (2022). 
   A simple and versatile topology optimization formulation for flexure synthesis. 
   Mechanism and Machine Theory, 172, 104743. 
   DOI: http://dx.doi.org/10.1016/j.mechmachtheory.2022.104743
@@ -65,7 +73,7 @@ if __name__ == "__main__":
         # Calculate compliance value
         s_c = pym.EinSum('i,i->')(s_u, s_f)
 
-        # Objective function
+        # Objective function (note the sign!)
         s_gobj =pym.Scaling(scaling=-1)(s_c)
         s_gobj.tag = "Objective"
 

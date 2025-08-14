@@ -1,12 +1,27 @@
-"""
-Compliance minimization
-=======================
+"""Compliance minimization
+==========================
 
-This example demonstrates how to minimize the compliance of a 2D or 3D structure, using pyMOTO. Two different physics
-are implemented: a static mechanical analysis (= stiffness maximization) and a static thermal analysis (= conductivity 
-maximization). The example contains the essential components needed to run a topology optimization problem, including a 
-density filter, material interpolation, finite-element assembly, solution to the linear system of equations, and an 
-optimizer (OC or MMA).
+This example demonstrates how to minimize the compliance of a 2D or 3D structure using pymoto
+
+Two different physics are implemented: a static mechanical analysis (= stiffness maximization) and a static thermal 
+analysis (= conductivity maximization). The example contains the essential modules needed to run a topology 
+optimization problem:
+
+- :py:class:`pymoto.DensityFilter` Filtering of the design (to prevent checkerboarding)
+- :py:class:`pymoto.PlotDomain` Utility to show the design as it optimizes
+- :py:class:`pymoto.MathGeneral` Evaluate mathematical expression for material interpolation (SIMP)
+- :py:class:`pymoto.AssemblePoisson` Assemble finite element matrix for the thermal problem
+- :py:class:`pymoto.AssembleStiffness` Assemble the finite element matrix for the mechanical problem
+- :py:class:`pymoto.LinSolve` Calculates the displacements or temperatures, by solving the linear system of equations 
+  :math:`\mathbf{Ku}=\mathbf{f}`
+- :py:class:`pymoto.EinSum` To perform a dot product to calculate the compliance :math:`c = \mathbf{u}\cdot\mathbf{f}`
+- :py:class:`pymoto.Scaling` Utility to scale the objective function (and constraints if required) for the MMA optimizer
+
+And next to that some important functions that operate on the :py:class:`pymoto.Network`:
+
+- :py:func:`pymoto.finite_difference` Finite difference function to check the sensitivities of the optimization problem
+- :py:func:`pymoto.minimize_oc` Minimization algorithm using optimality criteria (OC) method
+- :py:func:`pymoto.minimize_mma` Minimization algorithm using the method of moving asymptotes (MMA)
 """
 import numpy as np
 

@@ -1,7 +1,14 @@
-"""
-Dynamic compliance
-==================
-Example of the design of cantilever for minimum dynamic compliance.
+"""Dynamic compliance
+=====================
+
+Example of the design of cantilever for minimum dynamic compliance and shows usage of complex values
+
+This example contains some specific modules used in dynamic problems
+
+- :py:class:`pymoto.AssembleMass` To assemble the mass matrix
+- :py:class:`pymoto.AddMatrix` For addition of mass and stiffness matrices (with complex components) to form the dynamic 
+  stiffness matrix
+- :py:class:`pymoto.ComplexNorm` To calculate the norm of a complex value, corresponding to amplitude of vibration
 
 References:
     Silva, O. M., Neves, M. M., & Lenzi, A. (2019).

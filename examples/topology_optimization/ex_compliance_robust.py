@@ -1,15 +1,19 @@
-""" 
-Topology optimization with robust formulation
-=============================================
+"""Robust formulation
+=====================
 
-The robust formulation ensures that the design is tolerant for manufacturing deviations. Also it allows for control 
-of the minimum feature size in the design. It is implemented using Heaviside projections on the design, generating
-three variants: a nominal design, an eroded design and a dilated design. The worst-case of these three designs is used
-in the objective function. Note that for a compliance minimization problem, the eroded design is always the worst. 
-Hence it is called the 'poor-man's robust formuation'.
+The robust formulation ensures that the design is tolerant for manufacturing deviations and enables control on minimum 
+feature size
+
+It is implemented using Heaviside projections on the design, generating three variants: a nominal design, an eroded 
+design and a dilated design. The worst-case of these three designs is used in the objective function. Note that for a 
+compliance minimization problem, the eroded design is always the worst. Hence it is sometimes called the 
+'poor-man's robust formulation'.
+
+In this example, the :py:class:`pymoto.MathGeneral` module is used extensively to automatically generate the 
+sensitivities of the Heaviside projection filters.
 
 References:
-- Wang, F., Lazarov, B. S., & Sigmund, O. (2011).
+  Wang, F., Lazarov, B. S., & Sigmund, O. (2011).
   On projection methods, convergence and robust formulations in topology optimization.
   Structural and multidisciplinary optimization, 43, 767-784.
   DOI: https://doi.org/10.1007/s00158-010-0602-y

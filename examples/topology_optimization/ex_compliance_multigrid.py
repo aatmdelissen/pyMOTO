@@ -1,19 +1,19 @@
-""" 
-Topopt with multigrid preconditioned CG solver
-==============================================
+""" Multigrid preconditioned CG solver
+======================================
 
-Example for a compliance topology optimization with multigrid preconditioned CG as solver. This speeds up the 
-optimization significantly, especially for large-scale problems. This is achieved by projecting the finite element 
+Significant speedups can be achieved using CG with a multigrid preconditioner to solve the linear system of equations
+
+The speedup enables large-scale topology optimization problems, which is achieved by projecting the finite element 
 problem onto a series of coarser grids, and only factorizing the finite element matrix at the coarsest grid. The 
 solution is then interpolated back to the fine grid. This process is used as preconditioner for the CG iterations,
-enabling fast convergence.
+enabling fast convergence and optimization in 3D.
 
-This example is based on `ex_compliance.py` and only differs in the solver used. The user has full control over the 
-number of multigrid levels and their internal settings (see `pymoto.solvers.GeometricMultigrid` and 
-`pym.solvers.CG for more details).
+This example is based on  :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliance.py` and only differs in the 
+solver used. The user has full control over the number of multigrid levels and their internal settings (see 
+:py:class:`pymoto.solvers.GeometricMultigrid` and :py:class:`pymoto.solvers.CG` for more details).
 
 References:
-- Amir, O., Aage, N., & Lazarov, B. S. (2014). 
+  Amir, O., Aage, N., & Lazarov, B. S. (2014). 
   On multigrid-CG for efficient topology optimization. 
   Structural and Multidisciplinary Optimization, 49(5), 815-829.
   DOI: https://doi.org/10.1007/s00158-013-1015-5

@@ -1,9 +1,14 @@
-""" 
-Convolution filter with domain padding
-======================================
+""" Convolution filter with domain padding
+==========================================
 
-Compliance topology optimization with a padded-domain filter, which avoids the design 'sticking' to the boundary.
-This example also implements the robust formulation with Heaviside projections.
+Not only is the convolution filter, but allows various types of padding for control of the boundary of the design
+
+The :py:class:`pymoto.FilterConv` module implements a padded-domain filter, which is demonstrated currently for a 
+compliance topology optimization with a padded-domain filter, which avoids the design 'sticking' to the boundary. By 
+turning the padding on or off in this example, the effect can clearly be seen.
+
+This example is based on the robust formulation with Heaviside projections as in 
+:ref:`sphx_glr_auto_examples_topology_optimization_ex_compliance_robust.py`.
 """
 import numpy as np
 import pymoto as pym

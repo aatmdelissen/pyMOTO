@@ -1,13 +1,18 @@
-"""
-Flexure design
-==============
-Example of the design of a flexure using topology optimization with:
-(i) maximum shear stiffness
-(ii) constrainted maximum stiffness in axial stiffness
-(iii) (optional) constrained maximum use of material (volume constraint)
+"""Flexure design
+=================
+
+Example of the design of a flexure 
+
+It performs the topology optimization with:
+
+1. Maximum stiffness for the constraint modes
+2. Limited stiffness for the mechanism mode
+3. (Optional) constrained maximum use of material (volume constraint)
+
+The example uses :py:class:`pymoto.SystemOfEquations` to solve the mechanism and constraint modes.
 
 References:
-- Koppen, S., Langelaar, M., & van Keulen, F. (2022).
+  Koppen, S., Langelaar, M., & van Keulen, F. (2022).
   A simple and versatile topology optimization formulation for flexure synthesis.
   Mechanism and Machine Theory, 172, 104743.
   DOI: http://dx.doi.org/10.1016/j.mechmachtheory.2022.104743
