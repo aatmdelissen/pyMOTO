@@ -1,13 +1,22 @@
-"""
-Thermo-mechanical optimization
-==============================
+"""Coupled thermo-mechanical loads
+==================================
 
-Example of the design of a thermoelastic structure, with combined heat and mechanical load. First the heat equations are 
-solved to determine the temperature distribution. After that, the mechanical load due to thermal expansion is calculated
-based on the temperatures. The compliance of the heat-expansion load combined with the mechanical load is minimized.
+Example of the design of a thermoelastic structure with combined heat and mechanical load
+
+First the heat equations are solved to determine the temperature distribution. After that, the mechanical load due to 
+thermal expansion is calculated based on the temperatures. The compliance of the heat-expansion load combined with the 
+mechanical load is minimized.
+
+This example contains the following specific modules
+
+- :py:class:`pymoto.AssemblePoisson` To assemble the conductivity matrix
+- :py:class:`pymoto.AssembleStiffness` For assembly of the mechanical stiffness matrix
+- :py:class:`pymoto.ElementAverage` Calculates the element average from nodal values (in this case temperature)
+- :py:class:`pymoto.ThermoMechanical` Calculates mechanical loads based on thermal expansion
+- :py:class:`pymoto.WriteToVTI` In this case used to export the design, temperatures, and deformations to Paraview
 
 References:
-- Gao, T., & Zhang, W. (2010).
+  Gao, T., & Zhang, W. (2010).
   Topology optimization involving thermo-elastic stress loads.
   Structural and multidisciplinary optimization, 42, 725-738.
   DOI: https://doi.org/10.1007/s00158-010-0527-5
