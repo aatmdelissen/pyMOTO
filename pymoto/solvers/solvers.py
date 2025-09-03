@@ -6,9 +6,6 @@ from .matrix_checks import matrix_is_hermitian, matrix_is_symmetric, matrix_is_c
 class LinearSolver:
     """Base class of all linear solvers
 
-    Keyword Args:
-        A (matrix): Optionally provide a matrix, which is used in :method:`update` right away.
-
     Attributes:
         defined (bool): Flag if the solver is able to run, e.g. false if some dependent library is not available
     """
@@ -17,6 +14,11 @@ class LinearSolver:
     _err_msg = ""
 
     def __init__(self, A=None):
+        """Initialize the solver
+
+        Args:
+            A (matrix, optional): Optionally provide a matrix, which is used in :method:`update` right away.
+        """
         if A is not None:
             self.update(A)
 

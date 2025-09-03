@@ -8,34 +8,16 @@ from numbers import Number
 class FilterConv(Module):
     r"""Density filter based on convolution
 
-    Either the argument filter radius (`radius`) or a filtering kernel `weights` needs to be provided. If a filter
-    radius is passed, the standard linear density filter will be used (see :py:class:`pymoto.DensityFilter`).
+    :math:`y_{i,j,k} = W \ast x_{i,j,k} = \sum_{p,q,r} W_{p,q,r} x_{i-p,j-q,k-r}`
+    
+    Input Signal:
+        - ``x``: The unfiltered field :math:`\mathbf{x}`
 
-    For the boundaries, a padded effect can be selected from the following options:
-        'symmetric' (default)
-            Pads with the reflection of the vector mirrored
-            along the edge of the array.
-        value (e.g. `1.0` or `0.0`)
-            Pads with a constant value.
-        'edge'
-            Pads with the edge values of array.
-        'wrap'
-            Pads with the wrap of the vector along the axis.
-            The first values are used to pad the end and the
-            end values are used to pad the beginning.
+    Output Signal:
+        - ``y``: Filtered field :math:`\mathbf{y}`
 
-    Args:
-        domain: The DomainDefinition
-        radius (optional): Filter radius
-        relative_units(optional): Indicate if the filter radius is in relative units with respect to the element-size or
-          is given as an absolute size
-        weights(optional): Filtering kernel (2D or 3D array)
-        xmin_bc(optional): Boundary condition for the boundary at minimum x-value
-        xmax_bc(optional): Boundary condition for the boundary at maximum x-value
-        ymin_bc(optional): Boundary condition at minimum y
-        ymax_bc(optional): Boundary condition at maximum y
-        zmin_bc(optional): Boundary condition at minimum z (only in 3D)
-        zmax_bc(optional): Bounadry condition at maximum z (only in 3D)
+    References:
+        [Wikipedia](https://en.wikipedia.org/wiki/Kernel_(image_processing))
     """
 
     def __init__(
@@ -51,6 +33,43 @@ class FilterConv(Module):
         zmin_bc="symmetric",
         zmax_bc="symmetric",
     ):
+        r"""Initialize density filter module based on convolution
+
+        Either the argument filter radius (`radius`) or a filtering kernel `weights` needs to be provided. If a filter
+        radius is passed, the standard linear density filter will be used (see :py:class:`pymoto.DensityFilter`).
+
+        For the boundaries, a padded effect can be selected from the following options:
+        
+        'symmetric' (default)
+            Pads with the reflection of the vector mirrored
+            along the edge of the array.
+        
+        value (e.g. `1.0` or `0.0`)
+            Pads with a constant value.
+        
+        'edge'
+            Pads with the edge values of array.
+        
+        'wrap'
+            Pads with the wrap of the vector along the axis.
+            The first values are used to pad the end and the
+            end values are used to pad the beginning.
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The (finite-element) domain
+            radius (float, optional): Filter radius. If this is not provided, the filtering kernel `weights` must be 
+              defined
+            relative_units (bool, optional): Indicate if the filter radius is in relative units with respect to the 
+              element-size or is given as an absolute geometry using element size. Defaults to True.
+            weights (np.ndarray, optional): Use a custom filtering kernel (2D or 3D array). Alternatively, the filter 
+              `radius` can be provided to have the kernel initialized automatically.
+            xmin_bc (str, optional): Boundary condition for the boundary at minimum x-value. Defaults to "symmetric".
+            xmax_bc (str, optional): Boundary condition for the boundary at maximum x-value. Defaults to "symmetric".
+            ymin_bc (str, optional): Boundary condition at minimum y. Defaults to "symmetric".
+            ymax_bc (str, optional): Boundary condition at maximum y. Defaults to "symmetric".
+            zmin_bc (str, optional): Boundary condition at minimum z (only in 3D). Defaults to "symmetric".
+            zmax_bc (str, optional): Bounadry condition at maximum z (only in 3D). Defaults to "symmetric".
+        """
         self.domain = domain
         self.weights = None
         if (weights is None and radius is None) or (weights is not None and radius is not None):
@@ -217,14 +236,16 @@ class Filter(Module):
 
     Output Signal:
         - ``y``: Filtered field :math:`\mathbf{y}`
-
-    Keyword Args:
-        nonpadding (numpy.array[int]): An array with indices at places where
-          :math:`s_i = \max(\mathbf{s}) \: \forall\: i \notin \mathcal{N}`. For a density filter this mimics having
-          values of `0` outside of the domain, thus emulating padding of the boundaries.
     """
 
     def __init__(self, *args, nonpadding=None, **kwargs):
+        """Initialize abstract base-class for linear filters
+
+        Args:
+            nonpadding (numpy.array[int], optional): An array with indices at places where
+              :math:`s_i = \max(\mathbf{s}) \: \forall\: i \notin \mathcal{N}`. For a density filter this mimics having
+              values of `0` outside of the domain, thus emulating padding of the boundaries.
+        """
         self.H = self._calculate_h(*args, **kwargs).tocsc()
 
         self.Hs = self.H.sum(1)
@@ -267,7 +288,7 @@ class DensityFilter(Filter):
         - ``y``: Filtered field :math:`\mathbf{y}`
 
     Args:
-        domain: The domain layout
+        domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
 
     Keyword Args:
         radius (float or int): The filtering radius (in absolute units of elements)
@@ -371,20 +392,7 @@ class OverhangFilter(Module):
 
     Output Signal:
         - ``y``: Filtered field :math:`\mathbf{y}`, without overhangs
-
-    Args:
-        domain: The domain layout
-
-    Keyword Args:
-        direction: Print direction as array or string, e.g. ``[0, -1]`` (in 2D) or ``"y-"`` for negative y direction.
-          Currently, only directions aligned with one of the Cartesian axes are supported. Default is ``[0, 1, 0]``
-        xi_0: Density value for which zero overshoot is required ( ``0 <= xi_0 <= 1`` ). Default is ``0.5``
-        p: Exponent of the smooth maximum function ( ``p > 0`` ). Higher p increases accuracy, but reduces smoothness.
-          Default is ``40.0``
-        eps: Smooth minimum regularization parameter ( ``eps >= 0`` ). Lower eps increases accuracy, but reduces
-          smoothness. Default is ``1e-4``
-        nsampling: ``3`` for 2D overhang, ``5`` or ``9`` for 3D overhang. Default is ``3`` in 2D and ``5`` in 3D
-
+        
     References:
       - Langelaar, M. (2017). *An additive manufacturing filter for topology optimization of print-ready designs*.
         Structural and Multidisciplinary Optimization, 55(3), 871–883.
@@ -403,6 +411,22 @@ class OverhangFilter(Module):
         eps: float = 1e-4,
         nsampling: int = None,
     ):
+        """Initialize overhang filter modulue
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The (finite-element) domain
+            direction (tuple, optional): Print direction as array or string, e.g. ``[0, -1]`` (in 2D) or ``"y-"`` for 
+              negative y direction. Currently, only directions aligned with one of the Cartesian axes are supported. 
+              Default is ``[0, 1, 0]``
+            xi_0 (float, optional): Density value for which zero overshoot is required ( ``0 <= xi_0 <= 1`` ). 
+              Default is ``0.5``
+            p (float, optional): Exponent of the smooth maximum function ( ``p > 0`` ). Higher p increases accuracy, but
+              reduces smoothness. Default is ``40.0``
+            eps (float, optional): Smooth minimum regularization parameter ( ``eps >= 0`` ). Lower eps increases 
+              accuracy, but reduces smoothness. Default is ``1e-4``
+            nsampling (int, optional): ``3`` for 2D overhang, ``5`` or ``9`` for 3D overhang. Default is ``3`` in 2D and
+              ``5`` in 3D
+        """
         # Parse print direction
         if isinstance(direction, str):
             # Print axis

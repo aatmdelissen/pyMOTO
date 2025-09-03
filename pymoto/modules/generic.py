@@ -46,14 +46,16 @@ class MathGeneral(Module):
     Output signal:
         ``y`` (`float` or `np.ndarray`): Result of the mathematical operation
 
-    Args:
-        expression (str): The mathematical expression to be evaluated
-
     References:
       - `Sympy documentation <https://docs.sympy.org/latest/index.html>`_
     """
 
-    def __init__(self, expression):
+    def __init__(self, expression: str):
+        """Initialize the MathGeneral module
+
+        Args:
+            expression (str): The mathematical expression to be evaluated
+        """
         self.expression = expression
 
     def parse_expression(self):
@@ -171,9 +173,6 @@ class EinSum(Module):
     Output signal:
         ``y`` (`np.ndarray`): Result of the ``einsum`` operation
 
-    Args:
-        expression (str): The ``einsum`` expression
-
     References:
       - `Numpy documentation on EinSum <https://numpy.org/doc/stable/reference/generated/numpy.einsum.html>`_
       - `Understanding Numpy's EinSum <https://stackoverflow.com/questions/26089893/understanding-numpys-einsum>`_
@@ -182,6 +181,11 @@ class EinSum(Module):
     """
 
     def __init__(self, expression: str):
+        """Initialize the EinSum module
+
+        Args:
+            expression (str): The ``einsum`` expression
+        """
         self.expr = expression
         cmd = self.expr.split("->")
         self.indices_in = [s.strip() for s in cmd[0].split(",")]
@@ -232,7 +236,14 @@ class EinSum(Module):
 
 
 class ConcatSignal(Module):
-    """Concatenates data of multiple signals into one big vector"""
+    """Concatenates data of multiple signals into one big vector
+    
+    Input signals:
+        - ``*args`` (`float` or `np.ndarray`): Any number of numerical inputs to concatenate
+
+    Output signal:
+        - ``y`` (`np.ndarray`): Concatenated vector of all input signals
+    """
 
     def __call__(self, *args):
         state, self.cumlens = _concatenate_to_array(list(args))
@@ -260,13 +271,16 @@ class VecSet(Module):
 
     Output signal:
         ``y`` (`np.ndarray`): Modified vector with specified indices set to a given value
-
-    Args:
-        indices: Indices in the input vector to set to the specified value
-        value: Value(s) to set at the specified indices
     """
 
     def __init__(self, indices, value):
+        """Initialize the VecSet module
+
+        Args:
+            indices (`slice` or `Iterable[int]` or `np.ndarray[int]`): Indices in the input vector to set to the 
+              specified value
+            value (`float` or `np.ndarray`): Value(s) to set at the specified indices
+        """
         self.indices = indices
         self.value = value
 

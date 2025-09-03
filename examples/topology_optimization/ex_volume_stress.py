@@ -32,8 +32,7 @@ max_displacement = 20.0
 
 
 class ConstraintAggregation(pym.Module):
-    """
-    Unified aggregation and relaxation.
+    """Unified aggregation and relaxation.
 
     Implemented by @artofscience (s.koppen@tudelft.nl), based on:
 

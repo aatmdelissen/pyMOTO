@@ -21,12 +21,15 @@ class Preconditioner(LinearSolver):
 class DampedJacobi(Preconditioner):
     r"""Damped Jacobi preconditioner
     :math:`M = \frac{1}{\omega} D`
-    Args:
-        A (optional): The matrix
-        w (optional): Weight factor :math:`0 < \omega \leq 1`
     """
 
     def __init__(self, A=None, w=1.0):
+        """Initialize the damped Jacobi preconditioner
+
+        Args:
+            A (optional): The matrix
+            w (optional): Weight factor :math:`0 < \omega \leq 1`
+        """
         assert 0 < w <= 1, "w must be between 0 and 1"
         self.w = w
         self.D = None
@@ -48,13 +51,15 @@ class SOR(Preconditioner):
     r"""Successive over-relaxation preconditioner
     The matrix :math:`A = L + D + U` is split into a lower triangular, diagonal, and upper triangular part.
     :math:`M = \left(\frac{D}{\omega} + L\right) \frac{\omega D^{-1}}{2-\omega} \left(\frac{D}{\omega} + U\right)`
-
-    Args:
-        A (optional): The matrix
-        w (optional): Weight factor :math:`0 < \omega < 2`
     """
 
     def __init__(self, A=None, w=1.0):
+        """Initialize the SOR preconditioner
+
+        Args:
+           A (optional): The matrix
+            w (optional): Weight factor :math:`0 < \omega < 2`
+        """
         assert 0 < w < 2, "w must be between 0 and 2"
         self.w = w
         self.L = None
@@ -96,13 +101,15 @@ class SOR(Preconditioner):
 
 class ILU(Preconditioner):
     """Incomplete LU factorization
-
-    Args:
-        A (optional): The matrix
-        **kwargs (optional): Keyword arguments passed to `scipy.sparse.linalg.spilu`
     """
 
     def __init__(self, A=None, **kwargs):
+        """Initialize the ILU preconditioner
+
+        Args:
+            A (optional): The matrix
+            **kwargs (optional): Keyword arguments passed to `scipy.sparse.linalg.spilu`
+        """
         self.kwargs = kwargs
         self.ilu = None
         super().__init__(A)
@@ -116,20 +123,29 @@ class ILU(Preconditioner):
 
 class GeometricMultigrid(Preconditioner):
     """Geometric multigrid preconditioner
-
-    Args:
-        domain: The `DomainDefinition` used for the geometry
-        A (optional): The matrix
-        inner_level (optional): Inner solver for the coarse grid, for instance, a direct solver or another MG level.
-            The default is an automatically determined direct solver.
-        smoother (optional): Smoother to use to smooth the residual and solution before and after coarse level.
-            The default is `DampedJacobi(w=0.5)`.
-        smooth_steps (optional): Number of smoothing steps to execute
     """
 
     _available_cycles = ["v", "w"]
 
-    def __init__(self, domain: DomainDefinition, A=None, cycle="V", inner_level=None, smoother=None, smooth_steps=5):
+    def __init__(self, 
+                 domain: DomainDefinition, 
+                 A=None, cycle: str = "V", 
+                 inner_level: LinearSolver = None, 
+                 smoother: LinearSolver = None, 
+                 smooth_steps: int = 5
+                 ):
+        """Initialize the geometric multigrid preconditioner
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The domain
+            A (matrix, optional): The matrix
+            cycle (str, optional): _description_. Defaults to "V".
+            inner_level (:py:class:`pymoto.solvers.LinearSolver`, optional): Inner solver for the coarse grid, for 
+              instance, a direct solver or another MG level. The default is a direct solver.
+            smoother (optional): Smoother to use to smooth the residual and solution before and after coarse 
+              level. The default is `DampedJacobi(w=0.5)`.
+            smooth_steps (int, optional): Number of smoothing steps to execute. Defaults to 5.
+        """
         assert domain.nelx % 2 == 0 and domain.nely % 2 == 0 and domain.nelz % 2 == 0, (
             f"Domain sizes {domain.nelx, domain.nely, domain.nelz} must be divisible by 2"
         )
@@ -285,17 +301,27 @@ class CG(LinearSolver):
           https://www.cs.odu.edu/~yaohang/portfolio/BIT2017.pdf
         Shewchuck (1994), Introduction to CG method without the agonzing pain.
           https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf
-
-    Args:
-        A: The matrix
-        preconditioner: Preconditioner to use
-        tol: Convergence tolerance
-        maxit: Maximum number of iterations
-        restart: Restart every Nth iteration
-        verbosity: Log level
     """
 
-    def __init__(self, A=None, preconditioner=Preconditioner(), tol=1e-7, maxit=10000, restart=50, verbosity=0):
+    def __init__(self, 
+                 A=None, 
+                 preconditioner: Preconditioner = Preconditioner(), 
+                 tol: float = 1e-7, 
+                 maxit: int = 10000, 
+                 restart: int = 50, 
+                 verbosity: int = 0
+                 ):
+        """Initialize the CG solver
+
+        Args:
+            A (matrix, optional): The matrix
+            preconditioner (Preconditioner, optional): Preconditioner to use
+            tol (float, optional): Convergence tolerance. Defaults to 1e-7.
+            maxit (int, optional): Maximum number of iterations. Defaults to 10000.
+            restart (int, optional): Restart every Nth iteration. Defaults to 50.
+            verbosity (int, optional): Log level. Defaults to 0.
+        """
+
         self.preconditioner = preconditioner
         self.A = A
         self.tol = tol

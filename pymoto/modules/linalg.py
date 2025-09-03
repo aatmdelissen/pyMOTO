@@ -1,6 +1,7 @@
 """Specialized linear algebra modules"""
 
 import warnings
+from typing import Callable
 
 import numpy as np
 import scipy.linalg as spla  # Dense matrix solvers
@@ -8,7 +9,7 @@ import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
 
 from pymoto import Signal, Module, DyadCarrier
-from pymoto.solvers import auto_determine_solver
+from pymoto.solvers import auto_determine_solver, LinearSolver
 from pymoto.solvers import matrix_is_sparse, matrix_is_complex, matrix_is_hermitian, LDAWrapper
 
 
@@ -57,10 +58,17 @@ class StaticCondensation(Module):
     """
 
     def __init__(self, main, free, **kwargs):
+        """Initialize the static condensation module
+
+        Args:
+            main: The indices corresponding to the free degrees of freedom
+            free: The indices corresponding to the main degrees of freedom
+            **kwargs: Are passed to :py:class:`pymoto.LinSolve` module
+        """
         self.m_linsolve = LinSolve(**kwargs)
         self.m_linsolve.use_lda_solver = False
         self.m = main
-        self.f = free
+        self.f = free  # TODO free dofs can be deduced from main? Although a third set of fixed dofs may be required.
 
     def __call__(self, A):
         self.n = np.shape(A)[0]
@@ -122,19 +130,28 @@ class LinSolve(Module):
     Output Signal:
       - ``x`` (`vector`): Solution vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
 
-    Keyword Args:
-        dep_tol: Tolerance for detecting linear dependence of solution vectors (default = ``1e-5``)
-        hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
-        symmetric: Flag to omit the automatic detection for symmetric matrix, saves some work for large matrices
-        solver: Manually override the LinearSolver used, instead of the the solver from :func:`auto_determine_solver`
-
     Attributes:
         use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
     """
 
     use_lda_solver = True
 
-    def __init__(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None):
+    def __init__(self, dep_tol: float = 1e-5, 
+                 hermitian: bool = None, 
+                 symmetric: bool = None, 
+                 solver: LinearSolver = None
+                 ):
+        """Initialize the linear solver module
+
+        Args:
+            dep_tol (float, optional): Tolerance for detecting linear dependence of solution vectors. Defaults to 1e-5.
+            hermitian (bool, optional): Flag to omit the automatic detection for Hermitian matrix, saves some work for 
+              large matrices
+            symmetric (bool, optional): Flag to omit the automatic detection for symmetric matrix, saves some work for 
+              large matrices
+            solver (:py:class:`pymoto.solvers.LinearSolver`, optional): Manually override the linear solver used, 
+              instead of the the solver from :func:`pymoto.solvers.auto_determine_solver`
+        """
         self.dep_tol = dep_tol
         self.ishermitian = hermitian
         self.issymmetric = symmetric
@@ -229,20 +246,27 @@ class SystemOfEquations(Module):
     Output Signal:
       - ``x`` (`vector`): state vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
       - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
-
-    Keyword Args:
-        free: The indices corresponding to the free degrees of freedom at which :math:`f_\text{f}` is given
-        prescribed: The indices corresponding to the prescibed degrees of freedom at which :math:`x_\text{p}` is given
-        **kwargs: Arguments passed to initialization of :py:class:`LinSolve`
     """
 
     def __init__(self, free=None, prescribed=None, **kwargs):
+        """Initialize the system of equations module
+
+        The free indices, prescribed indices, or both  must be provided.
+
+        Args:
+            free (optional): The indices corresponding to the free degrees of freedom at which :math:`f_\text{f}` is 
+              given
+            prescribed (optional): The indices corresponding to the prescibed degrees of freedom at which 
+              :math:`x_\text{p}` is given
+            **kwargs: Arguments passed to initialization of :py:class:`pymoto.LinSolve`
+        """
         self.linsolve = LinSolve(**kwargs)
         self.linsolve.sig_in = [Signal("Aff"), Signal("bf - Afp.xp")]
         self.linsolve.sig_out = [Signal("xf")]
         self.f = free
         self.p = prescribed
-        assert self.p is not None or self.f is not None, "Either prescribed or free indices must be provided"
+        if self.p is None and self.f is None:
+            raise ValueError("Either prescribed or free indices must be provided")
 
     def __call__(self, A, bf, xp):
         n = A.shape[0]
@@ -342,18 +366,27 @@ class EigenSolve(Module):
     Output Signals:
       - ``λ`` (`vector`): Vector with eigenvalues of size ``(n)``
       - ``Q`` (`matrix`): Matrix with eigenvectors ``Q[:, i]`` corresponding to ``λ[i]``, of size ``(n, n)``
-
-    Keyword Args:
-        sorting_func: Sorting function to sort the eigenvalues, which must have signature ``func(λ,Q)``
-          (default = ``numpy.argsort``)
-        hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
-        nmodes: Number of modes to calculate (only for sparse matrices, default = ``0``)
-        sigma: Shift value for the eigenvalue problem (only for sparse matrices). Eigenvalues around the shift are
-          calculated first (default = ``0.0``)
-        mode: Mode of the eigensolver (see documentation of `scipy.sparse.linalg.eigsh` for more info)
     """
 
-    def __init__(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None, nmodes=None, sigma=None, mode="normal"):
+    def __init__(self, 
+                 sorting_func: Callable = (lambda W, Q: np.argsort(W)), 
+                 hermitian: bool = None, 
+                 nmodes: int = None, 
+                 sigma: complex = None, 
+                 mode: str = "normal"):
+        """Initialize the eigenvalue solver module
+
+        Args:
+            sorting_func (Callable, optional): Sorting function to sort the eigenvalues, which must have signature 
+              ``func(λ,Q)``. Defaults to (lambda W, Q: np.argsort(W)).
+            hermitian (bool, optional): Flag to omit the automatic detection for Hermitian matrix, saves some work for 
+              large matrices
+            nmodes (int, optional): Number of modes to calculate (only for sparse matrices)
+            sigma (complex, optional): Shift value for the shift-and-invert eigenvalue problem (only for sparse 
+              matrices). Eigenvalues around the shift are calculated first. Defaults to None.
+            mode (str, optional): Mode of the eigensolver (see documentation of `scipy.sparse.linalg.eigsh` for more 
+              info). Defaults to "normal".
+        """
         self.sorting_fn = sorting_func
         self.is_hermitian = hermitian
         self.nmodes = nmodes

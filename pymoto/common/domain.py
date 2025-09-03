@@ -76,15 +76,6 @@ class DomainDefinition:
            \|      z  \|
             4----------5
 
-
-    Args:
-        nelx : Number of elements in x-direction
-        nely : Number of elements in y-direction
-        nelz : Number of elements in z-direction; if zero it is a 2D domain
-        unitx : Element size in x-direction
-        unity : Element size in y-direction
-        unitz : Element size in z-direction
-
     Attributes:
         dim : Dimensionality of the object
         nel : Total number of elements
@@ -92,9 +83,21 @@ class DomainDefinition:
         elemnodes : Number of nodes per element
         node_numbering : The numbering scheme used to number the nodes in each element
         conn : Connectivity matrix of size (# elements, # nodes per element)
+        elements : Helper array for element slicing of size (nelx, nely, nelz)
+        nodes : Helper array for node slicing of size (nelx+1, nely+1, nelz+1)
     """
 
     def __init__(self, nelx: int, nely: int, nelz: int = 0, unitx: float = 1.0, unity: float = 1.0, unitz: float = 1.0):
+        """Create a 2D or 3D voxel domain
+
+        Args:
+            nelx (int): Number of elements in x-direction
+            nely (int): Number of elements in y-direction
+            nelz (int, optional): Number of elements in z-direction; if zero it is a 2D domain. Defaults to 0.
+            unitx (float, optional): Element size in x-direction. Defaults to 1.0.
+            unity (float, optional): Element size in y-direction. Defaults to 1.0.
+            unitz (float, optional): Element size in z-direction. Defaults to 1.0.
+        """
         self.nelx, self.nely, self.nelz = nelx, nely, nelz
         if self.nely is None:
             self.nely = 0

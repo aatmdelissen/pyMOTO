@@ -13,15 +13,17 @@ from .assembly import DomainDefinition
 
 class FigModule(Module):
     """Abstract base class for any module which produces a figure
-
-    Keyword Args:
-        saveto (str): Save images of each iteration to the specified location. (default = ``None``)
-        overwrite (bool): Overwrite saved image every time the figure is updated, else prefix ``_0000`` is added to the
-          filename (default = ``False``)
-        show (bool): Show the figure on the screen
     """
 
-    def __init__(self, saveto=None, overwrite=False, show=True):
+    def __init__(self, saveto: str = None, overwrite: bool = False, show: bool = True):
+        """Initialize the abstract base-class for figure modules
+
+        Args:
+            saveto (str, optional): Save images of each iteration to the specified location. Defaults to None.
+            overwrite (bool, optional): Overwrite saved image every time the figure is updated, else prefix ``_0000`` is 
+              added to the filename. Defaults to False.
+            show (bool, optional): Show the figure on the screen. Defaults to True.
+        """
         self.fig = None
         if saveto is not None:
             self.saveloc, self.saveext = os.path.splitext(saveto)
@@ -63,21 +65,19 @@ class PlotDomain(FigModule):
 
     Input Signal:
       - ``x`` (`np.ndarray`): The field to be shown of size ``(domain.nel)``
-
-    Args:
-        domain: The domain layout
-
-    Keyword Args:
-        saveto (str): Save images of each iteration to the specified location. (default = ``None``)
-        overwrite (bool): Overwrite saved image every time the figure is updated, else prefix ``_0000`` is added to the
-          filename (default = ``False``)
-        show (bool): Show the figure on the screen
-        clim: Color limits. In 2D ``[cmin, cmax]``: the values of minimum and maximum color. In 3D ``clipval``: the
-          value below which elements are clipped.
-        cmap (str): Colormap (only for 2D)
     """
 
     def __init__(self, domain: DomainDefinition, *args, clim=None, cmap="gray_r", **kwargs):
+        """Initialize domain plot module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The domain layout
+            *args: Additional arguments for :py:class:`pymoto.FigModule`
+            clim (`[float, float]` or `float`, optional): In 2D ``[cmin, cmax]``: the values of minimum and maximum 
+              color. In 3D ``clipval``: the value below which elements are clipped. 
+            cmap (str, optional): Colormap (only for 2D). Defaults to "gray_r".
+            **kwargs: Additional keyword arguments for :py:class:`pymoto.FigModule`
+        """
         super().__init__(*args, **kwargs)
         self.clim = clim
         self.cmap = cmap
@@ -163,17 +163,16 @@ class PlotGraph(FigModule):
     Input Signals:
       - ``x`` (`numpy.ndarray`): X-values
       - ``*args`` (`numpy.ndarray`): Y-values, which must match the dimension of ``x``
-
-    Keyword Args:
-        saveto (str): Save images of each iteration to the specified location. (default = ``None``)
-        overwrite (bool): Overwrite saved image every time the figure is updated, else prefix ``_0000`` is added to the
-          filename (default = ``False``)
-        show (bool): Show the figure on the screen
-        style (str): Line/marker style (*e.g.* ``"."``)
     """
 
-    def __init__(self, style: str = None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, style: str = None, **kwargs):
+        """Initialize X-Y plot module
+
+        Args:
+            style (str, optional): Line/marker style (*e.g.* ``"."``)
+            **kwargs: Additional keyword arguments for :py:class:`pymoto.FigModule`
+        """
+        super().__init__(**kwargs)
         self.style = style
 
     def __call__(self, x, *ys):
@@ -219,6 +218,13 @@ class PlotIter(FigModule):
     """
 
     def __init__(self, ylim=None, log_scale=False, **kwargs):
+        """Initialize iteration plot module
+
+        Args:
+            ylim (`[float, float]`, optional): Provide y-axis limits for the plot. Defaults to automatic scaling.
+            log_scale (bool, optional): Use logarithmic scale for the y-axis. Defaults to False.
+            **kwargs: Additional keyword arguments for :py:class:`pymoto.FigModule`
+        """
         self.minlim = 1e200
         self.maxlim = -1e200
         self.ylim = ylim
@@ -286,16 +292,19 @@ class WriteToVTI(Module):
 
     Input Signals:
       - ``*args`` (`numpy.ndarray`): Vectors to write to VTI. The signal tags are used as name.
-
-    Args:
-        domain: The domain layout
-        saveto: Location to save the VTI file
-        overwrite (optional): Overwrite the VTI file for each iteration
-        scale (optional): Scaling factor for the domain
-        interval (optional): Interval at which to write the VTI file, defaults to 1 (every iteration)
     """
 
     def __init__(self, domain: DomainDefinition, saveto: str, overwrite: bool = False, scale=1.0, interval=1):
+        """Initialize VTI writer module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain layout
+            saveto (str): Location to save the VTI file
+            overwrite (bool, optional): Overwrite the VTI file for each iteration. Defaults to False.
+            scale (float, optional): Scaling factor for the domain. Defaults to 1.0.
+            interval (int, optional): Interval at which to write the VTI file, defaults to 1 (every iteration). Defaults 
+              to 1.
+        """
         self.domain = domain
         self.saveto = saveto
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
@@ -335,14 +344,16 @@ class ScalarToFile(Module):
 
     Input Signals:
       - ``*args`` (`Numeric` or `np.ndarray`): Values to write to file. The signal tags are used as name.
-
-    Args:
-        saveto: Location to save the log file, supports .txt or .csv
-        fmt (optional): Value format (e.g. 'e', 'f', '.3e', '.5g', '.3f')
-        separator (optional): Value separator, .csv files will automatically use a comma
     """
 
     def __init__(self, saveto: str, fmt: str = ".10e", separator: str = "\t"):
+        """Initialize scalar to file module
+
+        Args:
+            saveto (str): Location to save the log file, supports .txt or .csv
+            fmt (str, optional): Value format (e.g. 'e', 'f', '.3e', '.5g', '.3f'). Defaults to ".10e".
+            separator (str, optional): Value separator, .csv files will automatically use a comma. Defaults to "\t".
+        """
         self.saveto = saveto
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
         self.iter = 0

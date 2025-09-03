@@ -24,6 +24,12 @@ class AutoMod(Module):
     """
 
     def __init__(self, func: Callable, backend="autograd"):
+        """Initialize automatic differentiation module
+
+        Args:
+            func (Callable): Function to be differentiated.
+            backend (str, optional): The AD backend to use: `"autograd"` or `"jax"`. Defaults to "autograd".
+        """
         if "autograd" in backend.lower():
             if autograd is None:
                 raise ImportError(

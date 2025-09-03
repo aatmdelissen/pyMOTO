@@ -74,6 +74,15 @@ class MakeComplex(Module):
 
 
 class SplitComplex(Module):
+    """Convert a complex variable into its real and imaginary parts :math:`z \rightarrow (x,y)`
+
+    Input signal:
+        - ``z``: Complex value
+    
+    Output signals:
+        - ``x``: Real part 
+        - ``y``: Imaginary part
+    """
     def __call__(self, z):
         return np.real(z), np.imag(z)
 

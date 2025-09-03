@@ -20,13 +20,7 @@ class SolverSparsePardiso(LinearSolver):
     Complex-valued matrices are currently not supported
 
     Uses the Python interface ``pypardiso`` to the Intel MKL PARDISO library for solving large sparse linear systems of
-    equations Ax=b.
-
-    Args:
-        A (optional): The matrix
-        symmetric (optional): If it is already known if the matrix is symmetric, you can provide it here
-        hermitian (optional): If it is already known if the matrix is Hermitian, you can provide it here
-        positive_definite (optional): If positive-definiteness is known, provide it here
+    equations :math:`\mathbf{Ax}=\mathbf{b}`.
 
     References:
         `PyPardiso <https://github.com/haasad/PyPardisoProject>`_
@@ -36,7 +30,20 @@ class SolverSparsePardiso(LinearSolver):
 
     defined = _has_pardiso
 
-    def __init__(self, A=None, symmetric=None, hermitian=None, positive_definite=None):
+    def __init__(self, 
+                 A: sps.spmatrix=None, 
+                 symmetric: bool = None, 
+                 hermitian: bool = None, 
+                 positive_definite: bool = None
+                 ):
+        """Initialize Pardiso linear solver
+
+        Args:
+            A (scipy.sparse.spmatrix, optional): The matrix. Defaults to None.
+            symmetric (bool, optional): If it is already known if the matrix is symmetric, you can provide it here
+            hermitian (bool, optional): If it is already known if the matrix is Hermitian, you can provide it here
+            positive_definite (_tboolype_, optional): If positive-definiteness is known, provide it here
+        """
         super().__init__(A)
         if not self.defined:
             raise ImportError("Intel MKL Pardiso solver (pypardiso) cannot be found. ")

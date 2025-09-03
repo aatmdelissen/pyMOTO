@@ -22,14 +22,16 @@ class Scaling(Module):
 
     Output Signal:
         - ``y``: Scaled variable :math:`y`
-
-    Keyword Args:
-        scaling: Value :math:`s` to scale with
-        minval: Minimum value :math:`x_\text{min}` for negative-null-form constraint
-        maxval: Maximum value :math:`x_\text{max}` for negative-null-form constraint
     """
 
     def __init__(self, scaling: float = 100.0, minval: float = None, maxval: float = None):
+        """Initialize the scaling module
+
+        Args:
+            scaling (float, optional): Value :math:`s` to scale with. Defaults to 100.0.
+            minval (float, optional): Minimum value :math:`x_\text{min}` for negative-null-form constraint
+            maxval (float, optional): Maximum value :math:`x_\text{max}` for negative-null-form constraint
+        """
         self.minval = minval
         self.maxval = maxval
         self.scaling = scaling

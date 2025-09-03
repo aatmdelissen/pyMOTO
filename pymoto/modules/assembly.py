@@ -27,17 +27,7 @@ class AssembleGeneral(Module):
         - ``x``: Scaling vector of size ``(Nel)``
 
     Output Signal:
-        - ``A``: system matrix of size ``(n, n)``
-
-    Args:
-        domain: The domain-definition for which should be assembled
-        element_matrix: The element matrix for one element :math:`\mathbf{K}_e`
-        bc (optional): Indices of any dofs that are constrained to zero (Dirichlet boundary condition).
-          These boundary conditions are enforced by setting the row and column of that dof to zero.
-        bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are active.
-        matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments
-          ``matrix_type((vals, (row_idx, col_idx)), shape=(n, n))``
-        add_constant (optional): A constant (e.g. matrix) to add.
+        - ``A``: System matrix of size ``(n, n)``
     """
 
     def __init__(
@@ -49,6 +39,20 @@ class AssembleGeneral(Module):
         matrix_type=csc_matrix,
         add_constant=None,
     ):
+        """Initialize assembly module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The domain for which should be assembled
+            element_matrix (np.ndarray): The element matrix :math:`\mathbf{K}_e` of size 
+              `(#dofs_per_element, #dofs_per_element)`
+            bc (optional): Indices of any dofs that are constrained to zero (Dirichlet boundary condition).
+              These boundary conditions are enforced by setting the row and column of that dof to zero.
+            bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are 
+              active. Default is maximum value of the element matrix.
+            matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments
+              `matrix_type((vals, (row_idx, col_idx)), shape=(n, n))`. Defaults to csc_matrix.
+            add_constant (optional): A constant (*e.g.* sparse matrix) to add.
+        """
         self.elmat = element_matrix
         self.ndof = self.elmat.shape[-1] // domain.elemnodes  # Number of dofs per node
         self.n = self.ndof * domain.nnodes  # Matrix size
@@ -218,17 +222,6 @@ class AssembleStiffness(AssembleGeneral):
 
     Output Signal:
         - ``K``: Stiffness matrix of size ``(n, n)``
-
-    Args:
-        domain: The domain to assemble for -- this determines the element size and dimensionality
-        args (optional): Other arguments are passed to AssembleGeneral
-
-    Keyword Args:
-        e_modulus: Young's modulus
-        poisson_ratio: Poisson's ratio
-        plane: Plane ``strain`` or plane ``stress``
-        bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
-        kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
 
     def __init__(
@@ -240,6 +233,17 @@ class AssembleStiffness(AssembleGeneral):
         plane="strain",
         **kwargs,
     ):
+        """Initialize stiffness assembly module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size 
+              and dimensionality
+            *args: Other arguments are passed to :py:class:`pymoto.AssembleGeneral`
+            e_modulus (float, optional): Young's modulus. Defaults to 1.0.
+            poisson_ratio (float, optional): Poisson's ratio. Defaults to 0.3.
+            plane (str, optional): Plane `"strain"` or plane `"stress"`. Defaults to `"strain"`.
+            **kwargs: Other keyword arguments are passed to :py:class:`pymoto.AssembleGeneral`
+        """
         self.E, self.nu = e_modulus, poisson_ratio
 
         # Get material relation
@@ -275,18 +279,6 @@ class AssembleMass(AssembleGeneral):
 
     Output Signal:
         - ``M``: Mass matrix of size ``(n, n)``
-
-    Args:
-        domain: The domain to assemble for -- this determines the element size and dimensionality
-        ndof: Amount of dofs per node (for mass and damping: ndof = domain.dim; else ndof=1)
-        *args: Other arguments are passed to AssembleGeneral
-
-    Keyword Args:
-        material_property: Material property to use in the element matrix (for mass matrix the material density is used;
-            for damping the damping parameter, and for a thermal capacity matrix the thermal capacity multiplied with
-            density)
-        bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
-        **kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
 
     def __init__(
@@ -298,6 +290,21 @@ class AssembleMass(AssembleGeneral):
         bcdiagval: float = 0.0,
         **kwargs,
     ):
+        """Initialize mass assembly module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size 
+              and dimensionality
+            *args: Other arguments are passed to :py:class:`pymoto.AssembleGeneral`
+            material_property (float, optional): Material property to use in the element matrix (for mass matrix the 
+              material density is used; for damping the damping parameter, and for a thermal capacity matrix the thermal
+              capacity multiplied with density). Defaults to 1.0.
+            ndof (int, optional): Amount of dofs per node (for mass and damping: `ndof = domain.dim`; else `ndof=1`). 
+              Defaults to 1.
+            bcdiagval (float, optional): The value to put on the diagonal in case of boundary conditions (bc). Defaults 
+              to 0.0.
+            **kwargs: Other keyword arguments are passed to :py:class:`pymoto.AssembleGeneral`
+        """
         # Element mass (or equivalent) matrix
         self.el_mat = np.zeros((domain.elemnodes * ndof, domain.elemnodes * ndof))
 
@@ -329,18 +336,19 @@ class AssemblePoisson(AssembleGeneral):
 
     Output Signal:
         - ``P``: Poisson matrix of size ``(n, n)``
-
-    Args:
-        domain: The domain to assemble for -- this determines the element size and dimensionality
-        args (optional): Other arguments are passed to AssembleGeneral
-
-    Keyword Args:
-        material_property: Material property (e.g. thermal conductivity, electric permittivity)
-        bcdiagval: The value to put on the diagonal in case of boundary conditions (bc)
-        kwargs: Other keyword-arguments are passed to AssembleGeneral
     """
 
     def __init__(self, domain: DomainDefinition, *args, material_property: float = 1.0, **kwargs):
+        """Initialize Poisson matrix assembly module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size 
+              and dimensionality
+            *args: Other arguments are passed to :py:class:`pymoto.AssembleGeneral`
+            material_property (float, optional): Material property (*e.g.* thermal conductivity, electric permittivity). 
+              Defaults to 1.0.
+            **kwargs: Other keyword arguments are passed to :py:class:`pymoto.AssembleGeneral`
+        """
         # Prepare material properties and element matrices
         self.material_property = material_property
         self.poisson_element = np.zeros((domain.elemnodes, domain.elemnodes))
@@ -371,14 +379,16 @@ class ElementOperation(Module):
 
     Output Signal:
         - ``y``: Elemental output data of size ``(..., #elements)`` or ``(#dofs, ..., #elements)``
-
-    Args:
-        domain: The domain defining element and nodal connectivity
-        element_matrix: The element operator matrix :math:`\mathbf{B}` of size
-          ``(..., #dofs_per_element)`` or ``(..., #nodes_per_element)``
     """
 
     def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
+        """Initialize element operation module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+            element_matrix (np.ndarray): The element operator matrix :math:`\mathbf{B}` of size
+              ``(..., #dofs_per_element)`` or ``(..., #nodes_per_element)``
+        """
         if element_matrix.shape[-1] % domain.elemnodes != 0:
             raise IndexError(
                 f"Size of last dimension of element operator matrix ({element_matrix.shape[-1]}) is not compatible "
@@ -439,15 +449,15 @@ class Strain(ElementOperation):
 
     Output Signal:
        - ``e``: Strain matrix of size ``(#strains_per_element, #elements)``
-
-    Args:
-        domain: The domain defining element and nodal connectivity
-
-    Keyword Args:
-        voigt: Use Voigt strain notation (2x off-diagonal strain contribution)
     """
 
     def __init__(self, domain: DomainDefinition, voigt: bool = True):
+        """Initialize strain evaluation module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+            voigt (bool, optional): Use Voigt strain notation (2x off-diagonal strain contribution). Defaults to True.
+        """
         # Numerical integration
         B = None
         siz = domain.element_size
@@ -476,19 +486,19 @@ class Stress(Strain):
 
     Output Signal:
        - ``s``: Stress matrix of size ``(#stresses_per_element, #elements)``
-
-    Args:
-        domain: The domain defining element and nodal connectivity
-
-    Keyword Args:
-        e_modulus: Young's modulus
-        poisson_ratio: Poisson ratio
-        plane: Plane 'strain' or 'stress'
     """
 
     def __init__(
         self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane: str = "strain"
     ):
+        """Initialize stress evaluation module
+
+        Args:
+            Use Voigt strain notation (2x off-diagonal strain contribution)
+            e_modulus (float, optional): Young's modulus. Defaults to 1.0.
+            poisson_ratio (float, optional): Poisson ratio. Defaults to 0.3.
+            plane (str, optional): Plane `"strain"` or `"stress"`. Defaults to `"strain"`.
+        """
         super().__init__(domain, voigt=True)
 
         # Get material relation
@@ -506,12 +516,14 @@ class ElementAverage(ElementOperation):
 
     Output Signal:
        - ``v_el``: Elemental vector of size ``(#elements)`` or ``(#dofs, #elements)`` if ``#dofs_per_node>1``
-
-    Args:
-        domain: The domain defining element and nodal connectivity
     """
 
     def __init__(self, domain: DomainDefinition):
+        """Initialize element average module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+        """
         shapefuns = domain.eval_shape_fun(pos=np.array([0, 0, 0]))
         super().__init__(domain, shapefuns)
 
@@ -528,13 +540,16 @@ class NodalOperation(Module):
 
     Output Signal:
         - ``u``: nodal output data of size ``(..., #dofs_per_node * #nodes)``
-
-    Args:
-        domain: The domain defining element and nodal connectivity
-        element_matrix: The element operator matrix :math:`\mathbf{A}` of size ``(..., #dofs_per_element)``
     """
 
     def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
+        """Initialize nodal operation module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+            element_matrix (np.ndarray): The element operator matrix :math:`\mathbf{A}` of size 
+              ``(..., #dofs_per_element)``
+        """
         if element_matrix.shape[-1] % domain.elemnodes != 0:
             raise IndexError(
                 "Size of last dimension of element operator matrix is not compatible with mesh. "
@@ -568,13 +583,6 @@ class ThermoMechanical(NodalOperation):
 
     Output Signal:
         - ``f_thermal``: nodal equivalent thermo-mechanical load of size ``(#dofs_per_node * #nodes)``
-
-    Args:
-        domain: The domain defining element and nodal connectivity
-        e_modulus (optional): Young's modulus
-        poisson_ratio (optional): Poisson ratio
-        alpha (optional): Coefficient of thermal expansion
-        plane (optional): Plane 'strain' or 'stress'
     """
 
     def __init__(
@@ -585,6 +593,15 @@ class ThermoMechanical(NodalOperation):
         alpha: float = 1e-6,
         plane: str = "strain",
     ):
+        """Initalize thermo-mechanical load module
+
+        Args:
+            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+            e_modulus (float, optional): Young's modulus. Defaults to 1.0.
+            poisson_ratio (float, optional): Poisson ratio. Defaults to 0.3.
+            alpha (float, optional): Coefficient of thermal expansion. Defaults to 1e-6.
+            plane (str, optional): plane (str, optional): Plane `"strain"` or `"stress"`. Defaults to `"strain"`.
+        """
         dim = domain.dim
         D = get_D(e_modulus, poisson_ratio, "3d" if dim == 3 else plane.lower())
         if dim == 2:
