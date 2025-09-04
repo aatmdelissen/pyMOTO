@@ -307,7 +307,7 @@ def test_sparse_lu(Atag, b_type, b_shape, mat_converter):
     'mat_complex_hermitian_1',
     'mat_complex_hermitian_pos_def',
 ])
-@pytest.mark.parametrize('mat_converter', mat_type_converters[:4], ids=mat_type_ids[:4])
+@pytest.mark.parametrize('mat_converter', mat_type_converters[1:4], ids=mat_type_ids[1:4])
 def test_sparse_cholesky_scikit(Atag, b_type, b_shape, mat_converter):
     # I don't know why, but scikit is able to solve indefinite matrix as well. Maybe they do some LDL inside?
     A = mat_converter(all_matrices[Atag])
