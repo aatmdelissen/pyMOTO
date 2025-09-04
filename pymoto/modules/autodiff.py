@@ -5,6 +5,7 @@ from ..utils import _parse_to_list
 
 try:  # JAX AutoDiff module
     import jax
+    jax.config.update("jax_enable_x64", True)  # Use double precision by default
 except ImportError as e:
     _jax_error = e
     jax = None
@@ -23,13 +24,19 @@ class AutoMod(Module):
     under development, so always check if behavior is as expected when using this module.
     """
 
-    def __init__(self, func: Callable, backend="autograd"):
+    def __init__(self, func: Callable, backend: str = None):
         """Initialize automatic differentiation module
 
         Args:
             func (Callable): Function to be differentiated.
-            backend (str, optional): The AD backend to use: `"autograd"` or `"jax"`. Defaults to "autograd".
+            backend (str, optional): The AD backend to use: `"autograd"` or `"jax"`. Defaults to any installed, with 
+              `"jax"` preferred.
         """
+        if backend is None and jax is not None:
+            backend = "jax"
+        if backend is None and autograd is not None:
+            backend = "autograd"
+        
         if "autograd" in backend.lower():
             if autograd is None:
                 raise ImportError(
@@ -54,7 +61,8 @@ class AutoMod(Module):
                 self.vjp_generator = autograd.make_vjp(self.func, list(range(len(args))))
             self.vjp_fn, y = self.vjp_generator(*args)
             if len(_parse_to_list(y)) > 1:
-                raise ValueError("The function should return a single output, but multiple outputs were detected.")
+                # FIXME for 2 outputs it doesn't work yet for autograd
+                raise NotImplementedError("Only functions with one output are supported by `autograd` backend")
             return [autograd.tracer.getval(yi) for yi in _parse_to_list(y)]
         elif "jax" in self.backend.lower():
             y, self.vjp_fn = jax.vjp(self.func, *args)

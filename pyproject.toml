@@ -61,7 +61,8 @@ ext = [
     "scikit-sparse",
     "pypardiso",
     "opt-einsum",
-    "jax[cpu]",
+    "jax[cpu]",    
+    "autograd[scipy]",
 ]
 
 ## ----- Setuptools Configuration -----
