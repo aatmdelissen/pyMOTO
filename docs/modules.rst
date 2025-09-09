@@ -102,6 +102,7 @@ Complex-value Modules
    pymoto.RealPart
    pymoto.ImagPart
    pymoto.ComplexNorm
+   pymoto.Conjugate
 
 Common Utilities and Routines
 -----------------------------

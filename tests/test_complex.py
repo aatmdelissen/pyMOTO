@@ -99,3 +99,11 @@ class TestComplex:
 
         s_uv = ComplexVecDot()(s_u, s_v)
         pym.finite_difference([s_u, s_v], s_uv, dx=1e-5, test_fn=self.fd_testfn)
+
+    def test_conjugate(self):
+        np.random.seed(0)
+        N = 4
+        s_u = pym.Signal('u', state=np.random.rand(N) + 1j * np.random.rand(N))
+        s_v = pym.Conjugate()(s_u)
+        npt.assert_allclose(s_v.state, np.conj(s_u.state))
+        pym.finite_difference(s_u, s_v, test_fn=self.fd_testfn)

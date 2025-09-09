@@ -145,3 +145,11 @@ class ComplexNorm(Module):
         z = self.sig_in[0].state
         A = self.sig_out[0].state
         return 1 / A * dA * np.conj(z)
+
+
+class Conjugate(Module):
+    def __call__(self, z):
+        return np.conj(z)
+    
+    def _sensitivity(self, dc):
+        return np.conj(dc)

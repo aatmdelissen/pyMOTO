@@ -16,7 +16,7 @@ from .core_objects import Signal, Module, Network, make_signals
 from .modules.assembly import AssembleGeneral, AssembleStiffness, AssembleMass, AssemblePoisson
 from .modules.assembly import ElementOperation, Strain, Stress, ElementAverage, NodalOperation, ThermoMechanical
 from .modules.autodiff import AutoMod
-from .modules.complex import MakeComplex, SplitComplex, RealPart, ImagPart, ComplexNorm
+from .modules.complex import MakeComplex, SplitComplex, RealPart, ImagPart, ComplexNorm, Conjugate
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
 from .modules.generic import MathGeneral, EinSum, ConcatSignal, VecSet, AddMatrix
 from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, Print
@@ -80,6 +80,7 @@ __all__ = [
     "RealPart",
     "ImagPart",
     "ComplexNorm",
+    "Conjugate",
     "AutoMod",
     "Aggregation",
     "PNorm",
