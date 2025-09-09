@@ -416,7 +416,7 @@ class DomainDefinition:
                 for key, vec in point_dat.items():
                     vecax = next((i for i, s in enumerate(vec.shape) if s % self.nnodes == 0), None)
                     ncomponents = vec.shape[vecax] // self.nnodes
-                    # Vectorize 2D vectors, by padding with 0's
+                    # Convert 2D vectors to 3D, by padding with 0's (this enables the deform button in Paraview)
                     pad_to_vector = ncomponents == 2 and self.dim == 2
                     assert vec.ndim <= 2, "Only for 1D and 2D numpy arrays"
                     nvectors = 1 if vec.ndim == 1 else vec.shape[(vecax + 1) % 2]
@@ -430,7 +430,7 @@ class DomainDefinition:
                             ind[(vecax + 1) % 2] = i
                             vec_to_write = vec[tuple(ind)].astype(np.float32)
                         else:
-                            vec_to_write = vec.astype(np.float32)
+                            vec_to_write = vec.astype(np.float32)  # TODO enable export of complex vectors
 
                         if pad_to_vector:
                             vec_pad = np.zeros(3 * self.nnodes, dtype=np.float32)
@@ -469,7 +469,7 @@ class DomainDefinition:
                             ind[(vecax + 1) % 2] = i
                             vec_to_write = vec[tuple(ind)].astype(np.float32)
                         else:
-                            vec_to_write = vec.astype(np.float32)
+                            vec_to_write = vec.astype(np.float32)  # TODO enable export of complex vectors
 
                         file.write(
                             f'<DataArray type="Float32" '
