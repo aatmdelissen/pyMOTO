@@ -24,7 +24,7 @@ class DampedJacobi(Preconditioner):
     """
 
     def __init__(self, A=None, w=1.0):
-        """Initialize the damped Jacobi preconditioner
+        r"""Initialize the damped Jacobi preconditioner
 
         Args:
             A (optional): The matrix
@@ -54,7 +54,7 @@ class SOR(Preconditioner):
     """
 
     def __init__(self, A=None, w=1.0):
-        """Initialize the SOR preconditioner
+        r"""Initialize the SOR preconditioner
 
         Args:
            A (optional): The matrix

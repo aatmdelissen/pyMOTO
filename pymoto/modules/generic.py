@@ -296,7 +296,7 @@ class VecSet(Module):
 
 
 class AddMatrix(Module):
-    """Compute linear combination of sparse matrices
+    r"""Compute linear combination of sparse matrices
 
     :math:`Y = \sum_i a_i \mathbf{A}_i`
 

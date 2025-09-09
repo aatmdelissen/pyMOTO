@@ -39,7 +39,7 @@ class AssembleGeneral(Module):
         matrix_type=csc_matrix,
         add_constant=None,
     ):
-        """Initialize assembly module
+        r"""Initialize assembly module
 
         Args:
             domain (:py:class:`pymoto.DomainDefinition`): The domain for which should be assembled
@@ -382,7 +382,7 @@ class ElementOperation(Module):
     """
 
     def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
-        """Initialize element operation module
+        r"""Initialize element operation module
 
         Args:
             domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
@@ -543,7 +543,7 @@ class NodalOperation(Module):
     """
 
     def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
-        """Initialize nodal operation module
+        r"""Initialize nodal operation module
 
         Args:
             domain (:py:class:`pymoto.DomainDefinition`): The finite element domain

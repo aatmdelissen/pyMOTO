@@ -15,7 +15,7 @@ except ImportError:
 
 
 class SolverSparsePardiso(LinearSolver):
-    """Solver wrapper Intel MKL Pardiso solver, which is a very fast and flexible multi-threaded solver
+    r"""Solver wrapper Intel MKL Pardiso solver, which is a very fast and flexible multi-threaded solver
 
     Complex-valued matrices are currently not supported
 

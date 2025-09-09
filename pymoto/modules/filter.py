@@ -239,7 +239,7 @@ class Filter(Module):
     """
 
     def __init__(self, *args, nonpadding=None, **kwargs):
-        """Initialize abstract base-class for linear filters
+        r"""Initialize abstract base-class for linear filters
 
         Args:
             nonpadding (numpy.array[int], optional): An array with indices at places where
