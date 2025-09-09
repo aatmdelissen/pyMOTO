@@ -148,8 +148,16 @@ class ComplexNorm(Module):
 
 
 class Conjugate(Module):
+    """Conjugation of a complex value :math:`y = z^*`
+
+    Input Signal:
+        - ``z``: Complex value
+
+    Output Signal:
+        - ``y``: Conjugated value
+    """
     def __call__(self, z):
         return np.conj(z)
     
-    def _sensitivity(self, dc):
-        return np.conj(dc)
+    def _sensitivity(self, dy):
+        return np.conj(dy)
