@@ -28,10 +28,11 @@ Due to the modularity of the framework, existing modules can be reused without h
 [uv](https://docs.astral.sh/uv/guides/install-python/), [conda](https://docs.conda.io/projects/conda/en/stable/), [miniconda](https://docs.conda.io/en/latest/miniconda.html),
 [venv](https://realpython.com/python-virtual-environments-a-primer/))
 2. Install the pymoto Python package (and its dependencies)
-   - Option A (pip): Type `pip install pymoto` into your console to install
+   - Option A (pip): Type `pip install pymoto` into your console to install (prepend with `uv` when using uv)
    - Option B (conda): If you are working with Conda, install by `conda install -c aatmdelissen pymoto`
-3. Examples can be found and downloaded from the [pyMOTO examples gallery](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html)
-4. Run the example by typing `python ex_name_of_the_example.py` in the console
+3. Optional: Install Intel MKL library for a fast linear solver with `pip install mkl`
+4. Examples can be found and downloaded from the [pyMOTO examples gallery](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html)
+5. Run the example by typing `python ex_name_of_the_example.py` in the console (prepend with `uv run` when using uv)
 
 ## Dependencies
 * [**numpy**](https://numpy.org/doc/stable/) - Dense linear algebra and solvers
@@ -41,21 +42,15 @@ Due to the modularity of the framework, existing modules can be reused without h
 * (optional) [**opt_einsum**](https://optimized-einsum.readthedocs.io/en/stable/install.html) - Optimized function for `EinSum` module
 
 For fast linear solvers for sparse matrices:
-* (optional) [**pypardiso**](https://github.com/haasad/PyPardisoProject) - Uses the Intel OneAPI PARDISO solver (recommended)
+* (optional) [**mkl**](https://pypi.org/project/mkl) - Use the Intel OneAPI PARDISO solver (recommended)
 * (optional) [**scikit-umfpack**](https://scikit-umfpack.github.io/scikit-umfpack/install.html) - Fast LU linear solver based on UMFPACK
 * (optional) [**scikit-sparse**](https://github.com/scikit-sparse/scikit-sparse) - Fast Cholesky solver based on CHOLMOD
 * (optional) [**cvxopt**](https://cvxopt.org/install/index.html) - Another fast Cholesky solver based on CHOLMOD
 
-__Note on linear solvers for sparse matrices:__ Scipy implements a version of LU which is quite slow. To increase the 
-speed of the optimization, `pypardiso` is recommended as it contains a very robust and flexible solver for symmetric 
-and asymmetric matrices. An alternative is `scikit-umfpack` which provides a fast LU factorization. For symmetric 
-matrices a Cholesky factorization is recommended (not provided with Scipy), which can be used by either installing 
-`scikit-sparse` or `cvxopt`.
+__Note on linear solvers for sparse matrices:__ Scipy implements a version of LU which is quite slow. To increase the  speed of the optimization, `mkl` is recommended as it contains PARDISO, which is a very robust and flexible solver for  any matrix (symmetric, asymmetric, real, or complex). An alternative is `scikit-umfpack` which provides a fast LU factorization. For symmetric matrices a Cholesky factorization can be used (not provided with Scipy), by either installing `scikit-sparse` or `cvxopt`.
 
 # Contributing
-For development, a local installation of `pyMOTO` can be done by first downloading/cloning the entire git repo, and then calling 
-`pip install -e .` in the `pyMOTO` folder (of course from within your virtual environment). This allows making changes 
-to the pyMOTO code without having to reinstall.
+For development, a local installation of `pyMOTO` can be done by first downloading/cloning the entire git repo, and then calling `pip install -e .` in the `pyMOTO` folder (of course from within your virtual environment). This allows making changes to the pyMOTO code without having to reinstall.
 
 You are now ready for a contribution to `pyMOTO`.
 1. Check the [issues page](https://github.com/aatmdelissen/pyMOTO/issues) to see if the subject you want to improve is listed:

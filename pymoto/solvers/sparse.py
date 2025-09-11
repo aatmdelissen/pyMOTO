@@ -1,4 +1,10 @@
+import sys
+import glob
+import ctypes
 import warnings
+import hashlib
+from ctypes.util import find_library
+
 import numpy as np
 import scipy.sparse as sps
 from scipy.sparse import SparseEfficiencyWarning
@@ -6,35 +12,141 @@ from .matrix_checks import matrix_is_hermitian, matrix_is_complex, matrix_is_sym
 from .solvers import LinearSolver
 
 # ------------------------------------ Pardiso Solver -----------------------------------
+def load_libmkl():
+    # Code borrowed from: https://github.com/andrejstmh/PyPardisoProject/blob/master/pypardiso/pardiso_wrapper.py
+    libmkl = None
+    # Look for the mkl_rt shared library with ctypes.util.find_library
+    mkl_rt = find_library('mkl_rt')
+    # also look for mkl_rt.1, Windows-specific, see
+    # https://github.com/haasad/PyPardisoProject/issues/12
+    if mkl_rt is None:
+        mkl_rt = find_library('mkl_rt.1')
+
+    # If we can't find mkl_rt with find_library, we search the directory
+    # tree, using a few assumptions:
+    # - the shared library can be found in a subdirectory of sys.prefix
+    #   https://docs.python.org/3.9/library/sys.html#sys.prefix
+    # - either in `lib` (linux and macOS) or `Library\bin` (windows)
+    # - if there are multiple matches for `mkl_rt`, try shorter paths
+    #   first
+    if mkl_rt is None:
+        mkl_rt_path = sorted(glob.glob(f'{sys.prefix}/[Ll]ib*/**/*mkl_rt*', recursive=True), key=len)
+        for path in mkl_rt_path:
+            try:
+                libmkl = ctypes.CDLL(path)
+                break
+            except (OSError, ImportError):
+                pass
+        if libmkl is None:
+            raise ImportError('Shared library mkl_rt not found')
+    else:
+        libmkl = ctypes.CDLL(mkl_rt)
+    return libmkl
+
+
 try:
-    from pypardiso import PyPardisoSolver
-
-    _has_pardiso = True
+    libmkl = load_libmkl()
 except ImportError:
-    _has_pardiso = False
+    libmkl = None
 
+
+class IparmOptions:
+    """https://www.intel.com/content/www/us/en/docs/onemkl/developer-reference-c/2023-0/pardiso-iparm-parameter.html """
+    keys =  [None for _ in range(64)]
+    keys[0] = "Use default values"
+    keys[1] = "Fill-in reducing ordering for the input matrix"
+    keys[3] = "Preconditioned CGS/CG"
+    keys[4] = "User permutation"
+    keys[5] = "Write solution on x"
+    keys[6] = "Number of iterative refinement steps performed"
+    keys[7] = "Iterative refinement step"
+    keys[8] = "Tolerance level for the relative residual in the iterative refinement process"
+    keys[9] = "Pivoting perturbation"
+    keys[10] = "Scaling vectors"
+    keys[11] = "Solve with transposed or conjugate transposed matrix A"
+    keys[12] = "Improved accuracy using (non-) symmetric weighted matching"
+    keys[13] = "Number of perturbed pivots"
+    keys[14] = "Peak memory on symbolic factorization"
+    keys[15] = "Permanent memory on symbolic factorization"
+    keys[16] = "Size of factors/Peak memory on numerical factorization and solution"
+    keys[17] = "Report the number of non-zero elements in the factors"
+    keys[18] = "Report number of floating point operations (in 10^6 floating point operations) that are necessary to factor the matrix A"
+    keys[19] = "Report CG/CGS diagnostics"
+    keys[20] = "Pivoting for symmetric indefinite matrices"
+    keys[21] = "Inertia: number of positive eigenvalues"
+    keys[22] = "Inertia: number of negative eigenvalues"
+    keys[23] = "Parallel factorization control"
+    keys[24] = "Parallel forward/backward solve control"
+    keys[26] = "Matrix checker"
+    keys[27] = "Single or double precision (1=single; 0=double)"
+    keys[29] = "Number of zero or negative pivots"
+    keys[30] = "Partial solve and computing selected components of the solution vectors"
+    keys[33] = "Optimal number of OpenMP threads for conditional numerical reproducibility (CNR) mode"
+    keys[34] = "One- or zero-based indexing of columns and rows (1=zero-based; 0=one-based)"
+    keys[35] = "Schur complement matrix computation control"
+    keys[36] = "Format for matrix storage"
+    keys[37] = "Enable low rank update to accelerate factorization for multiple matrices with identical structure and similar values"
+    keys[42] = "Control parameter for the computation of the diagonal of inverse matrix"
+    keys[55] = "Diagonal and pivoting control"
+    keys[59] = "Intel® oneAPI Math Kernel Library PARDISO mode"
+    keys[62] = "Size of the minimum OOC memory for numerical factorization and solution"
+
+    def __init__(self, mtype=None):
+        self.data = np.zeros(64, dtype=np.int32)
+
+    def __getitem__(self, i):
+        return self.data[i]
+
+    def __setitem__(self, i, value):
+        if self.keys[i] is None:
+            warnings.warn(f'#{i} is no input iparm. See Pardiso documentation.')
+        self.data[i] = value
+
+        # description = self.keys[i] if self.keys[i] is not None else "Undefined"
+        # print(f"iparm[{i}] = {self.data[i]}  # {description}")
+
+    def print_all(self):
+        """Print all iparm settings to console"""
+        for i in range(self.data.size):
+            if self.keys[i] is not None or self.data[i] != 0:
+                description = self.keys[i] if self.keys[i] is not None else "Undefined"
+                print(f"iparm[{i}] = {self.data[i]}  # {description}")
+
+
+class PardisoWarning(UserWarning):
+    pass
+
+
+class PardisoError(Exception):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return ('The Pardiso solver failed with error code {self.value}. See Pardiso documentation for details.')
+    
 
 class SolverSparsePardiso(LinearSolver):
     r"""Solver wrapper Intel MKL Pardiso solver, which is a very fast and flexible multi-threaded solver
 
     Complex-valued matrices are currently not supported
 
-    Uses the Python interface ``pypardiso`` to the Intel MKL PARDISO library for solving large sparse linear systems of
+    Uses the Python interface to the Intel MKL PARDISO library for solving large sparse linear systems of
     equations :math:`\mathbf{Ax}=\mathbf{b}`.
 
     References:
-        `PyPardiso <https://github.com/haasad/PyPardisoProject>`_
+        `Intel MKL Python wrapper <https://pypi.org/project/mkl/>`_
         `Intel MKL Pardiso <https://www.intel.com/content/www/us/en/develop/documentation/onemkl-developer-reference-c/
           top/sparse-solver-routines/onemkl-pardiso-parallel-direct-sparse-solver-iface.html>`_
     """
-
-    defined = _has_pardiso
+    defined = libmkl is not None
+    _supported_types = [np.single, np.csingle, np.double, np.cdouble]
 
     def __init__(self, 
                  A: sps.spmatrix=None, 
                  symmetric: bool = None, 
                  hermitian: bool = None, 
-                 positive_definite: bool = None
+                 positive_definite: bool = None,
+                 size_limit_storage: int = 5e7,
                  ):
         """Initialize Pardiso linear solver
 
@@ -42,18 +154,147 @@ class SolverSparsePardiso(LinearSolver):
             A (scipy.sparse.spmatrix, optional): The matrix. Defaults to None.
             symmetric (bool, optional): If it is already known if the matrix is symmetric, you can provide it here
             hermitian (bool, optional): If it is already known if the matrix is Hermitian, you can provide it here
-            positive_definite (_tboolype_, optional): If positive-definiteness is known, provide it here
+            positive_definite (bool, optional): If positive-definiteness is known, provide it here
+            size_limit_storage (int, optional): Limit for MKL memory use
         """
-        super().__init__(A)
+        
         if not self.defined:
-            raise ImportError("Intel MKL Pardiso solver (pypardiso) cannot be found. ")
+            raise ImportError("Intel MKL Pardiso solver (mkl) cannot be found. ")
 
-        self.mtype = None
         self.hermitian = hermitian
         self.symmetric = symmetric
         self.positive_definite = positive_definite
+
+        self._mkl_pardiso = libmkl.pardiso
+
+        # determine 32bit or 64bit architecture
+        if ctypes.sizeof(ctypes.c_void_p) == 8:
+            self._pt_type = (ctypes.c_int64, np.int64)
+        else:
+            self._pt_type = (ctypes.c_int32, np.int32)
+
+        self._mkl_pardiso.argtypes = [ctypes.POINTER(self._pt_type[0]),    # pt
+                                      ctypes.POINTER(ctypes.c_int32),      # maxfct
+                                      ctypes.POINTER(ctypes.c_int32),      # mnum
+                                      ctypes.POINTER(ctypes.c_int32),      # mtype
+                                      ctypes.POINTER(ctypes.c_int32),      # phase
+                                      ctypes.POINTER(ctypes.c_int32),      # n
+                                      ctypes.POINTER(None),                # a (void*)
+                                      ctypes.POINTER(ctypes.c_int32),      # ia
+                                      ctypes.POINTER(ctypes.c_int32),      # ja
+                                      ctypes.POINTER(ctypes.c_int32),      # perm
+                                      ctypes.POINTER(ctypes.c_int32),      # nrhs
+                                      ctypes.POINTER(ctypes.c_int32),      # iparm
+                                      ctypes.POINTER(ctypes.c_int32),      # msglvl
+                                      ctypes.POINTER(None),                # b (void*)
+                                      ctypes.POINTER(None),                # x (void*)
+                                      ctypes.POINTER(ctypes.c_int32)]      # error
+
+        self._mkl_pardiso.restype = None
+
+        self._pt = np.zeros(64, dtype=self._pt_type[1])
+        self._iparm = IparmOptions()
+        self._perm = np.zeros(0, dtype=np.int32)
+        self._dtype = None # Dtype of matrix, rhs and solution should be the same
+
         self._mtype = None
-        self._pardiso_solver = None
+        """ Phases: 1) is analysis and symbolic factorization, 2) is numerical factorization, 3) fw/bw substitution and 
+            iterative refinement
+          - `11` Analysis
+          - `12` Analysis, numerical factorization
+          - `13` Analysis, numerical factorization, solve, iterative refinement
+          - `22` Numerical factorization
+          - `23` Numerical factorication, solve, iterative refinement
+          - `33` Solve, iterative refinement 
+          - `331` Like `33`, but only forward substitution
+          - `332` Like `33`, but only diagonal substitution
+          - `333` Like `33`, but only backward substitution
+          - `0` Release internal memory for L and U matrix
+          - `-1` Release all internal memory for all matrices
+        """
+        self._phase = None 
+        self._msglvl = 0  # 1 shows statistical info of MKL
+
+        self._factorized_A = sps.csr_matrix((0, 0))
+        self.size_limit_storage = size_limit_storage
+        self._solve_transposed = False
+        
+        super().__init__(A)
+    
+    def _check_A(self, A):
+        if A.shape[0] != A.shape[1]:
+            raise ValueError(f'Matrix A needs to be square, but has shape: {A.shape}')
+
+        if sps.isspmatrix_csc(A):
+            self._solve_transposed = True
+        else:
+            if not sps.isspmatrix_csr(A):
+                msg = f'Pardiso requires csr or csc matrix. Converted from {type(A).__name__} to csr.'
+                warnings.warn(msg, SparseEfficiencyWarning)
+                A = sps.csr_matrix(A)
+            self._solve_transposed = False
+
+        # scipy allows unsorted csr-indices, which lead to completely wrong pardiso results
+        if not A.has_sorted_indices:
+            A.sort_indices()
+
+        # scipy allows csr matrices with empty rows. a square matrix with an empty row is singular. calling
+        # pardiso with a matrix A that contains empty rows leads to a segfault, same applies for csc with
+        # empty columns
+        if not np.diff(A.indptr).all():
+            row_col = 'column' if self._solve_transposed else 'row'
+            raise ValueError(f'Matrix A is singular, because it contains empty {row_col}(s)')
+
+        if not any([np.issubdtype(A.dtype, t) for t in self._supported_types]):
+            raise TypeError('Pardiso currently only supports {self._supported_types}, but matrix A has dtype: {A.dtype}')
+    
+        self._mtype = self._determine_mtype(A)
+        
+        # https://www.intel.com/content/www/us/en/docs/onemkl/developer-reference-c/2023-0/pardiso-iparm-parameter.html
+        if self._iparm[0] == 0:
+            # Set default parameters 
+            c_int32_p = ctypes.POINTER(ctypes.c_int32)
+            libmkl.pardisoinit(self._pt.ctypes.data_as(ctypes.POINTER(self._pt_type[0])),  # pt
+                            ctypes.byref(ctypes.c_int32(self._mtype)),  # mtype
+                            self._iparm.data.ctypes.data_as(c_int32_p))  # pardiso error
+
+        self._iparm[34] = 1  # Use 0-based indexing
+        if self._mtype in {1, 2, 3, -4, 4}:
+            self._iparm[9] = 0  # Set pivoting perturbation to zero; default value doesn't work for these matrix types
+
+        is_single_precision = np.issubdtype(A.dtype, np.single) or np.issubdtype(A.dtype, np.csingle)
+        self._iparm[27] = is_single_precision
+
+        # For symmetric or hermitian matrices, only the upper triangular part is used.
+        if self._mtype in {-2, 2, -4, 4, 6}:
+            A = sps.triu(A, format="coo")
+            # Explicitly set zero diagonal entries, as this is better for Intel Pardiso
+            (zero_diag_entries,) = np.where(A.diagonal() == 0)
+            if len(zero_diag_entries) > 0:
+                A.row = np.append(A.row, zero_diag_entries)
+                A.col = np.append(A.col, zero_diag_entries)
+                A.data = np.append(A.data, np.zeros_like(zero_diag_entries))
+            A = A.tocsr()
+            self._solve_transposed = False  # CSR matrix again so cancel transposition
+        return A
+
+    def _check_b(self, b):
+        if sps.isspmatrix(b):
+            warnings.warn('Pardiso requires the right-hand side b to be a dense array for maximum efficiency',
+                          SparseEfficiencyWarning)
+            b = b.todense()
+
+        # pardiso expects fortran (column-major) order for b
+        if not b.flags.f_contiguous:
+            b = np.asfortranarray(b)
+
+        if not np.issubdtype(b.dtype, self.A.dtype):
+            if np.iscomplexobj(b) and not np.iscomplexobj(self.A):
+                raise TypeError(f'Complex b ({b.dtype}) cannot be used with real matrix A ({self.A.dtype})')
+            warnings.warn(f"Array b's data type was converted from {b.dtype} to {self.A.dtype}", PardisoWarning)
+            b = b.astype(self.A.dtype)
+
+        return b
 
     def _determine_mtype(self, A):
         """Determines the matrix-type according to Intel
@@ -80,9 +321,8 @@ class SolverSparsePardiso(LinearSolver):
         Return:
             Intel MKL mtype
         """
-        # TODO structural symmetry is not checked, may be added at some point
+        # TODO structural symmetry is not checked, may be added at some point (1 and 3). For now 11 and 13 are used.
         self.complex = matrix_is_complex(A)
-        self.dtype = np.complex128 if self.complex else np.float64
         if self.complex:
             # Check if is Hermitian?
             if self.hermitian is None:
@@ -101,6 +341,47 @@ class SolverSparsePardiso(LinearSolver):
             if self.symmetric:
                 return 2 if self.positive_definite else -2
             return 11
+    
+    def _call_pardiso(self, A: sps.spmatrix = None, b: np.ndarray = None):
+        if A is None:
+            A = self.A
+        if b is None:
+            b = np.zeros((A.shape[0], 1), dtype=A.dtype)  # Dummy rhs
+        x = np.zeros_like(b, dtype=A.dtype)
+        pardiso_error = ctypes.c_int32(0)
+        c_int32_p = ctypes.POINTER(ctypes.c_int32)
+        if self._iparm[27]: # single precision
+            c_data_p = ctypes.POINTER(ctypes.c_float)
+        else:
+            c_data_p = ctypes.POINTER(ctypes.c_double)
+        
+        self._mkl_pardiso(self._pt.ctypes.data_as(ctypes.POINTER(self._pt_type[0])),  # pt
+                          ctypes.byref(ctypes.c_int32(1)),  # maxfct
+                          ctypes.byref(ctypes.c_int32(1)),  # mnum
+                          ctypes.byref(ctypes.c_int32(self._mtype)),  # mtype
+                          ctypes.byref(ctypes.c_int32(self._phase)),  # phase
+                          ctypes.byref(ctypes.c_int32(A.shape[0])),  # N -> number of equations/size of matrix
+                          A.data.ctypes.data_as(c_data_p),  # A -> non-zero entries in matrix
+                          A.indptr.ctypes.data_as(c_int32_p),  # ia -> csr-indptr
+                          A.indices.ctypes.data_as(c_int32_p),  # ja -> csr-indices
+                          self._perm.ctypes.data_as(c_int32_p),  # perm -> empty
+                          ctypes.byref(ctypes.c_int32(1 if b.ndim == 1 else b.shape[1])),  # nrhs
+                          self._iparm.data.ctypes.data_as(c_int32_p),  # iparm-array
+                          ctypes.byref(ctypes.c_int32(self._msglvl)),  # msg-level -> 1: statistical info is printed
+                          b.ctypes.data_as(c_data_p),  # b -> right-hand side vector/matrix
+                          x.ctypes.data_as(c_data_p),  # x -> output
+                          ctypes.byref(pardiso_error))  # pardiso error
+
+        if pardiso_error.value != 0:
+            raise PardisoError(pardiso_error.value)
+        else:
+            return np.ascontiguousarray(x)  # change memory-layout back from fortran to c order
+
+    @staticmethod
+    def _hash_csr_matrix(self, matrix):
+        return (hashlib.sha1(matrix.indices).hexdigest() +
+                hashlib.sha1(matrix.indptr).hexdigest() +
+                hashlib.sha1(matrix.data).hexdigest())
 
     def update(self, A):
         """Factorize the matrix A, the factorization will automatically be used if the same matrix A is passed to the
@@ -108,33 +389,19 @@ class SolverSparsePardiso(LinearSolver):
         same matrix A
 
         Args:
-            A: sparse square CSR matrix (scipy.sparse.csr.csr_matrix)
+            A: sparse square CSR or CSC matrix (:py:class:`scipy.sparse.csr.csr_matrix`)
         """
-        # Update matrix type
-        if self._mtype is None:
-            self._mtype = self._determine_mtype(A)
+        self.A = self._check_A(A)
 
-        if self._mtype in {-2, 2, 6}:
-            A = sps.triu(A, format="coo")  # Only use upper part
-            # Explicitly set zero diagonal entries, as this is better for Intel Pardiso
-            (zero_diag_entries,) = np.where(A.diagonal() == 0)
-            if len(zero_diag_entries) > 0:
-                A.row = np.append(A.row, zero_diag_entries)
-                A.col = np.append(A.col, zero_diag_entries)
-                A.data = np.append(A.data, np.zeros_like(zero_diag_entries))
-            A = A.tocsr()
-            # assert(np.diff(A.indptr).all())  # Every row must be non-empty
-            # assert(max(np.diff(A.indices[A.indptr[:-1]])))  # All diagonals must be non-empty
-        if not sps.isspmatrix_csr(A):
-            warnings.warn(f"PyPardiso requires CSR matrix format, not {type(A).__name__}", SparseEfficiencyWarning)
-            A = sps.csr_matrix(A)
-        self.A = A
+        if self.A.nnz > self.size_limit_storage:
+            self._factorized_A = self._hash_csr_matrix(self.A)
+        else:
+            self._factorized_A = self.A.copy()
 
-        if self._pardiso_solver is None:
-            self._pardiso_solver = PyPardisoSolver(mtype=self._mtype)
-
-        self._pardiso_solver.factorize(A)
-        self._pardiso_solver.set_phase(33)
+        self._phase = 12  # Do 1) analysis, symbolic factorization, and 2) numerical factorization
+        self._iparm[11] = 0
+        self._call_pardiso()
+        self._phase = 33  # Set solver ready for 3) solving with iterative refinement
 
     def solve(self, b, x0=None, trans="N"):
         """solve Ax=b for x
@@ -148,76 +415,54 @@ class SolverSparsePardiso(LinearSolver):
         Returns:
             Solution of the system of linear equations, same shape as input b
         """
-        if b.dtype != np.float64:  # Only float64 is supported --> this is also done in _check_b, but fails for int8
-            warnings.warn(f"Array b's data type was converted from {b.dtype} to float64")
-            b = b.astype(np.float64)
-        if trans == "N":
-            return self._pardiso_solver.solve(self.A, b)
-        elif trans == "T" or trans == "H":
-            # T and H are the same, because only real matrix is supported
-            # Cannot use _pardiso_solver.solve because it changes flag 12 internally
-            iparm_prev = self._pardiso_solver.get_iparm(12)
-            self._pardiso_solver.set_iparm(12, int(not iparm_prev))  # Adjoint solver (transpose)
-            b = self._pardiso_solver._check_b(self.A, b)
-            x = self._pardiso_solver._call_pardiso(self.A, b)
-            self._pardiso_solver.set_iparm(12, iparm_prev)  # Revert back to normal solver
-            return x
-        else:
+        if b.shape[0] != self.A.shape[0]:
+            raise ValueError("Shape mismatch: Matrix A {self.A.shape} and array b {b.shape}")
+        b = self._check_b(b)
+
+        if trans not in ["N", "T", "H"]:
             raise TypeError("Only N, T, or H transposition is possible")
 
-    def _print_iparm(self):
-        """Print all iparm settings to console"""
-        keys = ["Undefined" for _ in self._pardiso_solver.iparm]
-        keys[0] = "Use default values"
-        keys[1] = "Fill-in reducing ordering for the input matrix"
-        keys[3] = "Preconditioned CGS/CG"
-        keys[4] = "User permutation"
-        keys[5] = "Write solution on x"
-        keys[6] = "Number of iterative refinement steps performed"
-        keys[7] = "Iterative refinement step"
-        keys[8] = "Tolerance level for the relative residual in the iterative refinement process"
-        keys[9] = "Pivoting perturbation"
-        keys[10] = "Scaling vectors"
-        keys[11] = "Solve with transposed or conjugate transposed matrix A"
-        keys[12] = "Improved accuracy using (non-) symmetric weighted matching"
-        keys[13] = "Number of perturbed pivots"
-        keys[14] = "Peak memory on symbolic factorization"
-        keys[15] = "Permanent memory on symbolic factorization"
-        keys[16] = "Size of factors/Peak memory on numerical factorization and solution"
-        keys[17] = "Report the number of non-zero elements in the factors"
-        keys[18] = (
-            "Report number of floating point operations (in 10^6 floating point operations) that are necessary "
-            "to factor the matrix A"
-        )
-        keys[19] = "Report CG/CGS diagnostics"
-        keys[20] = "Pivoting for symmetric indefinite matrices"
-        keys[21] = "Inertia: number of positive eigenvalues"
-        keys[22] = "Inertia: number of negative eigenvalues"
-        keys[23] = "Parallel factorization control"
-        keys[24] = "Parallel forward/backward solve control"
-        keys[26] = "Matrix checker"
-        keys[27] = "Single or double precision Intel® oneAPI Math Kernel Library PARDISO"
-        keys[29] = "Number of zero or negative pivots"
-        keys[30] = "Partial solve and computing selected components of the solution vectors"
-        keys[33] = "Optimal number of OpenMP threads for conditional numerical reproducibility (CNR) mode"
-        keys[34] = "One- or zero-based indexing of columns and rows"
-        keys[35] = "Schur complement matrix computation control"
-        keys[36] = "Format for matrix storage"
-        keys[37] = (
-            "Enable low rank update to accelerate factorization for multiple matrices with identical structure "
-            "and similar values"
-        )
-        keys[42] = "Control parameter for the computation of the diagonal of inverse matrix"
-        keys[55] = "Diagonal and pivoting control"
-        keys[59] = "Intel® oneAPI Math Kernel Library PARDISO mode"
-        keys[62] = "Size of the minimum OOC memory for numerical factorization and solution"
-        for i, (v, k) in enumerate(zip(self._pardiso_solver.iparm, keys)):
-            if v != 0:
-                print(f"{i + 1}: {v} ({k})")  # i+1 because of 1-based numbering
+        ''' Conversion table, T = transpose mode, C = conjugate mode  (T + C = H)
+         mode | CSR | CSC
+        ------+-----+-----
+           N  | - - | T -
+           T  | T - | - -
+           H  | T C | - C
+        '''
+        conjugate_mode = (trans == "H")
+        transpose_mode = not (trans == "N")
+        if self._solve_transposed:
+            transpose_mode = not transpose_mode
+
+        # Set pardiso transposition mode, 0: normal, 1: conjugate transpose, 2: transposed
+        if transpose_mode:
+            if conjugate_mode:
+                self._iparm[11] = 1
+            else:
+                self._iparm[11] = 2
+        else:
+            if conjugate_mode:
+                b = np.conj(b) # Transposed-conjugate-transposed matrix == conjugated matrix
+            self._iparm[11] = 0
+
+        x = self._call_pardiso(b=b)
+        
+        if conjugate_mode and not transpose_mode:
+            return np.conj(x)  # Conjugate back
+        else:
+            return x
+    
+    def clear_factorization(self):
+        self._factorized_A = sps.csr_matrix((0, 0))
 
     def __del__(self):
         try:
-            self._pardiso_solver.free_memory(everything=True)
+            self.clear_factorization()
+            A = sps.csr_matrix((0, 0))
+            b = np.zeros(0)
+            self._phase = -1
+            self._call_pardiso(A, b)
+            self._phase = 13
         except ImportError:
             # To prevent ImportError: sys.meta_path is None, Python is likely shutting down
             pass

@@ -59,7 +59,7 @@ dev = [
 ext = [
     "cvxopt",
     "scikit-sparse",
-    "pypardiso",
+    "mkl",
     "opt-einsum",
     "jax[cpu]",    
     "autograd[scipy]",

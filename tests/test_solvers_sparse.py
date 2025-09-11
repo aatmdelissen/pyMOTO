@@ -198,6 +198,15 @@ def test_is_symmetric(Atag, expected, mat_converter):
 def test_is_hermitian(Atag, expected, mat_converter):
     assert pym.solvers.matrix_is_hermitian(mat_converter(all_matrices[Atag])) == expected
 
+# @pytest.mark.parametrize('mat_converter', mat_type_converters, ids=mat_type_ids)
+# @pytest.mark.parametrize('Atag', all_matrices.keys())
+# def test_is_hermitian(Atag, mat_converter):
+#     Acoo = all_matrices[Atag]
+#     Acsr = Acoo.tocsr()
+#     eigs, _ = spspla.eigs(Acsr, k=6, which='SR')
+#     expected = eigs.real.min() > 0
+#     pos = pym.solvers.matrix_is_positive_definite(mat_converter(Acoo))
+#     assert pos == expected
 
 
 """ ------------------ TEST THE SPARSE SOLVERS -------------------- """
@@ -216,8 +225,8 @@ def run_solver_test(solver_type, A, b, **kwargs):
 
     # Store matrix versions
     mats = dict()
-    mats['T'] = A.T
     mats['N'] = A
+    mats['T'] = A.T
     mats['H'] = A.conj().T
 
     # Update solver
@@ -351,11 +360,11 @@ def test_sparse_cholesky_cvxopt(Atag, b_type, b_shape, mat_converter):
         'mat_real_symm_indef_dynamic',
         'mat_real_symm_saddle',
         'mat_real_asymm',
-        # 'mat_complex_diagonal', # PyPardiso does not work for complex matrix yet
-        # 'mat_complex_spdiag',
-        # 'mat_complex_symm_pos_def_dynamic',
-        # 'mat_complex_symm_indef_dynamic',
-        # 'mat_complex_hermitian_1',
+        'mat_complex_diagonal', # PyPardiso does not work for complex matrix yet
+        'mat_complex_spdiag',
+        'mat_complex_symm_pos_def_dynamic',
+        'mat_complex_symm_indef_dynamic',
+        'mat_complex_hermitian_1',
 ])
 @pytest.mark.parametrize('mat_converter', mat_type_converters[:4], ids=mat_type_ids[:4])
 def test_sparse_pardiso(Atag, b_type, b_shape, mat_converter):
@@ -388,7 +397,7 @@ def test_sparse_pardiso(Atag, b_type, b_shape, mat_converter):
         'mat_complex_hermitian_pos_def',
 ])
 @pytest.mark.parametrize('mat_converter', mat_type_converters[:4], ids=mat_type_ids[:4])
-def test_sparse_pardiso(Atag, b_type, b_shape, mat_converter):
+def test_sparse_cg(Atag, b_type, b_shape, mat_converter):
     A = mat_converter(all_matrices[Atag])
     b = construct_b(b_type, b_shape, A.shape[0])
     if not np.iscomplexobj(A) and np.iscomplexobj(b):

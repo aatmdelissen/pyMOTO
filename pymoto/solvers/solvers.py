@@ -74,7 +74,15 @@ class LinearSolver:
             mat = A.conj().T
         else:
             raise TypeError("Only N, T, or H transposition is possible")
-        return np.linalg.norm(mat @ x - b, axis=0) / np.linalg.norm(b, axis=0)
+        bnorm = np.linalg.norm(b, axis=0)
+        # in case bnorm is zero, set to 1 for absolute norm
+        try:
+            bnorm[bnorm==0] = 1
+        except TypeError:
+            if bnorm == 0:
+                bnorm = 1
+        rnorm = np.linalg.norm(mat @ x - b, axis=0)
+        return rnorm / bnorm
 
 
 def get_diagonal_indices(mat):

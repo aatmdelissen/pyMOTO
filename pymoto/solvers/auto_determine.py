@@ -96,30 +96,29 @@ def auto_determine_solver(
         elif issymmetric is None:
             issymmetric = ishermitian
 
+    # Check for positive-definiteness TODO: This test does not work yet
+    # if ispositivedefinite is None:
+        # ispositivedefinite = matrix_is_positive_definite(A)
+
     if issparse:
-        # Prefer Intel Pardiso solver as it can solve any matrix TODO: Check for complex matrix
-        if SolverSparsePardiso.defined and not iscomplex:
-            # TODO check for positive definiteness?  np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0)
+        # Prefer Intel Pardiso solver as it can solve any matrix
+        if SolverSparsePardiso.defined:
             return SolverSparsePardiso(
                 symmetric=issymmetric, hermitian=ishermitian, positive_definite=ispositivedefinite
             )
 
-        if ishermitian:
-            # Check if diagonal is all positive or all negative -> Cholesky
-            if ispositivedefinite is None:
-                ispositivedefinite = np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0)
-            if ispositivedefinite:  # TODO what about the complex case?
-                if SolverSparseCholeskyScikit.defined:
-                    return SolverSparseCholeskyScikit()
-                if SolverSparseCholeskyCVXOPT.defined:
-                    return SolverSparseCholeskyCVXOPT()
+        if ishermitian and ispositivedefinite:
+            if SolverSparseCholeskyScikit.defined:
+                return SolverSparseCholeskyScikit()
+            if SolverSparseCholeskyCVXOPT.defined:
+                return SolverSparseCholeskyCVXOPT()
 
         return SolverSparseLU()  # Default to LU, which should be possible for any non-singular square matrix
 
     else:  # Dense branch
         if ishermitian:
             # Check if diagonal is all positive or all negative
-            if np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0):
+            if ispositivedefinite:
                 return SolverDenseCholesky()
             else:
                 return SolverDenseLDL(hermitian=ishermitian)

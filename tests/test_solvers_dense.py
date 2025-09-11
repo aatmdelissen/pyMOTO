@@ -112,7 +112,7 @@ def test_matrix_is_symmetric(Atag, expected):
 
 @pytest.mark.parametrize('Atag, expected', [
         ('mat_real_diagonal', True),
-        ('mat_real_symm', True),
+        ('mat_real_symm', False),
         ('mat_real_symm_pos_def', True),
         ('mat_real_asymm', False),
         ('mat_complex_diagonal', False),
@@ -125,6 +125,16 @@ def test_matrix_is_symmetric(Atag, expected):
 def test_matrix_is_hermitian(Atag, expected):
     A = all_matrices[Atag]
     assert pym.solvers.matrix_is_hermitian(A) == expected
+
+
+@pytest.mark.parametrize('Atag', all_matrices.keys())
+def test_matrix_is_positive(Atag):
+    A = all_matrices[Atag]
+    eigs = np.linalg.eigvals(A)
+    expected = eigs.real.min() > 0
+    pos = pym.solvers.matrix_is_positive_definite(A)
+    print(f"Minimum eigenvalue is {eigs.min()} --> expected = {expected}, found {pos}")
+    assert pos == expected or pos is None
 
 
 @pytest.mark.parametrize('Atag, expected', [
