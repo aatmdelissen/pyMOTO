@@ -5,7 +5,13 @@ from inspect import currentframe, getframeinfo
 
 from .dense import SolverDenseQR, SolverDenseCholesky, SolverDenseLDL, SolverDenseLU, SolverDiagonal
 from .sparse import SolverSparseLU, SolverSparseCholeskyScikit, SolverSparseCholeskyCVXOPT, SolverSparsePardiso
-from .matrix_checks import matrix_is_diagonal, matrix_is_sparse, matrix_is_hermitian, matrix_is_symmetric
+from .matrix_checks import (
+    matrix_is_diagonal,
+    matrix_is_sparse,
+    matrix_is_hermitian,
+    matrix_is_symmetric,
+    matrix_is_positive_definite,
+)
 
 
 # flake8: noqa: C901
@@ -98,7 +104,7 @@ def auto_determine_solver(
 
     # Check for positive-definiteness TODO: This test does not work yet
     # if ispositivedefinite is None:
-        # ispositivedefinite = matrix_is_positive_definite(A)
+    # ispositivedefinite = matrix_is_positive_definite(A)
 
     if issparse:
         # Prefer Intel Pardiso solver as it can solve any matrix
@@ -117,7 +123,8 @@ def auto_determine_solver(
 
     else:  # Dense branch
         if ishermitian:
-            # Check if diagonal is all positive or all negative
+            if ispositivedefinite is None:  # Only do this test for dense matrix since it is not very cheap
+                ispositivedefinite = matrix_is_positive_definite(A)
             if ispositivedefinite:
                 return SolverDenseCholesky()
             else:

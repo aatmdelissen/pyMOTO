@@ -5,6 +5,7 @@ from .matrix_checks import (
     matrix_is_diagonal,
     matrix_is_symmetric,
     matrix_is_hermitian,
+    matrix_is_positive_definite,
 )
 from .dense import SolverDiagonal, SolverDenseQR, SolverDenseLU, SolverDenseCholesky, SolverDenseLDL
 from .sparse import SolverSparsePardiso, SolverSparseLU, SolverSparseCholeskyScikit, SolverSparseCholeskyCVXOPT
@@ -17,6 +18,7 @@ __all__ = [
     "matrix_is_diagonal",
     "matrix_is_symmetric",
     "matrix_is_hermitian",
+    "matrix_is_positive_definite",
     "LinearSolver",
     "LDAWrapper",
     "SolverDiagonal",

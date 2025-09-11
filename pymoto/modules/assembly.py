@@ -43,11 +43,11 @@ class AssembleGeneral(Module):
 
         Args:
             domain (:py:class:`pymoto.DomainDefinition`): The domain for which should be assembled
-            element_matrix (np.ndarray): The element matrix :math:`\mathbf{K}_e` of size 
+            element_matrix (np.ndarray): The element matrix :math:`\mathbf{K}_e` of size
               `(#dofs_per_element, #dofs_per_element)`
             bc (optional): Indices of any dofs that are constrained to zero (Dirichlet boundary condition).
               These boundary conditions are enforced by setting the row and column of that dof to zero.
-            bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are 
+            bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are
               active. Default is maximum value of the element matrix.
             matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments
               `matrix_type((vals, (row_idx, col_idx)), shape=(n, n))`. Defaults to csc_matrix.
@@ -236,7 +236,7 @@ class AssembleStiffness(AssembleGeneral):
         """Initialize stiffness assembly module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size 
+            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size
               and dimensionality
             *args: Other arguments are passed to :py:class:`pymoto.AssembleGeneral`
             e_modulus (float, optional): Young's modulus. Defaults to 1.0.
@@ -293,15 +293,15 @@ class AssembleMass(AssembleGeneral):
         """Initialize mass assembly module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size 
+            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size
               and dimensionality
             *args: Other arguments are passed to :py:class:`pymoto.AssembleGeneral`
-            material_property (float, optional): Material property to use in the element matrix (for mass matrix the 
+            material_property (float, optional): Material property to use in the element matrix (for mass matrix the
               material density is used; for damping the damping parameter, and for a thermal capacity matrix the thermal
               capacity multiplied with density). Defaults to 1.0.
-            ndof (int, optional): Amount of dofs per node (for mass and damping: `ndof = domain.dim`; else `ndof=1`). 
+            ndof (int, optional): Amount of dofs per node (for mass and damping: `ndof = domain.dim`; else `ndof=1`).
               Defaults to 1.
-            bcdiagval (float, optional): The value to put on the diagonal in case of boundary conditions (bc). Defaults 
+            bcdiagval (float, optional): The value to put on the diagonal in case of boundary conditions (bc). Defaults
               to 0.0.
             **kwargs: Other keyword arguments are passed to :py:class:`pymoto.AssembleGeneral`
         """
@@ -342,10 +342,10 @@ class AssemblePoisson(AssembleGeneral):
         """Initialize Poisson matrix assembly module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size 
+            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size
               and dimensionality
             *args: Other arguments are passed to :py:class:`pymoto.AssembleGeneral`
-            material_property (float, optional): Material property (*e.g.* thermal conductivity, electric permittivity). 
+            material_property (float, optional): Material property (*e.g.* thermal conductivity, electric permittivity).
               Defaults to 1.0.
             **kwargs: Other keyword arguments are passed to :py:class:`pymoto.AssembleGeneral`
         """
@@ -547,7 +547,7 @@ class NodalOperation(Module):
 
         Args:
             domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
-            element_matrix (np.ndarray): The element operator matrix :math:`\mathbf{A}` of size 
+            element_matrix (np.ndarray): The element operator matrix :math:`\mathbf{A}` of size
               ``(..., #dofs_per_element)``
         """
         if element_matrix.shape[-1] % domain.elemnodes != 0:

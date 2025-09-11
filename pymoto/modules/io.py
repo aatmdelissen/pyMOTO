@@ -12,15 +12,14 @@ from .assembly import DomainDefinition
 
 
 class FigModule(Module):
-    """Abstract base class for any module which produces a figure
-    """
+    """Abstract base class for any module which produces a figure"""
 
     def __init__(self, saveto: str = None, overwrite: bool = False, show: bool = True):
         """Initialize the abstract base-class for figure modules
 
         Args:
             saveto (str, optional): Save images of each iteration to the specified location. Defaults to None.
-            overwrite (bool, optional): Overwrite saved image every time the figure is updated, else prefix ``_0000`` is 
+            overwrite (bool, optional): Overwrite saved image every time the figure is updated, else prefix ``_0000`` is
               added to the filename. Defaults to False.
             show (bool, optional): Show the figure on the screen. Defaults to True.
         """
@@ -73,8 +72,8 @@ class PlotDomain(FigModule):
         Args:
             domain (:py:class:`pymoto.DomainDefinition`): The domain layout
             *args: Additional arguments for :py:class:`pymoto.FigModule`
-            clim (`[float, float]` or `float`, optional): In 2D ``[cmin, cmax]``: the values of minimum and maximum 
-              color. In 3D ``clipval``: the value below which elements are clipped. 
+            clim (`[float, float]` or `float`, optional): In 2D ``[cmin, cmax]``: the values of minimum and maximum
+              color. In 3D ``clipval``: the value below which elements are clipped.
             cmap (str, optional): Colormap (only for 2D). Defaults to "gray_r".
             **kwargs: Additional keyword arguments for :py:class:`pymoto.FigModule`
         """
@@ -302,7 +301,7 @@ class WriteToVTI(Module):
             saveto (str): Location to save the VTI file
             overwrite (bool, optional): Overwrite the VTI file for each iteration. Defaults to False.
             scale (float, optional): Scaling factor for the domain. Defaults to 1.0.
-            interval (int, optional): Interval at which to write the VTI file, defaults to 1 (every iteration). Defaults 
+            interval (int, optional): Interval at which to write the VTI file, defaults to 1 (every iteration). Defaults
               to 1.
         """
         self.domain = domain
@@ -316,13 +315,13 @@ class WriteToVTI(Module):
     def __call__(self, *args):
         if self.iter % self.interval != 0:
             return
-        
+
         # Parse data to write
         data = {}
         for i, x in enumerate(args):
             if self.sig_in is None or not isinstance(self.sig_in[i], Signal):
-                data['inp{i:d}'] = x  # Give some default name
-            else:   
+                data["inp{i:d}"] = x  # Give some default name
+            else:
                 data[self.sig_in[i].tag] = x
 
         # Determine filename
@@ -408,16 +407,16 @@ class ScalarToFile(Module):
 
 
 class Print(Module):
-    """ Prints the input signals to console
+    """Prints the input signals to console
 
     Input Signals:
       - ``*args``: Values to print. The signal tags are used as name.
     """
+
     def __call__(self, *args):
-         for i, x in enumerate(args):
+        for i, x in enumerate(args):
             if self.sig_in is None or not isinstance(self.sig_in[i], Signal):
-                tag = 'inp{i:d}'  # Give some default name
-            else:   
+                tag = "inp{i:d}"  # Give some default name
+            else:
                 tag = self.sig_in[i].tag
             print(f"{tag} = {x}")
-            

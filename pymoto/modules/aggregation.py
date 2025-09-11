@@ -51,8 +51,8 @@ class AggActiveSet:
 
 
 class AggScaling:
-    """Scaling strategy for aggregation to improve approximation of the true minimum or maximum. 
-    An adaptive scaling factor is determined based on the ratio between the true and approximated minimum/maximum, which 
+    """Scaling strategy for aggregation to improve approximation of the true minimum or maximum.
+    An adaptive scaling factor is determined based on the ratio between the true and approximated minimum/maximum, which
     is used to correct the approximation
     """
 
@@ -61,7 +61,7 @@ class AggScaling:
 
         Args:
             which: Scale to true `min` or `max`
-            damping(optional): Damping factor between [0, 1), for a value of 0.0 the aggregation approximation is 
+            damping(optional): Damping factor between [0, 1), for a value of 0.0 the aggregation approximation is
               corrected to the exact maximum or minimum of the input set. Defaults to 0.0.
         """
         self.damping = damping
@@ -93,8 +93,8 @@ class AggScaling:
 
 
 class Aggregation(Module):
-    """Abstract base-class for aggregation modules 
-    
+    """Abstract base-class for aggregation modules
+
     This module cannot be used directly, but can only be used as superclass for specific implementations.
     """
 
@@ -188,7 +188,7 @@ class SoftMinMax(Aggregation):
         """Initialize soft min/max aggregation module
 
         Args:
-            alpha (float, optional): Scaling factor of the soft function. Approximate maximum for `alpha>0` and minimum 
+            alpha (float, optional): Scaling factor of the soft function. Approximate maximum for `alpha>0` and minimum
               for `alpha<0`. Defaults to 1.0.
             scaling (:py:class:`pymoto.AggScaling`, optional): Scaling strategy to improve approximation
             active_set (:py:class:`pymoto.AggActiveSet`, optional): Active set strategy to improve approximation
@@ -215,7 +215,7 @@ class KSFunction(Aggregation):
         """Initialize KS aggregation module
 
         Args:
-            rho (float, optional): Scaling factor of the KS function. Approximate maximum for `rho>0` and minimum for 
+            rho (float, optional): Scaling factor of the KS function. Approximate maximum for `rho>0` and minimum for
               `rho<0`. Defaults to 1.0.
             scaling (:py:class:`pymoto.AggScaling`, optional): Scaling strategy to improve approximation
             active_set (:py:class:`pymoto.AggActiveSet`, optional): Active set strategy to improve approximation

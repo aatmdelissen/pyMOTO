@@ -112,7 +112,7 @@ def test_matrix_is_symmetric(Atag, expected):
 
 @pytest.mark.parametrize('Atag, expected', [
         ('mat_real_diagonal', True),
-        ('mat_real_symm', False),
+        ('mat_real_symm', True),
         ('mat_real_symm_pos_def', True),
         ('mat_real_asymm', False),
         ('mat_complex_diagonal', False),
@@ -139,12 +139,12 @@ def test_matrix_is_positive(Atag):
 
 @pytest.mark.parametrize('Atag, expected', [
         ('mat_real_diagonal', pym.solvers.SolverDiagonal),
-        ('mat_real_symm', pym.solvers.SolverDenseCholesky),
-        ('mat_real_symm_pos_def', pym.solvers.SolverDenseCholesky),
+        ('mat_real_symm', pym.solvers.SolverDenseLDL),
+        ('mat_real_symm_pos_def', pym.solvers.SolverDenseLDL),
         ('mat_real_asymm', pym.solvers.SolverDenseLU),
         ('mat_complex_diagonal', pym.solvers.SolverDiagonal),
-        ('mat_complex_herm', pym.solvers.SolverDenseCholesky),
-        ('mat_complex_herm_pos_def', pym.solvers.SolverDenseCholesky),
+        ('mat_complex_herm', pym.solvers.SolverDenseLDL),
+        ('mat_complex_herm_pos_def', pym.solvers.SolverDenseLDL),
         ('mat_complex_symm', pym.solvers.SolverDenseLDL),
         ('mat_complex_symm_pos_def', pym.solvers.SolverDenseLDL),
         ('mat_complex_asymm', pym.solvers.SolverDenseLU),

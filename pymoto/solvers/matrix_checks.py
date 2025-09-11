@@ -65,20 +65,22 @@ def matrix_is_hermitian(A):
 def matrix_is_positive_definite(A):
     """Check if the matrix is positive definite.
 
-    By testing for strictly diagonally dominant matrix. 
-    Diagonal dominant matrices ==> positive definite (but the reverse is not always true)
-    
-    https://math.stackexchange.com/questions/87528/a-practical-way-to-check-if-a-matrix-is-positive-definite
+    Performs a couple of simple tests for positive definiteness:
+     - If any of the diagonal is negative or complex, the matrix is not positive definite
+     - If all Gershgorin circles are positive, the matrix is positive definite
+
+    Returns `None` in case these simple test are inconclusive
     """
     # The hermitian/symmetric part of the matrix determines positive definiteness
-    Aherm = (A + A.conj().T)/2
+    Aherm = (A + A.conj().T) / 2
 
     # If any of the diagonal is negative or complex, the matrix is not positive definite
     if Aherm.diagonal().real.min() < 0 or np.abs(np.angle(Aherm.diagonal())).max() > 1e-15:
         return False
-    
+
     Adiag = np.diag(Aherm)
-    
+
+    # https://math.stackexchange.com/questions/87528/a-practical-way-to-check-if-a-matrix-is-positive-definite
     # Test with Gershgorin circle theorem
     row_sum = np.sum(np.abs(Aherm), axis=1) - np.abs(Adiag)
     if np.all(Adiag > row_sum):
@@ -86,5 +88,3 @@ def matrix_is_positive_definite(A):
 
     # Cannot determine positive-definiteness
     return None
-    
-        
