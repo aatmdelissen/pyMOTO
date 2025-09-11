@@ -103,9 +103,9 @@ class DomainDefinition:
             self.nely = 0
         if self.nelz is None:
             self.nelz = 0
-        
+
         self.dim = 1 if (self.nelz == 0 and self.nely == 0) else (2 if self.nelz == 0 else 3)
-        
+
         self.origin = np.array([0.0, 0.0, 0.0])
         self.unitx, self.unity, self.unitz = unitx, unity, unitz
 
@@ -155,16 +155,16 @@ class DomainDefinition:
     def element_size(self):
         """Element size in each direction"""
         return np.array([self.unitx, self.unity, self.unitz])
-    
+
     @property
     def domain_size(self):
         """Domain size in each direction"""
-        return np.array([self.nelx * self.unitx, self.nely * self.unity, self.nelz * self.unitz])[:self.dim]
-    
+        return np.array([self.nelx * self.unitx, self.nely * self.unity, self.nelz * self.unitz])[: self.dim]
+
     @property
     def size(self):
         """Number of elements in each direction"""
-        return np.array([self.nelx, self.nely, self.nelz])[:self.dim]
+        return np.array([self.nelx, self.nely, self.nelz])[: self.dim]
 
     def get_elemnumber(self, eli: IndexType, elj: IndexType, elk: IndexType = 0):
         """Gets the element number(s) for element(s) with given Cartesian indices (i, j, k)
@@ -209,11 +209,11 @@ class DomainDefinition:
             dof_idx = np.arange(ndof)
         if not isinstance(dof_idx, int):
             dof_idx = np.asarray(dof_idx)
-        
+
         if np.ndim(dof_idx) == 0 or np.ndim(nod_idx) == 0:
-            return nod_idx*ndof + dof_idx
+            return nod_idx * ndof + dof_idx
         else:
-            nod_idx1 = np.expand_dims(nod_idx, axis=tuple(-(np.arange(np.ndim(dof_idx))+1)))
+            nod_idx1 = np.expand_dims(nod_idx, axis=tuple(-(np.arange(np.ndim(dof_idx)) + 1)))
             dof_idx1 = np.expand_dims(dof_idx, axis=tuple(np.arange(np.ndim(nod_idx))))
             return nod_idx1 * ndof + dof_idx1
 
@@ -428,28 +428,36 @@ class DomainDefinition:
                             vecname += f"({intstr})"
                             ind = [slice(None), slice(None)]
                             ind[(vecax + 1) % 2] = i
-                            vec_to_write = vec[tuple(ind)].astype(np.float32)
+                            veci = vec[tuple(ind)]
                         else:
-                            vec_to_write = vec.astype(np.float32)  # TODO enable export of complex vectors
+                            veci = vec
 
-                        if pad_to_vector:
-                            vec_pad = np.zeros(3 * self.nnodes, dtype=np.float32)
-                            vec_pad[0::3] = vec_to_write[0::2]
-                            vec_pad[1::3] = vec_to_write[1::2]
-                            vec_to_write = vec_pad
+                        if np.iscomplexobj(veci):
+                            vecs_to_write = [veci.real.astype(np.float32), veci.imag.astype(np.float32)]
+                            vecs_name = [vecname + "(real)", vecname + "(imag)"]
+                        else:
+                            vecs_to_write = [veci.astype(np.float32)]
+                            vecs_name = [vecname]
 
-                        file.write(
-                            f'<DataArray type="Float32" '
-                            f'Name="{vecname}" '
-                            f'NumberOfComponents="{3 if pad_to_vector else ncomponents}" '
-                            f'format="binary">\n'.encode()
-                        )
-                        enc_data = base64.b64encode(vec_to_write)  # Encode the data
-                        # Get the length of encoded data block
-                        enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))
-                        file.write(enc_len)  # Write length
-                        file.write(enc_data)  # Write data
-                        file.write(b"\n</DataArray>\n")
+                        for v, t in zip(vecs_to_write, vecs_name):
+                            if pad_to_vector:
+                                vec_pad = np.zeros(3 * self.nnodes, dtype=np.float32)
+                                vec_pad[0::3] = v[0::2]
+                                vec_pad[1::3] = v[1::2]
+                                v = vec_pad
+
+                            file.write(
+                                f'<DataArray type="Float32" '
+                                f'Name="{t}" '
+                                f'NumberOfComponents="{3 if pad_to_vector else ncomponents}" '
+                                f'format="binary">\n'.encode()
+                            )
+                            enc_data = base64.b64encode(v)  # Encode the data
+                            # Get the length of encoded data block
+                            enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))
+                            file.write(enc_len)  # Write length
+                            file.write(enc_data)  # Write data
+                            file.write(b"\n</DataArray>\n")
                 file.write(b"</PointData>\n")
 
             # Start writing celldata
@@ -467,22 +475,30 @@ class DomainDefinition:
                             vecname += f"({i})"
                             ind = [slice(None), slice(None)]
                             ind[(vecax + 1) % 2] = i
-                            vec_to_write = vec[tuple(ind)].astype(np.float32)
+                            veci = vec[tuple(ind)]
                         else:
-                            vec_to_write = vec.astype(np.float32)  # TODO enable export of complex vectors
+                            veci = vec
 
-                        file.write(
-                            f'<DataArray type="Float32" '
-                            f'Name="{vecname}" '
-                            f'NumberOfComponents="{ncomponents}" '
-                            f'format="binary">\n'.encode()
-                        )
-                        enc_data = base64.b64encode(vec_to_write)  # Encode the data
-                        # Get the length of encoded data block
-                        enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))
-                        file.write(enc_len)  # Write length
-                        file.write(enc_data)  # Write data
-                        file.write(b"\n</DataArray>\n")
+                        if np.iscomplexobj(veci):
+                            vecs_to_write = [veci.real.astype(np.float32), veci.imag.astype(np.float32)]
+                            vecs_name = [vecname + "(real)", vecname + "(imag)"]
+                        else:
+                            vecs_to_write = [veci.astype(np.float32)]
+                            vecs_name = [vecname]
+
+                        for v, t in zip(vecs_to_write, vecs_name):
+                            file.write(
+                                f'<DataArray type="Float32" '
+                                f'Name="{t}" '
+                                f'NumberOfComponents="{ncomponents}" '
+                                f'format="binary">\n'.encode()
+                            )
+                            enc_data = base64.b64encode(v)  # Encode the data
+                            # Get the length of encoded data block
+                            enc_len = base64.b64encode(struct.pack(len_enc, len(enc_data)))
+                            file.write(enc_len)  # Write length
+                            file.write(enc_data)  # Write data
+                            file.write(b"\n</DataArray>\n")
                 file.write(b"</CellData>\n")
 
             file.write(b"</Piece>\n")

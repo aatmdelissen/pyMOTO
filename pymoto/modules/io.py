@@ -320,7 +320,7 @@ class WriteToVTI(Module):
         data = {}
         for i, x in enumerate(args):
             if self.sig_in is None or not isinstance(self.sig_in[i], Signal):
-                data["inp{i:d}"] = x  # Give some default name
+                data[f"inp{i:d}"] = x  # Give some default name
             else:
                 data[self.sig_in[i].tag] = x
 
