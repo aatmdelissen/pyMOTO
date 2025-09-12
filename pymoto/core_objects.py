@@ -375,7 +375,8 @@ def _check_function_signature(fn: BoundMethodT, n_args: int = None) -> Tuple[int
           `None` denotes an unlimited number of maximum arguments (caused by `*args`)
     """
     min_args, max_args = 0, 0
-    callstr = f"{type(fn.__self__).__name__}.{fn.__name__}{inspect.signature(fn)}"
+    clsname = type(fn.__self__).__name__ if hasattr(fn, '__self__') else 'UnknownModule'
+    callstr = f"{clsname}.{fn.__name__}{inspect.signature(fn)}"
     # Loop over all the parameters defined for the function
     for s, p in inspect.signature(fn).parameters.items():
         if p.kind == inspect.Parameter.POSITIONAL_ONLY or p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:
@@ -435,12 +436,15 @@ class Module(ABC):
         fwd = cls.__call__
         is_abstract = hasattr(fwd, "__isabstractmethod__") and fwd.__isabstractmethod__
         if not is_abstract:
+            _check_function_signature(fwd)
             cls._orig_call = fwd
             cls._response = cls._wrap_connect(fwd, create=False)
             cls.__call__ = cls._wrap_connect(fwd, create=True)
 
     @classmethod
     def _wrap_connect(cls, response: BoundMethodT, create=True):
+        # TODO Keyword arguments are not yet supported!
+        # Response function CANNOT be a static method
         def wrapped(self, *args):
             # print("Pre-process")
 
@@ -470,7 +474,7 @@ class Module(ABC):
                     self.sig_out = [Signal(f"{type(self).__name__}_output{i}") for i in range(len(state_out))]
 
                     # Check if signals match _sensitivity() signature
-                    _check_function_signature(self._sensitivity, len(self.sig_out))
+                    _check_function_signature(self._sensitivity, self.n_out)
 
                     # Add to network(s)
                     for n in Network.active:
@@ -479,19 +483,17 @@ class Module(ABC):
                         n.append(self)
 
                 # Check if enough outputs are calculated
-                if len(state_out) != len(self.sig_out):
-                    raise TypeError(
-                        f"Number of responses calculated ({len(state_out)}) is unequal to "
-                        f"number of output signals ({len(self.sig_out)})"
-                    )
+                if len(state_out) != self.n_out:
+                    raise TypeError(f"""Number of responses calculated ({len(state_out)}) is unequal to 
+                                    number of output signals ({self.n_out})""")
 
                 # Update the output signals
                 for i, val in enumerate(state_out):
                     self.sig_out[i].state = val
 
-                if len(self.sig_out) == 0:
+                if self.n_out == 0:
                     return
-                elif len(self.sig_out) == 1:
+                elif self.n_out == 1:
                     return self.sig_out[0]
                 else:
                     return tuple(self.sig_out)
@@ -512,23 +514,34 @@ class Module(ABC):
 
         if sig_out is not None:
             self.sig_out = _parse_to_list(sig_out)
-            if len(self.sig_out) != len(out):
-                raise TypeError(
-                    f"Number of responses calculated ({len(out)}) is unequal to "
-                    f"number of output signals ({len(self.sig_out)})"
-                )
+            if self.n_out != len(out):
+                raise TypeError(f"""Number of responses calculated ({len(out)}) is unequal to 
+                                number of output signals ({self.n_out})""")
         else:
             # Initialize a number of output signals with default names
             self.sig_out = [Signal(f"{type(self).__name__}_output{i}") for i in range(len(out))]
 
         # Check if signals match _sensitivity() signature
-        _check_function_signature(self._sensitivity, len(self.sig_out))
+        _check_function_signature(self._sensitivity, self.n_out)
 
         # Update the output signals
         for i, val in enumerate(out):
             self.sig_out[i].state = val
 
         return self
+    
+    @property
+    def n_in(self) -> int:
+        """Get the number of input signals"""
+        return len(self.sig_in) if self.sig_in is not None else None
+    
+    @property
+    def n_out(self) -> int:
+        """Get the number of output signals
+
+        Note: Cannot be used in the initial `__call__()`
+        """
+        return len(self.sig_out) if self.sig_out is not None else None
 
     def _err_str(self, module_signature: bool = True, init: bool = True, fn=None):
         str_list = []
@@ -539,7 +552,7 @@ class Module(ABC):
                 if self.sig_in is None
                 else (
                     ", ".join([s.tag if _is_valid_signal(s) else type(s) for s in self.sig_in])
-                    if len(self.sig_in) > 0
+                    if self.n_in > 0
                     else "No inputs"
                 )
             )
@@ -548,7 +561,7 @@ class Module(ABC):
                 if self.sig_out is None
                 else (
                     ", ".join([s.tag if _is_valid_signal(s) else type(s) for s in self.sig_out])
-                    if len(self.sig_out) > 0
+                    if self.n_out > 0
                     else "No outputs"
                 )
             )
@@ -589,17 +602,16 @@ class Module(ABC):
             ):
                 raise RuntimeError("Cannot run sensitivity as there are no connected signals")
 
-            if len(self.sig_out) > 0 and all([s is None for s in sens_in]):
+            if self.n_out > 0 and all([s is None for s in sens_in]):
                 return  # If none of the adjoint variables is set
 
             # Calculate the new sensitivities of the inputs
             sens_out = _parse_to_list(self._sensitivity(*sens_in))
 
             # Check if enough sensitivities are calculated
-            if len(sens_out) != len(self.sig_in):
-                raise TypeError(
-                    f"Number of sensitivities calculated ({len(sens_out)}) is unequal to "
-                    f"number of input signals ({len(self.sig_in)})"
+            if len(sens_out) != self.n_in:
+                raise TypeError(f"""Number of sensitivities calculated ({len(sens_out)}) is unequal to 
+                                number of input signals ({self.n_in})"""
                 )
 
             # Add the sensitivities to the signals
@@ -632,7 +644,7 @@ class Module(ABC):
     def get_input_states(self, as_list=False):
         if self.sig_in is None:
             return None
-        elif not as_list and len(self.sig_in) == 1:
+        elif not as_list and self.n_in == 1:
             return self.sig_in[0].state
         else:
             return [s.state if _is_valid_signal(s) else s for s in self.sig_in]
@@ -640,7 +652,7 @@ class Module(ABC):
     def get_output_states(self, as_list=False):
         if self.sig_out is None:
             return None
-        elif not as_list and len(self.sig_out) == 1:
+        elif not as_list and self.n_out == 1:
             return self.sig_out[0].state
         else:
             return [s.state if _is_valid_signal(s) else s for s in self.sig_out]
@@ -648,7 +660,7 @@ class Module(ABC):
     def get_input_sensitivities(self, as_list=False):
         if self.sig_in is None:
             return None
-        elif not as_list and len(self.sig_in) == 1:
+        elif not as_list and self.n_in == 1:
             return self.sig_in[0].sensitivity
         else:
             return [s.sensitivity if _is_valid_signal(s) else s for s in self.sig_in]
@@ -656,7 +668,7 @@ class Module(ABC):
     def get_output_sensitivities(self, as_list=False):
         if self.sig_out is None:
             return None
-        elif not as_list and len(self.sig_out) == 1:
+        elif not as_list and self.n_out == 1:
             return self.sig_out[0].sensitivity
         else:
             return [s.sensitivity if _is_valid_signal(s) else s for s in self.sig_out]
@@ -678,7 +690,7 @@ class Module(ABC):
         raise NotImplementedError("No response behavior defined")
 
     def _sensitivity(self, *args):
-        if len(self.sig_out) > 0 and len(self.sig_in) > 0:
+        if self.n_out > 0 and self.n_in > 0:
             stderr_warning(f"Sensitivity routine is used, but not defined, in {type(self).__name__}")
         return [None for _ in self.sig_in]
 

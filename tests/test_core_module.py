@@ -333,7 +333,7 @@ class TestModule:
                 return A + B
 
             def _sensitivity(self, dC):
-                return dC if len(self.sig_in) == 1 else (dC, dC)
+                return dC if self.n_in == 1 else (dC, dC)
 
         s_A = pym.Signal('A', np.array([1, 2, 3]))
         s_B = pym.Signal('B', np.array([4, 5, 6]))
@@ -361,6 +361,24 @@ class TestModule:
         npt.assert_equal(s_B.sensitivity, np.array([1, 1, 1]))
         assert not np.may_share_memory(s_A.sensitivity, s_B.sensitivity)
         assert not np.may_share_memory(s_A.sensitivity, s_C.sensitivity)
+
+    def test_two_keyword_arguments(self):
+        # TODO: Keyword arguments are not supported (yet)
+        class Var2Arg(pym.Module):
+            def __call__(self, A, B=1.0, C=2.0):
+                return C * (A + B)
+
+            def _sensitivity(self, dC):
+                return dC if self.n_in == 1 else (dC, dC)
+
+        s_A = pym.Signal('A', np.array([1., 2., 3.]))
+        s_B = pym.Signal('B', np.array([4., 5., 6.]))
+        s_C = pym.Signal('C', np.array([7., 8., 9.]))
+
+        # With B as argument
+        m = Var2Arg()
+        pytest.raises(TypeError, m, s_A, B=s_B)
+       
 
     def test_reconnect_module(self):
         class MyMod(pym.Module):

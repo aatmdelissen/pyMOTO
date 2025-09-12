@@ -139,6 +139,7 @@ class LinSolve(Module):
     def __init__(self, dep_tol: float = 1e-5, 
                  hermitian: bool = None, 
                  symmetric: bool = None, 
+                 positive_definite: bool = None,
                  solver: LinearSolver = None
                  ):
         """Initialize the linear solver module
@@ -149,12 +150,14 @@ class LinSolve(Module):
               large matrices
             symmetric (bool, optional): Flag to omit the automatic detection for symmetric matrix, saves some work for 
               large matrices
+            positive_definite (bool, optional): Flag to specify if the matrix is positive definite
             solver (:py:class:`pymoto.solvers.LinearSolver`, optional): Manually override the linear solver used, 
               instead of the the solver from :func:`pymoto.solvers.auto_determine_solver`
         """
         self.dep_tol = dep_tol
         self.ishermitian = hermitian
         self.issymmetric = symmetric
+        self.ispositivedefinite = positive_definite
         self.solver = solver
         self.u = None  # Solution storage
 
@@ -175,7 +178,10 @@ class LinSolve(Module):
 
         # Determine the solver we want to use
         if self.solver is None:
-            self.solver = auto_determine_solver(mat, ishermitian=self.ishermitian)
+            self.solver = auto_determine_solver(mat, 
+                                                ishermitian=self.ishermitian, 
+                                                issymmetric=self.issymmetric, 
+                                                ispositivedefinite=self.ispositivedefinite)
         if not isinstance(self.solver, LDAWrapper) and self.use_lda_solver:
             lda_kwargs = dict(hermitian=self.ishermitian, symmetric=self.issymmetric)
             if hasattr(self.solver, "tol"):
