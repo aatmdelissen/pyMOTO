@@ -31,7 +31,7 @@ nx, ny, nz = 120, 40, 0  # Set nz to zero for the 2D problem, nz > 0 runs a 3D p
 xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5
-thermal = True  # True = Static thermal analysis; False = Static mechanical analysis will be done
+thermal = False  # True = Static thermal analysis; False = Static mechanical analysis will be done
 
 if __name__ == "__main__":
     print(__doc__)
@@ -43,37 +43,30 @@ if __name__ == "__main__":
         if thermal:
             ndof = 1  # Number of dofs per node
             # Get dof numbers at the boundary
-            boundary_dofs = domain.get_nodenumber(0, np.arange(ny // 4, (ny + 1) - ny // 4))
+            boundary_dofs = domain.nodes[0, int(ny/4):-int(ny/4)].flatten()
 
             # Make a force vector
-            force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx + 1), np.arange(ny + 1)))
+            force_dofs = domain.nodes[1:,:].flatten()
 
         else:  # Mechanical
             ndof = 2
             # Calculate boundary dof indices
-            boundary_nodes = domain.get_nodenumber(0, np.arange(ny + 1))
-            boundary_dofs = np.repeat(boundary_nodes * ndof, ndof, axis=-1) + np.tile(np.arange(ndof), len(boundary_nodes))
+            boundary_dofs = domain.get_dofnumber(domain.nodes[0, :], np.arange(ndof), ndof=ndof).flatten() 
 
             # Which dofs to put a force on? The 1 is added for a force in y-direction (x-direction would be zero)
-            force_dofs = ndof * domain.get_nodenumber(nx, ny // 2) + 1
+            force_dofs = ndof * domain.nodes[nx, int(ny/2)] + 1
 
     else:
         domain = pym.DomainDefinition(nx, ny, nz)
-        boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(nz + 1))).flatten()
-
+        
         if thermal:
-            boundary_dofs = boundary_nodes
-            force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx+1), np.arange(ny + 1), np.arange(nz + 1))).flatten()
             ndof = 1
-
+            boundary_dofs = domain.nodes[0, int(3*ny/8):-int(3*ny/8), int(3*nz/8):-int(3*nz/8)].flatten()
+            force_dofs = domain.nodes[int(nx/4):, :, :].flatten()
         else:  # Mechanical
             ndof = 3
-            boundary_dofs = np.repeat(boundary_nodes * ndof, ndof, axis=-1) + np.tile(np.arange(ndof), len(boundary_nodes))
-            force_dofs = ndof * domain.get_nodenumber(nx, ny // 2, nz // 2) + 2  # Z-direction
-
-    if domain.nnodes > 1e+6:
-        print("Too many nodes :(")  # Safety, to prevent overloading the memory in your machine
-        exit()
+            boundary_dofs = domain.get_dofnumber(domain.nodes[0, :, :], np.arange(ndof), ndof=ndof).flatten()  
+            force_dofs = ndof * domain.nodes[nx, :, int(nz/2)] + 2  # Z-direction
 
     # Generate a force vector
     f = np.zeros(domain.nnodes * ndof)
@@ -83,13 +76,14 @@ if __name__ == "__main__":
     sx = pym.Signal('x', state=np.ones(domain.nel) * volfrac)
 
     # Start building the modular network
-    # with pym.Network(print_timing=False) as func:
     # Filter
-    sxfilt = pym.DensityFilter(domain, radius=filter_radius)(sx)
+    sxfilt = pym.FilterConv(domain, radius=filter_radius, ymin_bc=0, ymax_bc=0, zmin_bc=0, zmax_bc=0)(sx)
+    sxfilt.tag = "Filtered design"
     sx_analysis = sxfilt
 
     # Show the design on the screen as it optimizes
-    pym.PlotDomain(domain, saveto="out/design", clim=[0, 1])(sx_analysis)
+    if domain.dim == 2:
+        pym.PlotDomain(domain, saveto="out/design", clim=[0, 1])(sx_analysis)
 
     # SIMP material interpolation
     sSIMP = pym.MathGeneral(f"{xmin} + {1.0 - xmin}*inp0^3")(sx_analysis)
@@ -101,14 +95,16 @@ if __name__ == "__main__":
         sK = pym.AssembleStiffness(domain, bc=boundary_dofs)(sSIMP)
 
     # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
+    # The matrix properties 'symmetric' and 'positive_definite' are passed to the LinSolve module, which are optional 
+    # but can improve the solver choice. This may increase the speed of solving the linear system.
     solver = None  # Default (solver is automatically chosen based on matrix properties)
     # solver = pym.solvers.SolverSparsePardiso()  # Requires Intel MKL installed
     # solver = pym.solvers.SolverSparseCholeskyCVXOPT()  # Requires cvxopt installed
     # solver = pym.solvers.SolverSparseCholeskyScikit()  # Requires scikit installed
-    su = pym.LinSolve(hermitian=True, solver=solver)(sK, f)
+    su = pym.LinSolve(symmetric=True, positive_definite=True, solver=solver)(sK, f)
 
     # # Output the design, deformation, and force field to a Paraview file
-    # pym.WriteToVTI(domain, saveto='out/dat.vti')(sx_analysis, su, f)
+    pym.WriteToVTI(domain, saveto='out/dat.vti')(sx_analysis, su, f)
 
     # Compliance calculation c = f^T u
     scompl = pym.EinSum('i, i->')(su, f)
@@ -135,7 +131,7 @@ if __name__ == "__main__":
     pym.PlotIter()(sg0, sg1)  # Plot iteration history
 
     # Do the optimization with MMA
-    # pym.minimize_mma(func, [sx], [sg0, sg1])
+    # pym.minimize_mma(sx, [sg0, sg1])
 
     # Do the optimization with OC
     pym.minimize_oc(sx, sg0)
