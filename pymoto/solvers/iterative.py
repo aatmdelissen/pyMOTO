@@ -397,11 +397,7 @@ class CG(LinearSolver):
         if tval.max() > self.tol:
             warnings.warn(f"CG Maximum iterations ({self.maxit}) reached, with final residuals {tval}")
         elif self.verbosity >= 1:
-            print(
-                (
-                    f"CG Converged in {i} iterations and {np.round(time.perf_counter() - tstart, 3)}s, ",
-                    f"with final (max) residual {tval.max()}",
-                )
-            )
+            print(f"""CG Converged in {i} iterations and {np.round(time.perf_counter() - tstart, 3)}s, 
+                  with final (max) residual {tval.max()}""")
 
         return x.flatten() if rhs.ndim == 1 else x
