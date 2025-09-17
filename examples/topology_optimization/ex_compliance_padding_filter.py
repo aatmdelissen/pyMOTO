@@ -78,9 +78,9 @@ if __name__ == "__main__":
         do_padding = True  # Switch padding on or off
         if do_padding:
             ''' Filter with padding to avoid the design 'sticking' to the boundaries
-            Set densities just outside the boundaries to 0, except for the xmax. The xmax boundary is kept symmetric, which 
-            is the standard behavior of a density filter. This is done to allow full solid to be formed here in case the 
-            mechanical load is at the boundary.
+            Set densities just outside the boundaries to 0, except for the xmax. The xmax boundary is kept symmetric, 
+            which is the standard behavior of a density filter. This is done to allow full solid to be formed here in 
+            case the mechanical load is at the boundary.
             '''
             m_filt = pym.FilterConv(domain, radius=filter_radius,
                                     xmin_bc=0, xmax_bc='symmetric',
@@ -93,7 +93,10 @@ if __name__ == "__main__":
             '''
             xrange = np.arange(m_filt.pad_sizes[0])
             yrange = m_filt.pad_sizes[1] + np.arange(domain.nely//3, domain.nely - domain.nely//3)
-            zrange = np.array([0]) if domain.dim < 3 else m_filt.pad_sizes[2] + np.arange(domain.nelz//3, domain.nelz - domain.nelz//3)
+            if domain.dim < 3:
+                zrange = np.array([0])
+            else:
+                m_filt.pad_sizes[2] + np.arange(domain.nelz//3, domain.nelz - domain.nelz//3)
             ex, ey, ez = np.meshgrid(xrange, yrange, zrange)
             m_filt.override_padded_values((ex, ey, ez), 1.0)
             ''' Everything from here is the same as in ex_compliance_robust.py '''

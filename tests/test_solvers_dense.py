@@ -3,9 +3,7 @@ import numpy as np
 import numpy.testing as npt
 import pymoto as pym
 from pymoto.solvers import auto_determine_solver
-# from dataclasses import dataclass
-import sys
-import inspect
+
 np.random.seed(0)
 
 

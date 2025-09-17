@@ -20,7 +20,7 @@ However, this problem formulation only works with
 Even with these items taken into consideration, convergence is still troublesome as the inverter requires the 
 displacement (initially positive) to pass trough zero in order to become negative. Other formulations offer better 
 convergence properties, such as using mechanism modes and constraint modes as is done in 
-:ref:`sphx_glr_auto_examples_topology_optimization_ex_compliant_mechanism_kinetostatic.py` or purely based on compliance 
+:ref:`sphx_glr_auto_examples_topology_optimization_ex_compliant_mechanism_kinetostatic.py` or purely based on compliance
 values in :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliant_mechanism.py`.
 
 The spring stiffnesses are added as a constant matrix using the :py:class:`pymoto.AssembleStiffness` module.

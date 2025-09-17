@@ -2,7 +2,6 @@ import pytest
 import numpy as np
 import pymoto as pym
 import numpy.testing as npt
-import matplotlib.pyplot as plt
 import time
 
 
@@ -247,3 +246,6 @@ class TestConvolutionFilter:
         # Not a perfect match, as BC is different
         npt.assert_allclose(abs(sy1.state - sy2.state).min(), 0.0, atol=1e-4)
 
+
+if __name__ == '__main__':
+    pytest.main()

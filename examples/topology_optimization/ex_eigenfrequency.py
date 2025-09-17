@@ -12,7 +12,8 @@ This example contains some specific modules used in dynamic problems
 
 References:
   Du, J., Olhoff, N. (2007)
-  Topological design of freely vibrating continuum structures for maximum values of simple and multiple eigenfrequencies and frequency gaps. 
+  Topological design of freely vibrating continuum structures for maximum values of simple and multiple eigenfrequencies
+  and frequency gaps. 
   Structural and Multidisciplinary Optimization 34, 91-110 (2007). 
   DOI: https://doi.org/10.1007/s00158-007-0101-y
 """

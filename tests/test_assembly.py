@@ -77,7 +77,9 @@ class TestAssembleStiffness:
         nod_00 = domain.get_nodenumber(0, 0, 0)
         nod_10 = domain.get_nodenumber(0, 1, 0)
         nod_01 = domain.get_nodenumber(0, 0, 1)
-        dofidx_left = np.concatenate([nodidx_left * 3, np.array([nod_00, nod_01]) * 3 + 1, np.array([nod_00, nod_10]) * 3 + 2])
+        dofidx_left = np.concatenate([nodidx_left * 3, 
+                                      np.array([nod_00, nod_01]) * 3 + 1, 
+                                      np.array([nod_00, nod_10]) * 3 + 2])
         nodidx_right = domain.get_nodenumber(*np.meshgrid(1, range(domain.nely + 1), range(domain.nelz + 1))).flatten()
 
         E, nu = 210e+9, 0.3
@@ -231,7 +233,7 @@ class TestAssemblePoisson:
         lx, ly, lz = Lx / N, Ly / N, Lz / N
         domain = pym.DomainDefinition(N, N, N, unitx=lx, unity=ly, unitz=lz)
         nodidx_left = domain.get_nodenumber(*np.meshgrid(0, range(domain.nely + 1), range(domain.nelz + 1))).flatten()
-        nodidx_right = domain.get_nodenumber(*np.meshgrid(domain.nelx, range(domain.nely + 1), range(domain.nelz + 1))).flatten()
+        nodidx_right = domain.nodes[-1, :, :].flatten()
         kt = 1.0
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
@@ -251,3 +253,7 @@ class TestAssemblePoisson:
 
         sAsum = MatrixSum()(s_KT)
         pym.finite_difference(s_x, sAsum, test_fn=fd_testfn)
+
+
+if __name__ == "__main__":
+    pytest.main()

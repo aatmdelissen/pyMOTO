@@ -18,7 +18,6 @@ References:
 """
 import numpy as np
 import pymoto as pym
-from pymoto.modules.assembly import get_B, get_D
 
 # Problem settings
 nx, ny = 50, 100  # Domain size

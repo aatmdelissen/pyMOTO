@@ -48,8 +48,8 @@ class TestNetwork:
         s_C = pym.Signal('C', np.array([1, 2]))
         s_D = pym.Signal('D', np.array([4, 5]))
         m = MyMod()
-        with pym.Network() as fn:
-            s_E = m(s_A, s_B)
+        with pym.Network() as _fn:
+            _s_E = m(s_A, s_B)
             pytest.raises(RuntimeError, m, s_C, s_D)
 
     def test_reconnect_module_add_twice_in_network_copy(self):
@@ -66,7 +66,7 @@ class TestNetwork:
         s_D = pym.Signal('D', np.array([4, 5]))
         m = MyMod()
         import copy
-        with pym.Network() as fn:
+        with pym.Network() as _fn:
             s_E = m(s_A, s_B)
             s_F = copy.deepcopy(m)(s_C, s_D)  # Use copy to create a new module
         npt.assert_equal(s_E.state, np.array([5, 7, 9]))
@@ -168,8 +168,10 @@ class TestSubsets:
             dict(fn=fn.get_output_cone(tosig=None), incl=all_mods),
             dict(fn=fn.get_input_cone(fromsig=sd1, frommod=dm1), incl={dm1, dm2, dm3}),
             dict(fn=fn.get_output_cone(tosig=sd2, tomod=dm3), incl={dm1, dm2, dm3}),
-            dict(fn=fn.get_input_cone(fromsig=sd1, frommod=dm1).get_output_cone(tosig=sd2, tomod=dm3), incl={dm1, dm2, dm3}),
-            dict(fn=fn.get_output_cone(tosig=sd2, tomod=dm3).get_input_cone(fromsig=sd1, frommod=dm1), incl={dm1, dm2, dm3}),
+            dict(fn=fn.get_input_cone(fromsig=sd1, frommod=dm1).get_output_cone(tosig=sd2, tomod=dm3), 
+                 incl={dm1, dm2, dm3}),
+            dict(fn=fn.get_output_cone(tosig=sd2, tomod=dm3).get_input_cone(fromsig=sd1, frommod=dm1), 
+                 incl={dm1, dm2, dm3}),
         ]
 
         for t in testcases:
@@ -242,18 +244,25 @@ class TestSubsets:
             sd2.tag = 'd2'
             dm3(sd2)
 
-        all_mods = set(fn.mods)
+        _all_mods = set(fn.mods)
         sink_mods = {m2a, m3} if include_sinks else {}  # sy, sy1, sy1a -> sink
         source_mods = {m4, m5} if include_sources else {}
 
         testcases = [
-            dict(fn=fn.get_subset(fromsig=sx, **opts), incl={m1, m6, m7, m8, m10}.union(source_mods)),
-            dict(fn=fn.get_subset(fromsig=[sx, sy], **opts), incl={m1, m2, m6, m7, m8, m9, m10}.union(source_mods).union(sink_mods)),
-            dict(fn=fn.get_subset(fromsig=sx2, **opts), incl={m6, m8, m10}.union(source_mods)),
-            dict(fn=fn.get_subset(tosig=sg1, **opts), incl={m1, m2, m6, m7, m8}.union(source_mods).union(sink_mods)),
-            dict(fn=fn.get_subset(tosig=[sg2, sx2], **opts), incl={m1, m2, m9}.union(sink_mods)),
-            dict(fn=fn.get_subset(tosig=sg3, **opts), incl={m1, m2, m6, m7, m8, m10}.union(source_mods).union(sink_mods)),
-            dict(fn=fn.get_subset(fromsig=sd1, tosig=sd2, **opts), incl={dm2}.union({dm1} if include_sources else {}).union({dm3} if include_sinks else {})),
+            dict(fn=fn.get_subset(fromsig=sx, **opts), 
+                 incl={m1, m6, m7, m8, m10}.union(source_mods)),
+            dict(fn=fn.get_subset(fromsig=[sx, sy], **opts), 
+                 incl={m1, m2, m6, m7, m8, m9, m10}.union(source_mods).union(sink_mods)),
+            dict(fn=fn.get_subset(fromsig=sx2, **opts), 
+                 incl={m6, m8, m10}.union(source_mods)),
+            dict(fn=fn.get_subset(tosig=sg1, **opts), 
+                 incl={m1, m2, m6, m7, m8}.union(source_mods).union(sink_mods)),
+            dict(fn=fn.get_subset(tosig=[sg2, sx2], **opts), 
+                 incl={m1, m2, m9}.union(sink_mods)),
+            dict(fn=fn.get_subset(tosig=sg3, **opts), 
+                 incl={m1, m2, m6, m7, m8, m10}.union(source_mods).union(sink_mods)),
+            dict(fn=fn.get_subset(fromsig=sd1, tosig=sd2, **opts), 
+                 incl={dm2}.union({dm1} if include_sources else {}).union({dm3} if include_sinks else {})),
         ]
 
         for t in testcases:

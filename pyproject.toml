@@ -84,8 +84,11 @@ noarch = true
 
 ## ----- Ruff Configuration -----
 [tool.ruff]
-exclude = ["tests/**", "examples/**", "docs/**"]
+extend-exclude = [ "docs/**"]
 lint.select = ["E", "F"]
 lint.fixable = ["A", "B", "C", "D", "E", "F"]   # Fix all if possible
 line-length = 120
 lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # Allow unused variables when underscore-prefixed.
+
+[tool.ruff.format]
+exclude = ["tests/**", "examples/**"]

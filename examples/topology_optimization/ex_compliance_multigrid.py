@@ -46,24 +46,24 @@ if __name__ == "__main__":
         else:  # Mechanical
             ndof = 2
             # Calculate boundary dof indices
-            boundary_nodes = domain.get_nodenumber(0, np.arange(ny + 1))
-            boundary_dofs = np.repeat(boundary_nodes * ndof, ndof, axis=-1) + np.tile(np.arange(ndof), len(boundary_nodes))
+            boundary_nodes = domain.nodes[0, :].flatten()
+            boundary_dofs = domain.get_dofnumber(boundary_nodes, ndof=ndof)
 
             # Which dofs to put a force on? The 1 is added for a force in y-direction (x-direction would be zero)
-            force_dofs = ndof * domain.get_nodenumber(nx, ny // 2) + 1
+            force_dofs = ndof * domain.nodes[nx, ny//2] + 1
 
     else:
         domain = pym.DomainDefinition(nx, ny, nz)
-        boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(nz + 1))).flatten()
+        boundary_nodes = domain.nodes[0, :, :].flatten()
 
         if thermal:
             boundary_dofs = boundary_nodes
-            force_dofs = domain.get_nodenumber(*np.meshgrid(np.arange(1, nx+1), np.arange(ny + 1), np.arange(nz + 1))).flatten()
+            force_dofs = domain.nodes[1:, :, :].flatten()
             ndof = 1
 
         else:  # Mechanical
             ndof = 3
-            boundary_dofs = np.repeat(boundary_nodes * ndof, ndof, axis=-1) + np.tile(np.arange(ndof), len(boundary_nodes))
+            boundary_dofs = domain.get_dofnumber(boundary_nodes, ndof=ndof)
             force_dofs = ndof * domain.get_nodenumber(nx, ny // 2, nz // 2) + 2  # Z-direction
 
     if domain.nnodes > 1e+6:
@@ -121,7 +121,8 @@ if __name__ == "__main__":
             mgs[-2].inner_level = mgs[-1]  # Set the inner level to the next coarser grid
 
         print(f"Multigrid levels: {len(mgs)}")
-        print(f"Coarsest grid size: {mgs[-1].sub_domain.nelx} x {mgs[-1].sub_domain.nely} " + (f"x {mgs[-1].sub_domain.nelz}" if nz > 0 else ""))
+        print(f"Coarsest grid size: {mgs[-1].sub_domain.nelx} x {mgs[-1].sub_domain.nely} " + 
+              (f"x {mgs[-1].sub_domain.nelz}" if nz > 0 else ""))
 
         # Set up the solver (comment out to use the default factorization, try this to see the difference in time)
         solver = pym.solvers.CG(preconditioner=mg1, verbosity=1, tol=1e-5)

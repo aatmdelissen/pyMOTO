@@ -21,7 +21,8 @@ class TestEinSum:
     def fd_testfn(x0, dx, df_an, df_fd):
         npt.assert_allclose(df_an, df_fd, rtol=1e-5, atol=1e-15)
 
-    @pytest.mark.parametrize('a', [make_vec(4), 1j*make_vec(5), make_vec(6)+1j*make_vec(6)], ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('a', [make_vec(4), 1j*make_vec(5), make_vec(6)+1j*make_vec(6)], 
+                             ids=['real', 'imaginary', 'complex'])
     def test_vec_sum(self, a):
         out_chk = np.sum(a)
 
@@ -32,8 +33,10 @@ class TestEinSum:
         npt.assert_allclose(out_chk, s_out.state)
         pym.finite_difference(tosig=s_out, test_fn=self.fd_testfn)
 
-    @pytest.mark.parametrize('b', [make_vec(4), 1j*make_vec(4), make_vec(4)+1j*make_vec(4)], ids=['real', 'imaginary', 'complex'])
-    @pytest.mark.parametrize('a', [make_vec(4), 1j*make_vec(4), make_vec(4)+1j*make_vec(4)], ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('b', [make_vec(4), 1j*make_vec(4), make_vec(4)+1j*make_vec(4)], 
+                             ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('a', [make_vec(4), 1j*make_vec(4), make_vec(4)+1j*make_vec(4)], 
+                             ids=['real', 'imaginary', 'complex'])
     def test_vec_dot(self, a, b):
         out_chk = a@b
 
@@ -46,8 +49,10 @@ class TestEinSum:
         npt.assert_allclose(out_chk, s_out.state)
         pym.finite_difference(tosig=s_out, test_fn=self.fd_testfn)
 
-    @pytest.mark.parametrize('b', [make_vec(5), 1j*make_vec(5), make_vec(5)+1j*make_vec(5)], ids=['real', 'imaginary', 'complex'])
-    @pytest.mark.parametrize('a', [make_vec(5), 1j*make_vec(5), make_vec(5)+1j*make_vec(5)], ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('b', [make_vec(5), 1j*make_vec(5), make_vec(5)+1j*make_vec(5)], 
+                             ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('a', [make_vec(5), 1j*make_vec(5), make_vec(5)+1j*make_vec(5)], 
+                             ids=['real', 'imaginary', 'complex'])
     def test_vec_outer(self, a, b):
         out_chk = np.outer(a, b)
         a_tag = "r" if np.isrealobj(a) else ("c" if np.linalg.norm(np.real(a)) != 0 else "i")
@@ -63,7 +68,8 @@ class TestEinSum:
 
         pym.finite_difference(tosig=s_out, test_fn=self.fd_testfn)
 
-    @pytest.mark.parametrize('a', [make_mat(4), 1j*make_mat(5), make_mat(6) + 1j * make_mat(6)], ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('a', [make_mat(4), 1j*make_mat(5), make_mat(6) + 1j * make_mat(6)], 
+                             ids=['real', 'imaginary', 'complex'])
     def test_mat_trace(self, a):
         out_chk = np.trace(a)
 
@@ -75,7 +81,8 @@ class TestEinSum:
         npt.assert_allclose(out_chk, s_out.state)
         pym.finite_difference(tosig=s_out, test_fn=self.fd_testfn)
 
-    @pytest.mark.parametrize('a', [make_mat(4), 1j*make_mat(5), make_mat(6) + 1j * make_mat(6)], ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('a', [make_mat(4), 1j*make_mat(5), make_mat(6) + 1j * make_mat(6)], 
+                             ids=['real', 'imaginary', 'complex'])
     def test_mat_sum(self, a):
         out_chk = np.sum(a)
 
@@ -103,8 +110,10 @@ class TestEinSum:
     #     npt.assert_allclose(out_chk, s_out.state)
     #     pym.finite_difference(test_fn=self.fd_testfn)
 
-    @pytest.mark.parametrize('B', [make_mat(4), 1j*make_mat(4), make_mat(4) + 1j * make_mat(4)], ids=['real', 'imaginary', 'complex'])
-    @pytest.mark.parametrize('A', [make_mat(4), 1j*make_mat(4), make_mat(4) + 1j * make_mat(4)], ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('B', [make_mat(4), 1j*make_mat(4), make_mat(4) + 1j * make_mat(4)], 
+                             ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('A', [make_mat(4), 1j*make_mat(4), make_mat(4) + 1j * make_mat(4)], 
+                             ids=['real', 'imaginary', 'complex'])
     def test_matmat(self, A, B):
         out_chk = A.dot(B)
 
@@ -117,9 +126,12 @@ class TestEinSum:
         npt.assert_allclose(out_chk, s_out.state)
         pym.finite_difference(tosig=s_out, test_fn=self.fd_testfn)
 
-    @pytest.mark.parametrize('v', [make_vec(4), 1j * make_vec(4), make_vec(4) + 1j * make_vec(4)], ids=['real', 'imaginary', 'complex'])
-    @pytest.mark.parametrize('B', [make_mat(4), 1j * make_mat(4), make_mat(4) + 1j * make_mat(4)], ids=['real', 'imaginary', 'complex'])
-    @pytest.mark.parametrize('A', [make_mat(3, 4), 1j * make_mat(2, 4), make_mat(3, 4) + 1j * make_mat(3, 4)], ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('v', [make_vec(4), 1j * make_vec(4), make_vec(4) + 1j * make_vec(4)], 
+                             ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('B', [make_mat(4), 1j * make_mat(4), make_mat(4) + 1j * make_mat(4)], 
+                             ids=['real', 'imaginary', 'complex'])
+    @pytest.mark.parametrize('A', [make_mat(3, 4), 1j * make_mat(2, 4), make_mat(3, 4) + 1j * make_mat(3, 4)], 
+                             ids=['real', 'imaginary', 'complex'])
     def test_matmatvec(self, A, B, v):
         out_chk = np.einsum("ij,jk,k->ik", A, B, v)
 

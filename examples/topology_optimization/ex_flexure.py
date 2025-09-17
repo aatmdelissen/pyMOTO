@@ -155,7 +155,7 @@ def flexure(nx: int = 20,
         pym.PlotIter()(*responses)
 
     # Optimization
-    pym.minimize_mma(s_x, responses, verbosity=2, maxit=200)
+    pym.minimize_mma(s_x, responses, function=fn, verbosity=2, maxit=200)
 
 
 if __name__ == "__main__":

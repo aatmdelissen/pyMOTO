@@ -41,9 +41,10 @@ if __name__ == '__main__':
         ordering = 0
         if ordering == 0:
             a = pym.MathGeneral("inp0 * sin(inp1)")(x, y)
-            # Instad of  'inp0' and 'inp1', also the tags ('y', 'z') can be used (if they are defined!)
+            # Instead of  'inp0' and 'inp1', also the tags ('y', 'z') can be used (if they are defined!)
             b = pym.MathGeneral("cos(y) * cos(z)")(y, z) 
-            g = pym.MathGeneral("inp0^2 * (1 + inp1)")(a, b)  # Signals a and b do not have a tag, so inp0 and inp1 are used
+            # Signals a and b do not have a tag, so inp0 and inp1 are used
+            g = pym.MathGeneral("inp0^2 * (1 + inp1)")(a, b)  
         elif ordering == 1:
             print("Using an alternative module order")
             a = pym.MathGeneral("cos(inp0) * cos(inp1)")(x, y)

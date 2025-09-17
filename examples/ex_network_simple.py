@@ -5,8 +5,8 @@ Creating a network with multiple custom modules
 
 This example demonstrates how multiple simple modules are implemented. Different methods of data storage inside the 
 odule are shown. Next to that, the effect of ordering the modules in a :py:class:`pymoto.Network` is demonstrated. This 
-allows for different mathematical behavior, while keeping the same implementation of modules: no additional effort needs 
-to be made to keep the sensitivities consistent. Also basic usage of :py:class:`pymoto.Signal`, response and sensitivity 
+allows for different mathematical behavior, while keeping the same implementation of modules: no additional effort needs
+to be made to keep the sensitivities consistent. Also basic usage of :py:class:`pymoto.Signal`, response and sensitivity
 calculation, and validation with :py:func:`pymoto.finite_difference` is demonstrated.
 
 This example is identical in behavior to :ref:`sphx_glr_auto_examples_ex_network_simple_mathgeneral.py`, but uses 
@@ -77,7 +77,8 @@ if __name__ == '__main__':
     # Start building a network of modules
     with pym.Network() as fn:
         # Create the modules here
-        # Depending on how the input and output signals are routed between the modules, different behavior can be created
+        # Depending on how the input and output signals are routed between the modules, different behavior can be
+        # implemented
 
         ordering = 0  # Change this to 1 to see a different ordering of the modules
         if ordering == 0:

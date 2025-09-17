@@ -1,4 +1,3 @@
-import inspect
 import pathlib  # For importing files
 import sys
 import pytest
@@ -111,7 +110,9 @@ all_matrices = dict(
 mat_type_converters = [lambda A: A.toarray(), lambda A: A, lambda A: A.tocsr(), lambda A: A.tocsc()]
 mat_type_ids = ['dense', 'coo', 'csr', 'csc']
 if _has_cvxopt:
-    mat_type_converters.append(lambda A: cvxopt.spmatrix(A.data, A.row.astype(int), A.col.astype(int)) if isinstance(A, spsp.coo_matrix) else A)  # TODO Fix for diagonal matrix
+    def cvx_converter(A):  # TODO Fix for diagonal matrix
+        return cvxopt.spmatrix(A.data, A.row.astype(int), A.col.astype(int)) if isinstance(A, spsp.coo_matrix) else A
+    mat_type_converters.append(cvx_converter)
     mat_type_ids.append('cvx')
 
 

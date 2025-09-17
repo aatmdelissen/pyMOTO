@@ -366,8 +366,8 @@ class TestDyadCarrier(unittest.TestCase):
         n = 10000
 
         a = pym.DyadCarrier([np.random.rand(n) for _ in range(30)], [np.random.rand(n) for _ in range(30)])
-        diag = np.random.rand(1, n)
-        S = spsp.random(n, n, density=200/(n*n)).tocsc()  # Size must be given for scipy==1.7
+        # diag = np.random.rand(1, n)
+        # S = spsp.random(n, n, density=200/(n*n)).tocsc()  # Size must be given for scipy==1.7
         # for i in range(100):
         #     a.contract(S)
 

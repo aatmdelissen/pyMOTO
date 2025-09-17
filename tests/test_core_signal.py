@@ -2,7 +2,6 @@ import pytest
 import numpy.testing as npt
 import pymoto as pym
 import numpy as np
-import numpy.testing as npt
 
 
 class TestSignal:

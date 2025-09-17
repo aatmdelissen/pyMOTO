@@ -3,7 +3,7 @@
 
 Usage of static condensation to design a compliant mechanism
 
-This example uses :py:class:`pymoto.StaticCondensation` to calculate the mechanism and constraint mode compliances in an 
+This example uses :py:class:`pymoto.StaticCondensation` to calculate the mechanism and constraint mode compliances in an
 efficient way. The optimization problem considers
 
 1. Maximum stiffness of input and output ports

@@ -373,7 +373,6 @@ class TestModule:
 
         s_A = pym.Signal('A', np.array([1., 2., 3.]))
         s_B = pym.Signal('B', np.array([4., 5., 6.]))
-        s_C = pym.Signal('C', np.array([7., 8., 9.]))
 
         # With B as argument
         m = Var2Arg()

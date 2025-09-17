@@ -105,3 +105,7 @@ class TestThermoMechanical:
 
         # Left x displacement should be -alpha*Lx/2
         npt.assert_allclose(u[2*nodidx_left], -alpha * Lx / 2, atol=1e-10)
+
+
+if __name__ == '__main__':
+    pytest.main()

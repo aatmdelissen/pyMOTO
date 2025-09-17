@@ -23,7 +23,9 @@ class TestMathGeneral:
         npt.assert_allclose(df_an, df_fd, rtol=1e-6, atol=1e-15)
 
     @pytest.mark.parametrize('b', [3.5, np.array(3.5), 3.5 + 3.8j], ids=['float', 'np_scalar', 'complex_float'])
-    @pytest.mark.parametrize('a', [make_vec(4), make_vec(5) + 1j*make_vec(5), make_mat(3)], ids=['vector', 'complex_vector', 'matrix'])
+    @pytest.mark.parametrize('a', 
+                             [make_vec(4), make_vec(5) + 1j*make_vec(5), make_mat(3)], 
+                             ids=['vector', 'complex_vector', 'matrix'])
     def test_vec_scalar_multiply(self, a, b):
         """ Test functionality where a vector is multiplied with a scalar """
         sVec = pym.Signal("a", copy.deepcopy(a))

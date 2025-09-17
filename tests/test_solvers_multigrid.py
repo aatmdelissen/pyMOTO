@@ -1,13 +1,9 @@
-import inspect
-import pathlib  # For importing files
-import sys
 import pytest
 
 import numpy as np
 import numpy.testing as npt
 
 import pymoto as pym
-
 
 
 def test_interpolation_2d():
@@ -94,3 +90,6 @@ def test_interpolation_3d():
     uf = mg1.R @ uc
     npt.assert_allclose(uf, 1.0)
 
+
+if __name__ == '__main__':
+    pytest.main()
