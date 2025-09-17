@@ -121,11 +121,28 @@ class PardisoWarning(UserWarning):
 
 
 class PardisoError(Exception):
+    _error_codes = dict()
+    _error_codes[-1] = "Input inconsistent"
+    _error_codes[-2] = "Not enough memory"
+    _error_codes[-3] = "Not enough memory"
+    _error_codes[-4] = "Zero pivot, numerical factorization or iterative refinement problem"
+    _error_codes[-5] = "Unclassifed (internal) error"
+    _error_codes[-6] = "Reordering failed (`mtype` 11 and 13 only)"
+    _error_codes[-7] = "Diagonal matrix is singular"
+    _error_codes[-8] = "32-bit integer overflow problem"
+    _error_codes[-9] = "Not enough memory for OOC"
+    _error_codes[-10] = "Error opening OOC files"
+    _error_codes[-11] = "Read/write error with OOC files"
+    _error_codes[-12] = "Pardiso_64 called from 32-bit library"
+    _error_codes[-13] = "Interrupted by the mkl_progress function"
+    _error_codes[-15] = "Internal error which can appear for `iparm[23]=10` and `iparm[12]=1`"
+    
     def __init__(self, value):
         self.value = value
 
     def __str__(self):
-        return "The Pardiso solver failed with error code {self.value}. See Pardiso documentation for details."
+        err = self._error_codes[self.value]
+        return f"The Pardiso solver failed with error code {self.value} ({err}). See Pardiso documentation for details."
 
 
 class SolverSparsePardiso(LinearSolver):
@@ -267,12 +284,21 @@ class SolverSparsePardiso(LinearSolver):
                 self._iparm.data.ctypes.data_as(c_int32_p),
             )  # pardiso error
 
-        self._iparm[34] = 1  # Use 0-based indexing
-        if self._mtype in {1, 2, 3, -4, 4}:
+        # Overwrite defaults
+        self._iparm[1] = 3  # Makes solving a bit faster (~10%) using parallel dissection algorithm (improves phase 1)
+        if self._mtype in {1, 2, 3, -4, 4}:  # Symmetric matrix
             self._iparm[9] = 0  # Set pivoting perturbation to zero; default value doesn't work for these matrix types
 
         is_single_precision = np.issubdtype(A.dtype, np.single) or np.issubdtype(A.dtype, np.csingle)
         self._iparm[27] = is_single_precision
+        # This option may make solving faster, but with benchmarks it didn't seem to do so
+        # if self._mtype in {11, 13}:  # Non-symmetric matrix
+        #     self._iparm[23] = 10  # use improved two-level factorization algorithm
+        # else:
+        #     self._iparm[23] = 1 # use parallel factorization algorithm. (does not work if iparm[10] and/or
+        #                         # iparm[12] are not 0, i.e. if scaling and/or matching are enabled
+        self._iparm[34] = 1  # Use 0-based indexing
+
 
         # For symmetric or hermitian matrices, only the upper triangular part is used.
         if self._mtype in {-2, 2, -4, 4, 6}:
