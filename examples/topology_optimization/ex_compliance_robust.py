@@ -7,7 +7,9 @@ feature size
 It is implemented using Heaviside projections on the design, generating three variants: a nominal design, an eroded 
 design and a dilated design. The worst-case of these three designs is used in the objective function. Note that for a 
 compliance minimization problem, the eroded design is always the worst. Hence it is sometimes called the 
-'poor-man's robust formulation'.
+'poor-man's robust formulation'. The 'full' version of the robust method can be found in 
+:ref:`sphx_glr_auto_examples_topology_optimization_ex_compliance_robust_full.py`, which evaluates each of the eroded, 
+nominal, and dilated designs.
 
 In this example, the :py:class:`pymoto.MathGeneral` module is used extensively to automatically generate the 
 sensitivities of the Heaviside projection filters.
