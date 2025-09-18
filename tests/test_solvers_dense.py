@@ -390,4 +390,4 @@ def test_linsolve_module(Atag, b_type, b_shape):
 
 
 if __name__ == '__main__':
-    pytest.main()
+    pytest.main([__file__])

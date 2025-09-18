@@ -412,4 +412,4 @@ def test_sparse_cg(Atag, b_type, b_shape, mat_converter):
 
 
 if __name__ == '__main__':
-    pytest.main()
+    pytest.main([__file__])

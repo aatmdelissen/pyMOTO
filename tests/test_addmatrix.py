@@ -62,3 +62,7 @@ def test_add_matrices(n_mat: int, complex_matrix: bool, complex_value: bool):
     sYsum = MatrixSum()(sY)
 
     pym.finite_difference(fromsig=sigs_fd_in, tosig=sYsum, test_fn=fd_testfn)
+
+
+if __name__ == '__main__':
+    pytest.main([__file__])

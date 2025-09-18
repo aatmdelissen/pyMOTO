@@ -255,5 +255,5 @@ class TestAssemblePoisson:
         pym.finite_difference(s_x, sAsum, test_fn=fd_testfn)
 
 
-if __name__ == "__main__":
-    pytest.main()
+if __name__ == '__main__':
+    pytest.main([__file__])

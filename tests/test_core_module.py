@@ -410,3 +410,7 @@ class TestModule:
         assert isinstance(m, MyMod)
         assert len(m.sig_out) == 1
         npt.assert_equal(m.sig_out[0].state, np.array([5, 7, 9]))
+
+
+if __name__ == '__main__':
+    pytest.main([__file__])

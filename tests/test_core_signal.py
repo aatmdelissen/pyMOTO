@@ -287,3 +287,7 @@ class TestSignalSlice:
         assert np.allclose(sx[np.arange(9, 11)].sensitivity, 0)
         assert np.allclose(sx.sensitivity[np.arange(9, 11)], 0)
         assert sx[11].sensitivity == 6.0
+
+
+if __name__ == '__main__':
+    pytest.main([__file__])

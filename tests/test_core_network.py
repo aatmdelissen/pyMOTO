@@ -383,3 +383,6 @@ class TestSubsets:
                 incl.remove(m)
             assert len(incl) == 0, errstr
 
+
+if __name__ == '__main__':
+    pytest.main([__file__])

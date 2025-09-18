@@ -180,3 +180,7 @@ class TestStressStrain:
         sxy_chk = 2 * G * gam_xy_chk
         npt.assert_allclose(s_stress.state[:, 0], np.array([0, 0, sxy_chk]), atol=1e-16)
         pym.finite_difference(tosig=s_stress, test_fn=fd_testfn)
+
+
+if __name__ == '__main__':
+    pytest.main([__file__])
