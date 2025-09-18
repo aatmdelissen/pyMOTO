@@ -111,6 +111,28 @@ class TestMathGeneral:
         # Check sensitivities
         pym.finite_difference(tosig=sRes, test_fn=self.fd_testfn)
 
+    def test_numpy_arrays_with_one_constant(self):
+        """ Broadcast with singleton axes """
+        np.random.seed(0)
+        sv1 = pym.Signal("v1", np.random.rand(36, 1, 15))
+        sv2 = pym.Signal("v2", np.random.rand(2, 1, 1, 15))
+        v3 = np.random.rand(2, 1, 2, 15)
+        s_scalar = pym.Signal("c", 3.5)
+
+        sRes = pym.MathGeneral("inp0*inp1*inp2*inp3")(sv1, sv2, v3, s_scalar)
+        sRes.tag = 'v1*v2*v3*c'
+
+        # Check value of response
+        assert sRes.state.shape == (2, 36, 2, 15)
+        npt.assert_allclose(sRes.state, sv1.state * sv2.state * v3 * s_scalar.state)
+
+        # Check sensitivities
+        pym.finite_difference(tosig=sRes, test_fn=self.fd_testfn)
+
+    def test_with_only_constant(self):
+        val = pym.MathGeneral("sqrt(inp0)")(np.array([1,2,3]))
+        npt.assert_allclose(val, np.sqrt(np.array([1,2,3])))
+
 
 if __name__ == '__main__':
     pytest.main([__file__])

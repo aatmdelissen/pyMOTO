@@ -58,7 +58,7 @@ class MathGeneral(Module):
         """
         self.expression = expression
 
-    def parse_expression(self):
+    def parse_expression(self, n_args: int = None):
         from sympy import lambdify
         from sympy.parsing.sympy_parser import parse_expr
 
@@ -69,32 +69,31 @@ class MathGeneral(Module):
 
         # Variables
         var_names = []
-        for i in range(len(self.sig_in)):
-            var_names += [
-                "inp{}".format(i),
-            ]
+        for i in range(n_args):
+            var_names += ["inp{}".format(i),]
 
-        # Named variables <RHO, X, ...> are converted to <sig0, sig1, ...>
-        trn = {}
-        for i, s in enumerate(self.sig_in):
-            if hasattr(s, 'tag') and len(s.tag):
-                if s.tag.lower() in var_names and s.tag.lower() in self.expression:
-                    raise RuntimeError("Name '{}' multiple defined".format(s.tag.lower()))
-                trn[s.tag.lower()] = var_names[i]
+        if self.sig_in is not None:
+            # Named variables e.g. <RHO, X, ...> are converted to <inp0, inp1, ...>
+            replace_vars = {}
+            for i, s in enumerate(self.sig_in):
+                if hasattr(s, 'tag') and len(s.tag):
+                    if s.tag.lower() in var_names and s.tag.lower() in self.expression:
+                        raise RuntimeError(f"Name '{s.tag.lower()}' multiple defined")
+                    replace_vars[s.tag.lower()] = var_names[i]
 
-        expr = [expr.subs(trn)]
+            expr = expr.subs(replace_vars)
         self.f = lambdify(var_names, expr, "numpy")
 
         # Determine derivatives
         dx = []
-        for i in range(len(self.sig_in)):
-            dx += [expr[0].diff(var_names[i])]
+        for i in range(n_args):
+            dx += [expr.diff(var_names[i])]
 
         self.df = lambdify(var_names, dx, "numpy")
 
     def __call__(self, *args):
         if not hasattr(self, "f"):
-            self.parse_expression()
+            self.parse_expression(n_args=len(args))
 
         self.x = args
         return self.f(*args)
