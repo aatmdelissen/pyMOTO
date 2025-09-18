@@ -383,6 +383,38 @@ class TestSubsets:
                 incl.remove(m)
             assert len(incl) == 0, errstr
 
+    def test_with_constants(self):
+        sx = pym.Signal('x', np.array([1, 2, 3]))
+
+        with pym.Network() as fn:
+            dm1 = self.SourceMod()
+            dm2 = self.Func2to1Mod()
+            dm3 = self.Func2to1Mod()
+            dm4 = self.SinkMod()
+            sd1 = dm1()
+            sd1.tag = 'd1'
+            sd2 = dm2(sd1, np.array([2.0]))  # constant value (non-hashable)
+            sd2.tag = 'd2'
+            sd3 = dm3(sd2, sx)
+            sd3.tag = 'd3'
+            dm4(sd3)
+
+        testcases = [
+            dict(fn=fn.get_input_cone(sx), incl={dm3, dm4}),
+            dict(fn=fn.get_output_cone(sd2), incl={dm1, dm2}),
+            dict(fn=fn.get_subset(sx, sd3, include_sinks=False, include_sources=False), incl={dm3}),
+            dict(fn=fn.get_subset(sx, sd3, include_sinks=True, include_sources=True), incl={dm1, dm2, dm3, dm4}),
+        ]
+
+        for t in testcases:
+            incl = t['incl'].copy()
+            expected_mods = ''.join([f'\n\t- {s}' for s in t['incl']])
+            errstr = f"Function ({len(t['fn'])}) = {t['fn']}\nExpected ({len(t['incl'])}) = {expected_mods}"
+            for m in t['fn']:
+                assert m in incl, errstr
+                incl.remove(m)
+            assert len(incl) == 0, errstr
+
 
 if __name__ == '__main__':
     pytest.main([__file__])
