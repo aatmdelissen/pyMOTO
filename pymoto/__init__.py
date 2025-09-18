@@ -25,7 +25,7 @@ from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, S
 from .modules.scaling import Scaling
 
 # Further helper routines
-from .routines import finite_difference, minimize_oc, minimize_mma
+from .routines import finite_difference, minimize_oc, minimize_mma, minimize_slp
 
 __all__ = [
     "Signal",
@@ -35,6 +35,7 @@ __all__ = [
     "finite_difference",
     "minimize_oc",
     "minimize_mma",
+    "minimize_slp",
     # Common
     "MMA",
     "DyadCarrier",
