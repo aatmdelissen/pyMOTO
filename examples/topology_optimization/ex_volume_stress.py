@@ -95,7 +95,7 @@ if __name__ == "__main__":
         s_displacement = pym.LinSolve()(s_K, f)
 
         # Calculate stress components
-        s_stress = pym.Stress(domain)(s_displacement)
+        s_stress = pym.Stress(domain, e_modulus=1.0, poisson_ratio=0.3)(s_displacement)
 
         # Calculate Von-Mises stress
         V = np.array([[1, -0.5, 0], [-0.5, 1, 0], [0, 0, 3]])  # Vandermonde matrix
