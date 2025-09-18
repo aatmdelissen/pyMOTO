@@ -69,6 +69,25 @@ class TestAssembleStiffness:
         sAsum = MatrixSum()(s_K)
         pym.finite_difference(s_x, sAsum, test_fn=fd_testfn)
 
+        # Calculate strain with module
+        s_strain = pym.Strain(domain=domain)(x)
+        npt.assert_allclose(s_strain[0], e_xx)
+        npt.assert_allclose(s_strain[1], e_yy)
+        npt.assert_allclose(s_strain[2], 0, atol=1e-16)  # No shear
+
+        # Calculate stress with module
+        s_stress = pym.Stress(domain=domain, e_modulus=E, poisson_ratio=nu, plane='stress')(x)
+        # Check with constitutive equation
+        from pymoto.modules.assembly import get_D
+        D = get_D(E=E, nu=nu, mode='stress')
+        npt.assert_allclose(s_stress, D @ s_strain, atol=1e-10)
+        # Check with analytical stress
+        s_xx = F / (Ly*Lz)
+        npt.assert_allclose(s_stress[0], s_xx)
+        npt.assert_allclose(s_stress[1], 0, atol=1e-10)
+        npt.assert_allclose(s_stress[2], 0, atol=1e-10)
+
+
     def test_FEA_pure_tensile_3d_one_element(self):
         Lx, Ly, Lz = 0.1, 0.2, 0.3
         domain = pym.DomainDefinition(1, 1, 1, unitx=Lx, unity=Ly, unitz=Lz)
@@ -121,6 +140,9 @@ class TestAssembleStiffness:
 
         sAsum = MatrixSum()(s_K)
         pym.finite_difference(s_x, sAsum, test_fn=fd_testfn)
+
+        
+
 
 
 class TestAssembleMass:
@@ -256,4 +278,5 @@ class TestAssemblePoisson:
 
 
 if __name__ == '__main__':
-    pytest.main([__file__])
+    TestAssembleStiffness().test_FEA_pure_tensile_2d_one_element()
+    # pytest.main([__file__])

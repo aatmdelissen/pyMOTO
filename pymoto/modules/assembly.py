@@ -248,8 +248,6 @@ class AssembleStiffness(AssembleGeneral):
 
         # Get material relation
         D = get_D(self.E, self.nu, "3d" if domain.dim == 3 else plane.lower())
-        if domain.dim == 2:
-            D *= domain.element_size[2]
 
         nnode = 2**domain.dim  # Number of nodes per element
         ndof = nnode * domain.dim
@@ -261,6 +259,10 @@ class AssembleStiffness(AssembleGeneral):
         # Numerical integration
         siz = domain.element_size
         w = np.prod(siz[: domain.dim] / 2)
+        # Convert from area integral to volume in 2D
+        if domain.dim == 2:
+            w *= domain.element_size[2]
+
         for n in domain.node_numbering:
             pos = n * (siz / 2) / np.sqrt(3)  # Sampling point
             dN_dx = domain.eval_shape_fun_der(pos)
@@ -503,8 +505,6 @@ class Stress(Strain):
 
         # Get material relation
         D = get_D(e_modulus, poisson_ratio, "3d" if domain.dim == 3 else plane.lower())
-        if domain.dim == 2:
-            D *= domain.element_size[2]
         self.element_matrix = D @ self.element_matrix
 
 
