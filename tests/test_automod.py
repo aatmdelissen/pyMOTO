@@ -7,9 +7,9 @@ def fd_testfn(x0, dx, df_an, df_fd):
     npt.assert_allclose(df_an, df_fd, rtol=1e-7, atol=1e-5)
 
 def id_fn(val):
-    npval = np.asarray(val)
-    has_r = np.abs(npval.real).max() > 0
-    has_i = np.abs(npval.imag).max() > 0
+    val = np.asarray(val)
+    has_r = np.abs(val.real).max() > 0
+    has_i = np.abs(val.imag).max() > 0
     if has_i and not has_r:
         valuetype = "imaginary"
     elif not has_i and has_r:
@@ -17,8 +17,8 @@ def id_fn(val):
     else:
         valuetype = "complex"
 
-    dimensionality = "vector" if np.val.size > 1 else "scalar"
-    return f"{valuetype} {dimensionality}"
+    dimensionality = "vector" if val.size > 1 else "scalar"
+    return f"{valuetype}_{dimensionality}"
 
 @pytest.mark.parametrize('x0', [1.1, 1.1 + 2.0j, 2.0j, 
                                 np.array([1.1, 1.2, 1.3]), 
@@ -82,4 +82,4 @@ def test_automod_vec_2out(backend, x0, y0):
 
 
 if __name__ == '__main__':
-    pytest.main()
+    pytest.main([__file__])
