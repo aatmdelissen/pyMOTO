@@ -440,6 +440,26 @@ def minimize_mma(variables: SignalsT, responses: SignalsT, function: Module = No
 
 def minimize_slp(variables, responses, function=None, xmin=0, xmax=1, move=0.2, maxit=100, tolx=1e-4, tolf=1e-4, 
                  verbosity: int = 2, adaptive_movelimit: bool = True):
+    """Sequential linear programming optimization algorithm
+
+    Args:
+        variables: The Signals defining the design variables
+        responses: A list of Signals, where the first is to be minimized and the others are constraints
+        function (optional): The Network defining the optimization problem
+        xmin (optional): Minimum design variable (can be a vector)
+        xmax (optional): Maximum design variable (can be a vector)
+        move (optional): Move limit on relative variable change per iteration
+        maxit (optional): Maximum number of iteration
+        tolx (optional): Stopping criterium for relative design change
+        tolf (optional): Stopping criterium for relative objective change
+        verbosity (optional): Level of information to print
+          0 - No prints
+          1 - Only convergence message
+          2 - Convergence and iteration info (default)
+          3 - Additional info on variables
+          4 - Additional info on sensitivity information
+        adaptive_movelimit (optional): Move limit is adapted based on variable oscillation behavior
+    """
     variables = _parse_to_list(variables)
     responses = _parse_to_list(responses)
 
