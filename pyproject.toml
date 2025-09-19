@@ -56,6 +56,11 @@ dev = [
     "pre-commit"
 ]
 
+fast = [
+    "mkl",
+    "opt-einsum",
+]
+
 ext = [
     "cvxopt",
     "scikit-sparse",
