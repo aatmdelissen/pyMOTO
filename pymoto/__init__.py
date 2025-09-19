@@ -1,4 +1,4 @@
-__version__ = "1.5.1"
+__version__ = "2.0.0-rc1"
 
 from .common.domain import DomainDefinition
 
