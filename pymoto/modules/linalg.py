@@ -1,6 +1,7 @@
-""" Specialized linear algebra modules """
+"""Specialized linear algebra modules"""
+
 import warnings
-from inspect import currentframe, getframeinfo
+from typing import Callable
 
 import numpy as np
 import scipy.linalg as spla  # Dense matrix solvers
@@ -8,7 +9,7 @@ import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
 
 from pymoto import Signal, Module, DyadCarrier
-from pymoto.solvers import auto_determine_solver
+from pymoto.solvers import auto_determine_solver, LinearSolver
 from pymoto.solvers import matrix_is_sparse, matrix_is_complex, matrix_is_hermitian, LDAWrapper
 
 
@@ -56,25 +57,166 @@ class StaticCondensation(Module):
         **kwargs: See `pymoto.LinSolve`, as they are directly passed into the `LinSolve` module
     """
 
-    def _prepare(self, main, free, **kwargs):
-        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
-        self.module_LinSolve.use_lda_solver = False
-        self.m = main
-        self.f = free
+    def __init__(self, main, free, **kwargs):
+        """Initialize the static condensation module
 
-    def _response(self, A):
+        Args:
+            main: The indices corresponding to the free degrees of freedom
+            free: The indices corresponding to the main degrees of freedom
+            **kwargs: Are passed to :py:class:`pymoto.LinSolve` module
+        """
+        self.m_linsolve = LinSolve(**kwargs)
+        self.m_linsolve.use_lda_solver = False
+        self.m = main
+        self.f = free  # TODO free dofs can be deduced from main? Although a third set of fixed dofs may be required.
+
+    def __call__(self, A):
         self.n = np.shape(A)[0]
-        self.module_LinSolve.sig_in[0].state = A[self.f, ...][..., self.f]
-        self.module_LinSolve.sig_in[1].state = A[self.f, ...][..., self.m].todense()
-        self.module_LinSolve.response()
-        self.X = self.module_LinSolve.sig_out[0].state
-        return A[self.m, ...][..., self.m] - A[self.m, ...][..., self.f] @ self.X
+
+        Aff = A[self.f, ...][..., self.f]
+        Afm = A[self.f, ...][..., self.m].todense()
+        Amm = A[self.m, ...][..., self.m]
+        Amf = A[self.m, ...][..., self.f]
+
+        if self.m_linsolve.sig_in is None:
+            sAff = Signal("Aff", state=Aff)
+            sAfm = Signal("rhs", state=Afm)
+            self.m_linsolve.connect([sAff, sAfm])
+        else:
+            self.m_linsolve.sig_in[0].state = Aff
+            self.m_linsolve.sig_in[1].state = Afm
+            self.m_linsolve.response()
+        self.X = self.m_linsolve.sig_out[0].state
+        return Amm - Amf @ self.X
 
     def _sensitivity(self, dfdB):
         C = np.zeros((self.n, len(self.m)), dtype=float)
         C[self.m, ...] = np.eye(len(self.m))
         C[self.f, ...] = -self.X
-        return C @ dfdB @ C.T if isinstance(dfdB, DyadCarrier) else DyadCarrier(list(C.T), list(np.asarray(dfdB @ C.T)))
+        return (
+            C @ dfdB @ C.T if isinstance(dfdB, DyadCarrier) else DyadCarrier(list(C.T), list(np.asarray(dfdB @ C.T)))
+        )  # FIXME probably can do without the check
+
+
+class Inverse(Module):
+    r"""Calculate the inverse of a matrix :math:`\mathbf{B} = \mathbf{A}^{-1}`
+
+    Input Signal:
+      - ``A`` (`np.ndarray`): Dense matrix:math:`\mathbf{A}`
+
+    Output Signal:
+      - `B` (`np.ndarray`): The inverse of :math:`\mathbf{A}` as dense matrix
+    """
+
+    def __call__(self, A):
+        return np.linalg.inv(A)
+
+    def _sensitivity(self, dB):
+        A = self.sig_in[0].state
+        B = self.sig_out[0].state
+        dA = -B.T @ dB @ B.T
+        return dA if np.iscomplexobj(A) else np.real(dA)
+
+
+class LinSolve(Module):
+    r"""Solves linear system of equations :math:`\mathbf{A}\mathbf{x}=\mathbf{b}`
+
+    Self-adjointness is automatically detected using :class:`LDAWrapper`.
+
+    Input Signals:
+      - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
+      - ``b`` (`vector`): Right-hand-side vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
+
+    Output Signal:
+      - ``x`` (`vector`): Solution vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
+
+    Attributes:
+        use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
+    """
+
+    use_lda_solver = True
+
+    def __init__(self, dep_tol: float = 1e-5, 
+                 hermitian: bool = None, 
+                 symmetric: bool = None, 
+                 positive_definite: bool = None,
+                 solver: LinearSolver = None
+                 ):
+        """Initialize the linear solver module
+
+        Args:
+            dep_tol (float, optional): Tolerance for detecting linear dependence of solution vectors. Defaults to 1e-5.
+            hermitian (bool, optional): Flag to omit the automatic detection for Hermitian matrix, saves some work for 
+              large matrices
+            symmetric (bool, optional): Flag to omit the automatic detection for symmetric matrix, saves some work for 
+              large matrices
+            positive_definite (bool, optional): Flag to specify if the matrix is positive definite
+            solver (:py:class:`pymoto.solvers.LinearSolver`, optional): Manually override the linear solver used, 
+              instead of the the solver from :func:`pymoto.solvers.auto_determine_solver`
+        """
+        self.dep_tol = dep_tol
+        self.ishermitian = hermitian
+        self.issymmetric = symmetric
+        self.ispositivedefinite = positive_definite
+        self.solver = solver
+        self.u = None  # Solution storage
+
+    def __call__(self, mat, rhs):
+        # Do some detections on the matrix type
+        self.issparse = matrix_is_sparse(mat)  # Check if it is a sparse matrix
+        self.iscomplex = matrix_is_complex(mat)  # Check if it is a complex-valued matrix
+        if not self.iscomplex and self.issymmetric is not None:
+            self.ishermitian = self.issymmetric
+        if self.ishermitian is None:
+            self.ishermitian = matrix_is_hermitian(mat)
+        if self.issparse and not self.iscomplex and np.iscomplexobj(rhs):
+            raise TypeError(
+                "Complex right-hand-side for a real-valued sparse matrix is not supported."
+                "This case can simply be solved by running two rhs (one for the real part and "
+                "one for the imaginary."
+            )  # FIXME
+
+        # Determine the solver we want to use
+        if self.solver is None:
+            self.solver = auto_determine_solver(mat, 
+                                                ishermitian=self.ishermitian, 
+                                                issymmetric=self.issymmetric, 
+                                                ispositivedefinite=self.ispositivedefinite)
+        if not isinstance(self.solver, LDAWrapper) and self.use_lda_solver:
+            lda_kwargs = dict(hermitian=self.ishermitian, symmetric=self.issymmetric)
+            if hasattr(self.solver, "tol"):
+                lda_kwargs["tol"] = self.solver.tol * 5
+            self.solver = LDAWrapper(self.solver, **lda_kwargs)
+
+        # Update solver with new matrix
+        self.solver.update(mat)
+
+        # Solution
+        self.u = self.solver.solve(rhs, x0=self.u)
+
+        return self.u
+
+    def _sensitivity(self, dfdv):
+        mat, rhs = self.get_input_states()
+        # lam = self.solver.solve(dfdv.conj(), trans='H').conj()
+        lam = self.solver.solve(dfdv, trans="T")
+
+        if self.issparse:
+            if self.u.ndim > 1:
+                dmat = DyadCarrier(list(-lam.T), list(self.u.T))
+            else:
+                dmat = DyadCarrier(-lam, self.u)
+        else:
+            if self.u.ndim > 1:
+                dmat = np.einsum("iB,jB->ij", -lam, self.u, optimize=True)
+            else:
+                dmat = np.outer(-lam, self.u)
+        if not self.iscomplex:
+            dmat = dmat.real
+
+        db = np.real(lam) if np.isrealobj(rhs) else lam
+
+        return dmat, db
 
 
 class SystemOfEquations(Module):
@@ -110,36 +252,44 @@ class SystemOfEquations(Module):
     Output Signal:
       - ``x`` (`vector`): state vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
       - ``b`` (`vector`): load vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
-
-    Keyword Args:
-        free: The indices corresponding to the free degrees of freedom at which :math:`f_\text{f}` is given
-        prescribed: The indices corresponding to the prescibed degrees of freedom at which :math:`x_\text{p}` is given
-        **kwargs: See `pymoto.LinSolve`, as they are directly passed into the `LinSolve` module
     """
 
-    def _prepare(self, free=None, prescribed=None, **kwargs):
-        self.module_LinSolve = LinSolve([self.sig_in[0], Signal()], **kwargs)
+    def __init__(self, free=None, prescribed=None, **kwargs):
+        """Initialize the system of equations module
+
+        The free indices, prescribed indices, or both  must be provided.
+
+        Args:
+            free (optional): The indices corresponding to the free degrees of freedom at which :math:`f_\text{f}` is 
+              given
+            prescribed (optional): The indices corresponding to the prescibed degrees of freedom at which 
+              :math:`x_\text{p}` is given
+            **kwargs: Arguments passed to initialization of :py:class:`pymoto.LinSolve`
+        """
+        self.linsolve = LinSolve(**kwargs)
+        self.linsolve.sig_in = [Signal("Aff"), Signal("bf - Afp.xp")]
+        self.linsolve.sig_out = [Signal("xf")]
         self.f = free
         self.p = prescribed
-        assert self.p is not None or self.f is not None, "Either prescribed or free indices must be provided"
+        if self.p is None and self.f is None:
+            raise ValueError("Either prescribed or free indices must be provided")
 
-    def _response(self, A, bf, xp):
-        assert bf.shape[0] + xp.shape[0] == A.shape[0], "Dimensions of applied force and displacement must match matrix"
+    def __call__(self, A, bf, xp):
+        n = A.shape[0]
+
+        assert bf.shape[0] + xp.shape[0] == n, "Dimensions of applied force and displacement must match matrix"
         assert bf.ndim == xp.ndim, "Number of loadcases for applied force and displacement must match"
-        self.n = np.shape(A)[0]
-        self.dim = xp.ndim
 
         if self.f is None:
-            all_dofs = np.arange(self.n)
+            all_dofs = np.arange(n)
             self.f = np.setdiff1d(all_dofs, self.p)
         if self.p is None:
-            all_dofs = np.arange(self.n)
+            all_dofs = np.arange(n)
             self.p = np.setdiff1d(all_dofs, self.f)
-        assert self.f.size + self.p.size == self.n, "Size of free and prescribed indices must match the matrix size"
+        assert self.f.size + self.p.size == n, "Size of free and prescribed indices must match the matrix size"
 
         # create empty output
-        self.x = np.zeros((self.n, *bf.shape[1:]), dtype=complex) if np.iscomplexobj(A) else np.zeros(
-            (self.n, *bf.shape[1:]), dtype=float)
+        self.x = np.zeros((n, *bf.shape[1:]), dtype=A.dtype)
         self.x[self.p, ...] = xp
 
         b = np.zeros_like(self.x)
@@ -151,10 +301,10 @@ class SystemOfEquations(Module):
         self.App = A[self.p, :][:, self.p]
 
         # solve
-        self.module_LinSolve.sig_in[0].state = Aff
-        self.module_LinSolve.sig_in[1].state = bf - self.Afp * xp
-        self.module_LinSolve.response()
-        xf = self.module_LinSolve.sig_out[0].state
+        self.linsolve.sig_in[0].state = Aff
+        self.linsolve.sig_in[1].state = bf - self.Afp * xp
+        self.linsolve.response()
+        xf = self.linsolve.sig_out[0].state
 
         # set output
         self.x[self.f, ...] = xf
@@ -171,7 +321,7 @@ class SystemOfEquations(Module):
             adjoint_load += self.Afp * dgdb[self.p, ...]
 
         lam = np.zeros_like(self.x)
-        lamf = -1.0 * self.module_LinSolve.solver.solve(adjoint_load, trans='T')
+        lamf = -1.0 * self.linsolve.solver.solve(adjoint_load, trans="T")
         lam[self.f, ...] = lamf
 
         if dgdb is not None:
@@ -199,111 +349,8 @@ class SystemOfEquations(Module):
         return dgdA, dgdbf, dgdup
 
 
-class Inverse(Module):
-    r""" Calculate the inverse of a matrix :math:`\mathbf{B} = \mathbf{A}^{-1}`
-
-    Input Signal:
-      - ``A`` (`np.ndarray`): Dense matrix:math:`\mathbf{A}`
-
-    Output Signal:
-      - `B` (`np.ndarray`): The inverse of :math:`\mathbf{A}` as dense matrix
-    """
-    def _response(self, A):
-        return np.linalg.inv(A)
-
-    def _sensitivity(self, dB):
-        A = self.sig_in[0].state
-        B = self.sig_out[0].state
-        dA = - B.T @ dB @ B.T
-        return dA if np.iscomplexobj(A) else np.real(dA)
-
-
-class LinSolve(Module):
-    r""" Solves linear system of equations :math:`\mathbf{A}\mathbf{x}=\mathbf{b}`
-
-    Self-adjointness is automatically detected using :class:`LDAWrapper`.
-
-    Input Signals:
-      - ``A`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{A}` of size ``(n, n)``
-      - ``b`` (`vector`): Right-hand-side vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
-
-    Output Signal:
-      - ``x`` (`vector`): Solution vector of size ``(n)`` or block-vector of size ``(n, Nrhs)``
-
-    Keyword Args:
-        dep_tol: Tolerance for detecting linear dependence of solution vectors (default = ``1e-5``)
-        hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
-        symmetric: Flag to omit the automatic detection for symmetric matrix, saves some work for large matrices
-        solver: Manually override the LinearSolver used, instead of the the solver from :func:`auto_determine_solver`
-
-    Attributes:
-        use_lda_solver: Use the linear-dependency-aware solver :class:`LDAWrapper` to prevent redundant computations
-    """
-
-    use_lda_solver = True
-
-    def _prepare(self, dep_tol=1e-5, hermitian=None, symmetric=None, solver=None):
-        self.dep_tol = dep_tol
-        self.ishermitian = hermitian
-        self.issymmetric = symmetric
-        self.solver = solver
-        self.u = None  # Solution storage
-
-    def _response(self, mat, rhs):
-        # Do some detections on the matrix type
-        self.issparse = matrix_is_sparse(mat)  # Check if it is a sparse matrix
-        self.iscomplex = matrix_is_complex(mat)  # Check if it is a complex-valued matrix
-        if not self.iscomplex and self.issymmetric is not None:
-            self.ishermitian = self.issymmetric
-        if self.ishermitian is None:
-            self.ishermitian = matrix_is_hermitian(mat)
-        if self.issparse and not self.iscomplex and np.iscomplexobj(rhs):
-            raise TypeError("Complex right-hand-side for a real-valued sparse matrix is not supported."
-                            "This case can simply be solved by running two rhs (one for the real part and "
-                            "one for the imaginary.")
-
-        # Determine the solver we want to use
-        if self.solver is None:
-            self.solver = auto_determine_solver(mat, ishermitian=self.ishermitian)
-        if not isinstance(self.solver, LDAWrapper) and self.use_lda_solver:
-            lda_kwargs = dict(hermitian=self.ishermitian, symmetric=self.issymmetric)
-            if hasattr(self.solver, 'tol'):
-                lda_kwargs['tol'] = self.solver.tol * 5
-            self.solver = LDAWrapper(self.solver, **lda_kwargs)
-
-        # Update solver with new matrix
-        self.solver.update(mat)
-
-        # Solution
-        self.u = self.solver.solve(rhs, x0=self.u)
-
-        return self.u
-
-    def _sensitivity(self, dfdv):
-        mat, rhs = [s.state for s in self.sig_in]
-        # lam = self.solver.solve(dfdv.conj(), trans='H').conj()
-        lam = self.solver.solve(dfdv, trans='T')
-
-        if self.issparse:
-            if self.u.ndim > 1:
-                dmat = DyadCarrier(list(-lam.T), list(self.u.T))
-            else:
-                dmat = DyadCarrier(-lam, self.u)
-        else:
-            if self.u.ndim > 1:
-                dmat = np.einsum("iB,jB->ij", -lam, self.u, optimize=True)
-            else:
-                dmat = np.outer(-lam, self.u)
-        if not self.iscomplex:
-            dmat = dmat.real
-
-        db = np.real(lam) if np.isrealobj(rhs) else lam
-
-        return dmat, db
-
-
 class EigenSolve(Module):
-    r""" Solves the (generalized) eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{B} \mathbf{q}_i`
+    r"""Solves the (generalized) eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{B} \mathbf{q}_i`
 
     Solves the eigenvalue problem :math:`\mathbf{A}\mathbf{q}_i = \lambda_i \mathbf{q}_i` with normalization
     :math:`\mathbf{q}_i^\text{T} \mathbf{q}_i = 1` or
@@ -325,17 +372,27 @@ class EigenSolve(Module):
     Output Signals:
       - ``λ`` (`vector`): Vector with eigenvalues of size ``(n)``
       - ``Q`` (`matrix`): Matrix with eigenvectors ``Q[:, i]`` corresponding to ``λ[i]``, of size ``(n, n)``
-
-    Keyword Args:
-        sorting_func: Sorting function to sort the eigenvalues, which must have signature ``func(λ,Q)``
-          (default = ``numpy.argsort``)
-        hermitian: Flag to omit the automatic detection for Hermitian matrix, saves some work for large matrices
-        nmodes: Number of modes to calculate (only for sparse matrices, default = ``0``)
-        sigma: Shift value for the eigenvalue problem (only for sparse matrices). Eigenvalues around the shift are
-          calculated first (default = ``0.0``)
-        mode: Mode of the eigensolver (see documentation of `scipy.sparse.linalg.eigsh` for more info)
     """
-    def _prepare(self, sorting_func=lambda W, Q: np.argsort(W), hermitian=None, nmodes=None, sigma=None, mode='normal'):
+
+    def __init__(self, 
+                 sorting_func: Callable = (lambda W, Q: np.argsort(W)), 
+                 hermitian: bool = None, 
+                 nmodes: int = None, 
+                 sigma: complex = None, 
+                 mode: str = "normal"):
+        """Initialize the eigenvalue solver module
+
+        Args:
+            sorting_func (Callable, optional): Sorting function to sort the eigenvalues, which must have signature 
+              ``func(λ,Q)``. Defaults to (lambda W, Q: np.argsort(W)).
+            hermitian (bool, optional): Flag to omit the automatic detection for Hermitian matrix, saves some work for 
+              large matrices
+            nmodes (int, optional): Number of modes to calculate (only for sparse matrices)
+            sigma (complex, optional): Shift value for the shift-and-invert eigenvalue problem (only for sparse 
+              matrices). Eigenvalues around the shift are calculated first. Defaults to None.
+            mode (str, optional): Mode of the eigensolver (see documentation of `scipy.sparse.linalg.eigsh` for more 
+              info). Defaults to "normal".
+        """
         self.sorting_fn = sorting_func
         self.is_hermitian = hermitian
         self.nmodes = nmodes
@@ -344,11 +401,12 @@ class EigenSolve(Module):
         self.Ainv = None
         self.do_solve = False
         self.adjoint_solvers_need_update = True
+        self.dense_solver = None
 
-    def _response(self, A, *args):
+    def __call__(self, A, *args):
         B = args[0] if len(args) > 0 else None
         if self.is_hermitian is None:
-            self.is_hermitian = (matrix_is_hermitian(A) and (B is None or matrix_is_hermitian(B)))
+            self.is_hermitian = matrix_is_hermitian(A) and (B is None or matrix_is_hermitian(B))
         self.is_sparse = matrix_is_sparse(A) and (B is None or matrix_is_sparse(B))
         self.adjoint_solvers_need_update = True
 
@@ -356,7 +414,16 @@ class EigenSolve(Module):
         if self.is_sparse:
             W, Q = self._sparse_eigs(A, B=B)
         else:
-            W, Q = spla.eigh(A, b=B) if self.is_hermitian else spla.eig(A, b=B)
+            if self.dense_solver is None:
+                self.dense_solver = spla.eigh if self.is_hermitian else spla.eig
+            try:
+                W, Q = self.dense_solver(A, b=B)
+            except np.linalg.LinAlgError:  # eigh fails for non-positive definite B
+                if not self.dense_solver == spla.eigh:
+                    raise
+                W, Q = spla.eig(A, b=B)
+                self.dense_solver = spla.eig
+                print("Failed before and switched to eig -- succesfully")
 
         # Sort the eigenvalues
         isort = self.sorting_fn(W, Q)
@@ -367,8 +434,9 @@ class EigenSolve(Module):
         # 1) Flip sign such that the average (real) value is positive
         # 2) Normalize the eigenvector v⋅v or v⋅Bv to unity
         for i in range(W.size):
-            qi, wi = Q[:, i], W[i]
-            Bqi = qi if B is None else B@qi
+            # wi = W[i]
+            qi = Q[:, i]
+            Bqi = qi if B is None else B @ qi
 
             normval = np.sqrt(qi @ Bqi)
             sgn = 1 if np.real(np.average(qi)) >= 0 else -1
@@ -419,18 +487,19 @@ class EigenSolve(Module):
         if self.do_solve:
             self.Ainv.update(mat_shifted)
 
-        AinvOp = spsla.LinearOperator(mat_shifted.shape, matvec=self.Ainv.solve,
-                                      rmatvec=lambda b: self.Ainv.solve(b, trans='H'))
+        AinvOp = spsla.LinearOperator(
+            mat_shifted.shape, matvec=self.Ainv.solve, rmatvec=lambda b: self.Ainv.solve(b, trans="H")
+        )
 
         if self.is_hermitian:
             return spsla.eigsh(A, M=B, k=self.nmodes, OPinv=AinvOp, sigma=self.sigma, mode=self.mode)
         else:
-            if self.mode.lower() not in ['normal']:
-                raise NotImplementedError('Only `normal` mode can be selected for non-hermitian matrix')
+            if self.mode.lower() not in ["normal"]:
+                raise NotImplementedError("Only `normal` mode can be selected for non-hermitian matrix")
             return spsla.eigs(A, M=B, k=self.nmodes, OPinv=AinvOp, sigma=self.sigma)
 
     def _dense_sens(self, A, B, dW, dQ):
-        """ Calculates all (eigenvector and eigenvalue) sensitivities for dense matrix """
+        """Calculates all (eigenvector and eigenvalue) sensitivities for dense matrix"""
         dA = np.zeros_like(A)
         dB = np.zeros_like(B) if len(self.sig_in) > 1 else None
         W, Q = [s.state for s in self.sig_out]
@@ -466,20 +535,20 @@ class EigenSolve(Module):
             if dwi == 0:
                 continue
             qi = Q[:, i]
-            qmq = qi@qi if B is None else qi @ (B @ qi)
-            dA_u = (dwi/qmq) * qi
+            qmq = qi @ qi if B is None else qi @ (B @ qi)
+            dA_u = (dwi / qmq) * qi
             dAi = DyadCarrier(dA_u, qi)
             dA += np.real(dAi) if np.isrealobj(A) else dAi
 
             if dB is not None:
-                dB_u = (wi*dwi/qmq) * qi
+                dB_u = (wi * dwi / qmq) * qi
                 dBi = DyadCarrier(dB_u, qi)
                 dB -= np.real(dBi) if np.isrealobj(B) else dBi
 
         return dA, dB
 
     def _sparse_eigvec_sens(self, A, B, dW, dQ):
-        """ Calculate eigenvector sensitivities for a sparse eigenvalue problem
+        """Calculate eigenvector sensitivities for a sparse eigenvalue problem
         References:
              Delissen (2022), Topology optimization for dynamic and controlled systems,
                doi: https://doi.org/10.4233/uuid:c9ed8f61-efe1-4dc8-bb56-e353546cf247
@@ -508,27 +577,27 @@ class EigenSolve(Module):
                 continue
             lam = W[i]
 
-            alpha = - phi @ dphi
+            alpha = -phi @ dphi
             r = dphi + alpha * B.T @ phi
 
             # Solve particular solution
             if self.adjoint_solvers_need_update or self.solvers[i] is None:
                 Z = A - lam * B
-                if not hasattr(self, 'solvers'):
+                if not hasattr(self, "solvers"):
                     self.solvers = [None for _ in range(W.size)]
                 if self.solvers[i] is None:  # Solver must be able to solve indefinite system
                     self.solvers[i] = auto_determine_solver(Z, ispositivedefinite=False)
                 if self.adjoint_solvers_need_update:
                     self.solvers[i].update(Z)
 
-            vp = self.solvers[i].solve(r, trans='T')
+            vp = self.solvers[i].solve(r, trans="T")
 
             # Calculate total ajoint by adding homogeneous solution
-            c = - vp @ B @ phi
+            c = -vp @ B @ phi
             v = vp + c * phi
 
             # Add to mass and stiffness matrix
-            dAi = - DyadCarrier(v, phi)
+            dAi = -DyadCarrier(v, phi)
             dA += np.real(dAi) if np.isrealobj(A) else dAi
             if B is not None:
                 dBi = DyadCarrier(alpha / 2 * phi + lam * v, phi)

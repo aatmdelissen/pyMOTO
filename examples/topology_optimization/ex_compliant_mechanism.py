@@ -1,17 +1,23 @@
-"""
-Example of the design of a compliant mechanism using topology optimization with:
-(i) maximum output displacement due to input load
-(ii) constrained minimum input and output stiffness
+"""Compliant mechanism
+======================
 
-Implemented by @artofscience (s.koppen@tudelft.nl) based on:
+Example of the design of a compliant mechanism using topology optimization
 
-Koppen, S. (2022).
-Topology optimization of compliant mechanisms with multiple degrees of freedom.
-DOI: http://dx.doi.org/10.4233/uuid:21994a92-e365-4679-b6ac-11a2b70572b7
+It considers the following conditions:
+
+1. maximum output displacement due to input load
+2. constrained minimum input and output stiffness
+
+In this example of compliant mechanism design, no springs are required on input and output nodes. Also convergence is 
+improved compared to :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliant_mechanism_springs.py`. 
+
+References:
+  Koppen, S. (2022).
+  Topology optimization of compliant mechanisms with multiple degrees of freedom.
+  PhD thesis, Delft University of Technology.
+  DOI: http://dx.doi.org/10.4233/uuid:21994a92-e365-4679-b6ac-11a2b70572b7
 """
 import numpy as np
-
-# flake8: noqa
 import pymoto as pym
 
 # Problem settings
@@ -19,14 +25,11 @@ nx, ny = 60, 60  # Domain size
 xmin, filter_radius, volfrac = 1e-6, 2, 0.3  # Density settings
 nu, E = 0.3, 100  # Material properties
 
-scaling_objective = 10.0
-
-input_compliance = 10
-output_compliance = 10
-scaling_compliance_constraint = 10.0
+# Values on max compliance on input and output for constraints
+max_input_compliance = 10.0
+max_output_compliance = 10.0
 
 use_volume_constraint = False
-scaling_volume_constraint = 10.0
 
 if __name__ == "__main__":
     # Set up the domain
@@ -36,76 +39,72 @@ if __name__ == "__main__":
     nodes_left = domain.get_nodenumber(0, np.arange(ny + 1))
     nodes_right = domain.get_nodenumber(nx, np.arange(ny + 1))
 
-    dofs_left = np.repeat(nodes_left * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-    dofs_right = np.repeat(nodes_right * 2, 2, axis=-1) + np.tile(np.arange(2), ny + 1)
-    dofs_left_x = dofs_left[0::2]
-    dofs_left_y = dofs_left[1::2]
-    dof_input = dofs_left_y[0]  # Input dofs for mechanism
-    dof_output = dofs_left_y[-1]  # Output dofs for mechanism
+    dofs_right = domain.get_dofnumber(nodes_right, [0, 1], ndof=2).flatten()
+    dofs_left_x = 2*nodes_left
+    dof_input = 2*nodes_left[0] + 1  # Input dof for mechanism
+    dof_output = 2*nodes_left[-1] + 1  # Output dof for mechanism
 
-    prescribed_dofs = np.union1d(dofs_left_x, dofs_right)
+    fixed_dofs = np.union1d(dofs_left_x, dofs_right)
 
-    # Setup rhs for two loadcases
+    # Setup rhs for two loadcases 
     f = np.zeros((domain.nnodes * 2, 2), dtype=float)
     f[dof_output, 0] = 1.0
     f[dof_input, 1] = 1.0
 
-    # Initial design
-    signal_variables = pym.Signal('x', state=volfrac * np.ones(domain.nel))
+    # Signal with design variables
+    s_x = pym.Signal('x', state=volfrac * np.ones(domain.nel))
 
     # Setup optimization problem
-    network = pym.Network()
+    with pym.Network() as fn:
+        # Density filtering
+        s_xfilt = pym.DensityFilter(domain, radius=filter_radius)(s_x)
+        s_xfilt.tag = 'Filtered density'
 
-    # Filtering
-    signal_filtered_variables = network.append(pym.DensityFilter(signal_variables, domain=domain, radius=filter_radius))
+        # Plot the design
+        pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
-    # Penalization
-    signal_penalized_variables = network.append(
-        pym.MathGeneral(signal_filtered_variables, expression=f"{xmin} + {1 - xmin}*inp0^3"))
+        # SIMP penalization
+        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
-    # Assembly
-    signal_stiffness = network.append(
-        pym.AssembleStiffness(signal_penalized_variables, domain=domain, e_modulus=E, poisson_ratio=nu,
-                              bc=prescribed_dofs))
+        # Assembly of stiffness matrix
+        s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu, bc=fixed_dofs)(s_xsimp)
 
-    # Solve
-    signal_force = pym.Signal('f', state=f)
-    signal_displacements = network.append(pym.LinSolve([signal_stiffness, signal_force]))
+        # Solve for the displacements
+        s_u = pym.LinSolve()(s_K, f)
 
-    # Output displacement
-    signal_output_displacement = network.append(
-        pym.EinSum([signal_displacements[:, 1], signal_force[:, 0]], expression='i,i->'))
+        # Output displacement due to force on input
+        s_uout = pym.EinSum('i,i->')(s_u[:, 1], f[:, 0])
 
-    # Objective
-    signal_objective = network.append(pym.Scaling([signal_output_displacement], scaling=scaling_objective))
-    signal_objective.tag = "Objective"
+        # Objective is the displacement at the output
+        s_gobj = pym.Scaling(scaling=10.0)(s_uout)
+        s_gobj.tag = "Objective"
 
-    # Compliances
-    signal_compliance = network.append(pym.EinSum([signal_displacements, signal_force], expression='ij,ij->j'))
+        # Input and output compliances
+        s_compl = pym.EinSum('ij,ij->j')(s_u, f)
 
-    # Compliance constraint input and output
-    signal_compliance_constraint_output = network.append(
-        pym.Scaling(signal_compliance[0], scaling=10.0, maxval=output_compliance))
-    signal_compliance_constraint_input = network.append(
-        pym.Scaling(signal_compliance[1], scaling=10.0, maxval=input_compliance))
-    signal_compliance_constraint_output.tag = "Output compliance constraint"
-    signal_compliance_constraint_input.tag = "Input compliance constraint"
+        # Compliance constraint on input and output
+        s_gcompl_out = pym.Scaling(scaling=10.0, maxval=max_output_compliance)(s_compl[0])
+        s_gcompl_in = pym.Scaling(scaling=10.0, maxval=max_input_compliance)(s_compl[1])
+        s_gcompl_out.tag = "Output compliance constraint"
+        s_gcompl_in.tag = "Input compliance constraint"
+    
+        # List of optimization responses: first the objective and all others the constraints
+        optimization_responses = [s_gobj, s_gcompl_out, s_gcompl_in]
+        
+        # Add volume constraint if requested
+        if use_volume_constraint:
+            # Volume
+            s_vol = pym.EinSum('i->')(s_xfilt)
+            s_vol.tag = "Volume"
 
-    # Volume
-    signal_volume = network.append(pym.EinSum(signal_filtered_variables, expression='i->'))
-    signal_volume.tag = "volume"
+            # Volume constraint
+            s_gvol = pym.Scaling(scaling=10.0, maxval=volfrac * domain.nel)(s_vol)
+            s_gvol.tag = "Volume constraint"
 
-    # Volume constraint
-    signal_volume_constraint = network.append(pym.Scaling(signal_volume, scaling=10.0, maxval=volfrac * domain.nel))
-    signal_volume_constraint.tag = "Volume constraint"
+            optimization_responses.append(s_gvol)
 
-    # Plotting
-    module_plotdomain = pym.PlotDomain(signal_filtered_variables, domain=domain, saveto="out/design")
-    responses = [signal_objective, signal_compliance_constraint_output, signal_compliance_constraint_input]
-    if use_volume_constraint:
-        responses.append(signal_volume_constraint)
-    module_plotiter = pym.PlotIter(responses)
-    network.append(module_plotdomain, module_plotiter)
+    # Plot iteration history
+    pym.PlotIter()(*optimization_responses)
 
     # Optimization
-    pym.minimize_mma(network, [signal_variables], responses, verbosity=2)
+    pym.minimize_mma(s_x, optimization_responses, verbosity=2)

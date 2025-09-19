@@ -3,7 +3,7 @@ import numpy as np
 
 
 class Scaling(Module):
-    r""" Scales (scalar) input for different response functions in optimization (objective / constraints).
+    r"""Scales (scalar) input for different response functions in optimization (objective / constraints).
     This is useful, for instance, for MMA where the objective must be scaled in a certain way for good convergence.
 
     Objective scaling using absolute value or vector norm (`minval` and `maxval` are both undefined):
@@ -22,13 +22,16 @@ class Scaling(Module):
 
     Output Signal:
         - ``y``: Scaled variable :math:`y`
-
-    Keyword Args:
-        scaling: Value :math:`s` to scale with
-        minval: Minimum value :math:`x_\text{min}` for negative-null-form constraint
-        maxval: Maximum value :math:`x_\text{max}` for negative-null-form constraint
     """
-    def _prepare(self, scaling: float = 100.0, minval: float = None, maxval: float = None):
+
+    def __init__(self, scaling: float = 100.0, minval: float = None, maxval: float = None):
+        """Initialize the scaling module
+
+        Args:
+            scaling (float, optional): Value :math:`s` to scale with. Defaults to 100.0.
+            minval (float, optional): Minimum value :math:`x_\text{min}` for negative-null-form constraint
+            maxval (float, optional): Maximum value :math:`x_\text{max}` for negative-null-form constraint
+        """
         self.minval = minval
         self.maxval = maxval
         self.scaling = scaling
@@ -38,13 +41,13 @@ class Scaling(Module):
         if self.minval is not None or self.maxval is not None:
             self.sf = self.scaling
 
-    def _response(self, x):
-        if not hasattr(self, 'sf'):
-            self.sf = self.scaling/np.linalg.norm(x)
+    def __call__(self, x):
+        if not hasattr(self, "sf"):
+            self.sf = self.scaling / np.linalg.norm(x)
         if self.minval is not None:
-            g = 1 - x/self.minval
+            g = 1 - x / self.minval
         elif self.maxval is not None:
-            g = x/self.maxval - 1
+            g = x / self.maxval - 1
         else:
             g = x
         return g * self.sf
@@ -52,9 +55,8 @@ class Scaling(Module):
     def _sensitivity(self, dy):
         dg = dy * self.sf
         if self.minval is not None:
-            return - dg / self.minval
+            return -dg / self.minval
         elif self.maxval is not None:
             return dg / self.maxval
         else:
             return dg
-

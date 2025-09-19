@@ -1,15 +1,29 @@
 import warnings
+import numpy as np
 import scipy.sparse as sps
 from inspect import currentframe, getframeinfo
 
-from .dense import *
-from .sparse import *
-from .matrix_checks import *
+from .dense import SolverDenseQR, SolverDenseCholesky, SolverDenseLDL, SolverDenseLU, SolverDiagonal
+from .sparse import SolverSparseLU, SolverSparseCholeskyScikit, SolverSparseCholeskyCVXOPT, SolverSparsePardiso
+from .matrix_checks import (
+    matrix_is_diagonal,
+    matrix_is_sparse,
+    matrix_is_hermitian,
+    matrix_is_symmetric,
+    matrix_is_positive_definite,
+)
 
 
 # flake8: noqa: C901
-def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertriangular=None,
-                          ishermitian=None, issymmetric=None, ispositivedefinite=None):
+def auto_determine_solver(
+    A,
+    isdiagonal=None,
+    islowertriangular=None,
+    isuppertriangular=None,
+    ishermitian=None,
+    issymmetric=None,
+    ispositivedefinite=None,
+):
     """
     Uses parts of Matlab's scheme https://nl.mathworks.com/help/matlab/ref/mldivide.html
     :param A: The matrix
@@ -42,19 +56,31 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
     if islowertriangular is None:  # Check if matrix is lower triangular
         islowertriangular = False if issparse else np.allclose(A, np.tril(A))
     if islowertriangular:
-        warnings.WarningMessage("Lower triangular solver not implemented",
-                                UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
+        warnings.WarningMessage(
+            "Lower triangular solver not implemented",
+            UserWarning,
+            getframeinfo(currentframe()).filename,
+            getframeinfo(currentframe()).lineno,
+        )
 
     if isuppertriangular is None:  # Check if matrix is upper triangular
         isuppertriangular = False if issparse else np.allclose(A, np.triu(A))
     if isuppertriangular:
-        warnings.WarningMessage("Upper triangular solver not implemented",
-                                UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
+        warnings.WarningMessage(
+            "Upper triangular solver not implemented",
+            UserWarning,
+            getframeinfo(currentframe()).filename,
+            getframeinfo(currentframe()).lineno,
+        )
 
     ispermutedtriangular = False
     if ispermutedtriangular:
-        warnings.WarningMessage("Permuted triangular solver not implemented",
-                                UserWarning, getframeinfo(currentframe()).filename, getframeinfo(currentframe()).lineno)
+        warnings.WarningMessage(
+            "Permuted triangular solver not implemented",
+            UserWarning,
+            getframeinfo(currentframe()).filename,
+            getframeinfo(currentframe()).lineno,
+        )
 
     # Check if the matrix is complex-valued
     iscomplex = np.iscomplexobj(A)
@@ -76,28 +102,30 @@ def auto_determine_solver(A, isdiagonal=None, islowertriangular=None, isuppertri
         elif issymmetric is None:
             issymmetric = ishermitian
 
-    if issparse:
-        # Prefer Intel Pardiso solver as it can solve any matrix TODO: Check for complex matrix
-        if SolverSparsePardiso.defined and not iscomplex:
-            # TODO check for positive definiteness?  np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0)
-            return SolverSparsePardiso(symmetric=issymmetric, hermitian=ishermitian, positive_definite=ispositivedefinite)
+    # Check for positive-definiteness TODO: This test does not work yet
+    # if ispositivedefinite is None:
+    # ispositivedefinite = matrix_is_positive_definite(A)
 
-        if ishermitian:
-            # Check if diagonal is all positive or all negative -> Cholesky
-            if ispositivedefinite is None:
-                ispositivedefinite = np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0)
-            if ispositivedefinite:  # TODO what about the complex case?
-                if SolverSparseCholeskyScikit.defined:
-                    return SolverSparseCholeskyScikit()
-                if SolverSparseCholeskyCVXOPT.defined:
-                    return SolverSparseCholeskyCVXOPT()
+    if issparse:
+        # Prefer Intel Pardiso solver as it can solve any matrix
+        if SolverSparsePardiso.defined:
+            return SolverSparsePardiso(
+                symmetric=issymmetric, hermitian=ishermitian, positive_definite=ispositivedefinite
+            )
+
+        if ishermitian and ispositivedefinite:
+            if SolverSparseCholeskyScikit.defined:
+                return SolverSparseCholeskyScikit()
+            if SolverSparseCholeskyCVXOPT.defined:
+                return SolverSparseCholeskyCVXOPT()
 
         return SolverSparseLU()  # Default to LU, which should be possible for any non-singular square matrix
 
     else:  # Dense branch
         if ishermitian:
-            # Check if diagonal is all positive or all negative
-            if np.all(A.diagonal() > 0) or np.all(A.diagonal() < 0):
+            if ispositivedefinite is None:  # Only do this test for dense matrix since it is not very cheap
+                ispositivedefinite = matrix_is_positive_definite(A)
+            if ispositivedefinite:
                 return SolverDenseCholesky()
             else:
                 return SolverDenseLDL(hermitian=ishermitian)

@@ -12,8 +12,10 @@ pyMOTO Documentation
 
    self
    theory.md
-   howto.md
+   auto_examples/index
    modules
+.. howto.md
+.. examples
 
 .. include:: ../README.md
    :parser: myst_parser.sphinx_

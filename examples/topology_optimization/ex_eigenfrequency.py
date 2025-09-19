@@ -1,31 +1,48 @@
-""" Minimal example for an eigenfrequency topology optimization """
+"""Eigenfrequency maximization
+==============================
+
+Minimal example for an eigenfrequency topology optimization 
+
+This example contains some specific modules used in dynamic problems
+
+- :py:class:`pymoto.VecSet` To set a non-design domain which is a mass that needs to be supported in this case
+- :py:class:`pymoto.AssembleMass` For mass matrix assembly
+- :py:class:`pymoto.EigenSolve` Calculates the (generalized) eigenvalue problem yielding the eigenfrequencies and modes
+- :py:class:`pymoto.WriteToVTI` Used here to export the design and eigenmodes to a Paraview VTI file
+
+References:
+  Du, J., Olhoff, N. (2007)
+  Topological design of freely vibrating continuum structures for maximum values of simple and multiple eigenfrequencies
+  and frequency gaps. 
+  Structural and Multidisciplinary Optimization 34, 91-110 (2007). 
+  DOI: https://doi.org/10.1007/s00158-007-0101-y
+"""
 import numpy as np
-import csv
 import pymoto as pym
 
 nx, ny, nz = 50, 30, 0  # Set nz to zero for the 2D problem
 xmin = 1e-9
 filter_radius = 2.0
 volfrac = 0.5
-thermal = False  # Thermal only for 2D, not 3D yet. If this is False, static mechanical analysis will be done
+
 rho = 2700.0
 E = 68.9e+9
 
 
 class MassInterpolation(pym.Module):
-    """ Two-range material interpolation
+    """ Two-range material interpolation based on Du and Olhoff's paper
     For x >= threshold:
         y = rho * x^p1
     For x < threshold:
         y = rho * x^p0 / (t^(p0-p1))
     """
 
-    def _prepare(self, rhoval=1.0, threshold=0.1, p0=6.0, p1=1.0):
+    def __init__(self, rhoval=1.0, threshold=0.1, p0=6.0, p1=1.0):
         self.rhoval = rhoval
         self.threshold = threshold
         self.p0, self.p1 = p0, p1
 
-    def _response(self, x):
+    def __call__(self, x):
         xx = x ** self.p1
         xx[x < self.threshold] = x[x < self.threshold] ** self.p0 / (self.threshold ** (self.p0 - self.p1))
         return self.rhoval * xx
@@ -33,118 +50,96 @@ class MassInterpolation(pym.Module):
     def _sensitivity(self, drho):
         x = self.sig_in[0].state
         dx = self.p1 * x ** (self.p1 - 1)
-        dx[x < self.threshold] = self.p0 * x[x < self.threshold] ** (self.p0 - 1) / (
-                self.threshold ** (self.p0 - self.p1))
+        dx[x < self.threshold] = self.p0 * x[x < self.threshold]**(self.p0 - 1) / (self.threshold**(self.p0 - self.p1))
         return self.rhoval * dx * drho
-
-
-class VecSet(pym.Module):
-    def _prepare(self, indices, value):
-        self.indices = indices
-        self.value = value
-
-    def _response(self, x):
-        y = x.copy()
-        y[self.indices] = self.value
-        return y
-
-    def _sensitivity(self, dy):
-        dx = dy.copy()
-        dx[self.indices] = 0
-        return dx
 
 
 if __name__ == "__main__":
     print(__doc__)
 
     if nz == 0:  # 2D structural eigenfrequency analysis
-
         # Generate a grid
         domain = pym.DomainDefinition(nx, ny)
 
-        # Calculate boundary dof indices
-        boundary_nodes = domain.get_nodenumber(0, np.arange(ny + 1))
-        boundary_dofs = np.repeat(boundary_nodes * 2, 2, axis=-1) + np.tile(np.arange(2), len(boundary_nodes))
-
         # Generate a non-design area that has mass
-        nondesign_area = domain.get_elemnumber(*np.meshgrid(range((3 * nx) // 4, nx), range(ny // 4, (ny * 3) // 4)))
-        ndof = 2
-
+        nondesign_area = domain.elements[3*nx//4:, ny//4:ny*3//4].flatten()
     else:  # 3D
+        # Generate a grid
         domain = pym.DomainDefinition(nx, ny, nz)
 
-        boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(nz + 1))).flatten()
-        boundary_dofs = np.repeat(boundary_nodes * 3, 3, axis=-1) + np.tile(np.arange(3), len(boundary_nodes))
+        # Generate a non-design area that has mass
+        nondesign_area = domain.elements[3*nx//4:, ny//4:ny*3//4, nz//4:nz*3//4].flatten()
 
-        nondesign_area = domain.get_elemnumber(*np.meshgrid(range((3 * nx) // 4, nx), range(ny // 4, (ny * 3) // 4),
-                                                            range(nz // 4, (nz * 3) // 4))).flatten()
-        ndof = 3
+    # Calculate boundary dof indices
+    boundary_nodes = domain.nodes[0, ...]
+    boundary_dofs = domain.get_dofnumber(boundary_nodes, ndof=domain.dim)
 
+    # Safety, to prevent overloading the memory in your machine; no problem to remove this
     if domain.nnodes > 1e+6:
-        print("Too many nodes :(")  # Safety, to prevent overloading the memory in your machine
+        print("Too many nodes :(")  
         exit()
 
-    # Make force and design vector, and fill with initial values
+    # Make design vector, and fill with initial values
     sx = pym.Signal('x', state=np.ones(domain.nel) * volfrac)
 
     # Start building the modular network
-    func = pym.Network(print_timing=False)
+    with pym.Network() as fn:
+        # Density filter
+        sxfilt = pym.DensityFilter(domain, radius=filter_radius)(sx)
 
-    # Filter
-    sxfilt = func.append(pym.DensityFilter(sx, domain=domain, radius=filter_radius))
+        # Set the non-design domain
+        sxndd = pym.VecSet(indices=nondesign_area, value=1.0)(sxfilt)
 
-    # Set the non-design domain
-    sxndd = func.append(VecSet(sxfilt, indices=nondesign_area, value=1.0))
+        sx_analysis = sxndd  # Alias for the design to perform the analysis on
 
-    sx_analysis = sxndd
+        # Show the design on the screen as it optimizes
+        pym.PlotDomain(domain, saveto="out/design", clim=[0, 1])(sx_analysis)
 
-    # Show the design on the screen as it optimizes
-    func.append(pym.PlotDomain(sx_analysis, domain=domain, saveto="out/design", clim=[0, 1]))
+        # SIMP material interpolation
+        # Note: Material properties can either be set in the scaling variables (sSIMP and sDENS; as is done here), or in
+        # the assembly modules AssembleStiffness and AssembleMass by providing the relevant keyword arguments.
+        sSIMP = pym.MathGeneral(f"{E}*({xmin} + {1.0 - xmin}*inp0^3)")(sx_analysis)
+        sDENS = MassInterpolation(rhoval=rho)(sx_analysis)
 
-    # SIMP material interpolation
-    # Note: Material properties can either be set in the scaling variables (sSIMP and sDENS; as is done here), or in
-    # the assembly modules AssembleStiffness and AssembleMass by providing the relevant keyword arguments.
-    sSIMP = func.append(pym.MathGeneral(sx_analysis, expression=f"{E}*({xmin} + {1.0 - xmin}*inp0^3)"))
-    sDENS = func.append(MassInterpolation(sx_analysis, rhoval=rho))
+        # Assemble mass and stiffness matrix
+        sK = pym.AssembleStiffness(domain, bc=boundary_dofs)(sSIMP)
+        sM = pym.AssembleMass(domain, bc=boundary_dofs, ndof=domain.dim)(sDENS)
 
-    # System matrix assembly module
-    sK = func.append(pym.AssembleStiffness(sSIMP, domain=domain, bc=boundary_dofs))
-    sM = func.append(pym.AssembleMass(sDENS, domain=domain, bc=boundary_dofs, ndof=domain.dim))
+        # Eigenvalue solver
+        slams, seigvec = pym.EigenSolve(hermitian=True, nmodes=3)(sK, sM)
+        slams.tag = "eigenvalues"
+        seigvec.tag = "eigenvectors"
 
-    # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
-    slams, seigvec = func.append(pym.EigenSolve([sK, sM], hermitian=True, nmodes=3))
-    slams.tag = "eigenfrequency"
+        # Output the design and eigenmodes to a Paraview file
+        pym.WriteToVTI(domain, saveto='out/dat.vti')(sx_analysis, seigvec)
 
-    # Output the design, deformation, and force field to a Paraview file
-    func.append(pym.WriteToVTI([sx_analysis], domain=domain, saveto='out/dat.vti'))
+        # Get harmonic mean of three lowest eigenvalues
+        sharm = pym.MathGeneral('1/inp0 + 1/inp1 + 1/inp2')(slams[0], slams[1], slams[2])
+        sharm.tag = "harmonic mean"
 
-    # Get harmonic mean of three lowest eigenvalues
-    sharm = func.append(pym.MathGeneral([slams[0], slams[1], slams[2]], expression='1/inp0 + 1/inp1 + 1/inp2'))
-    sharm.tag = "harmonic mean"
+        # MMA needs correct scaling of the objective
+        sg0 = pym.Scaling(scaling=100.0)(sharm)
+        sg0.tag = "objective"
 
-    # MMA needs correct scaling of the objective
-    sg0 = func.append(pym.Scaling(sharm, scaling=100.0))
-    sg0.tag = "objective"
+        # Calculate the volume of the domain by adding all design densities together
+        svol = pym.EinSum('i->')(sx_analysis)
+        svol.tag = 'volume'
 
-    # Calculate the volume of the domain by adding all design densities together
-    svol = func.append(pym.EinSum(sx_analysis, expression='i->'))
-    svol.tag = 'volume'
+        # Volume constraint; note that also pym.Scaling(scaling=10.0, maxval=domain.nel*volfrac)(svol) could be used
+        sg1 = pym.MathGeneral(f'10*(inp0/{domain.nel} - {volfrac})')(svol)
+        sg1.tag = "volume constraint"
 
-    # Volume constraint
-    sg1 = func.append(pym.MathGeneral(svol, expression='10*(inp0/{} - {})'.format(domain.nel, volfrac)))
-    sg1.tag = "volume constraint"
+        # Maybe you want to check the design-sensitivities with finite difference?
+        do_finite_difference = False
+        if do_finite_difference:
+            pym.finite_difference(sx, [sg0, sg1], dx=1e-4)
+            exit()
 
-    # Maybe you want to check the design-sensitivities?
-    do_finite_difference = False
-    if do_finite_difference:
-        pym.finite_difference(func, sx, [sg0, sg1], dx=1e-4)
-        exit()
-
-    func.append(pym.PlotIter([sg0, sg1]))  # Plot iteration history
-    func.append(pym.ScalarToFile([sharm, slams, svol], saveto='out/log.csv'))
+        pym.PlotIter()(sg0, sg1)  # Plot iteration history
+        pym.ScalarToFile('out/log.csv')(sharm, slams, svol)
 
     # Do the optimization with MMA
-    pym.minimize_mma(func, [sx], [sg0, sg1], verbosity=2)
+    pym.minimize_mma(sx, [sg0, sg1], verbosity=2)
 
     # Here you can do some post processing
     print("The optimization has finished!")

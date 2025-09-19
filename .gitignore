@@ -4,6 +4,11 @@ dist/
 *.swp
 build/
 *_build/
+*_collections/
+jupyter_execute/
+stubs/
+auto_examples/
+.vscode/
 .idea/
 out/
 *.log

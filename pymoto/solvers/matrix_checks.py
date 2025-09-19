@@ -1,14 +1,16 @@
 import numpy as np
 import scipy.sparse as sps
+
 try:
     import cvxopt
+
     _has_cvxopt = True
 except ImportError:
     _has_cvxopt = False
 
 
 def is_cvxopt_spmatrix(A):
-    """ Checks if the argument is a cvxopt sparse matrix """
+    """Checks if the argument is a cvxopt sparse matrix"""
     return isinstance(A, cvxopt.spmatrix) if _has_cvxopt else False
 
 
@@ -17,15 +19,15 @@ def matrix_is_sparse(A):
 
 
 def matrix_is_complex(A):
-    """ Checks if the matrix is complex """
+    """Checks if the matrix is complex"""
     if is_cvxopt_spmatrix(A):
-        return A.typecode == 'z'
+        return A.typecode == "z"
     else:
         return np.iscomplexobj(A)
 
 
 def matrix_is_diagonal(A):
-    """ Checks if the matrix is diagonal"""
+    """Checks if the matrix is diagonal"""
     if matrix_is_sparse(A):
         if isinstance(A, sps.dia_matrix):
             return len(A.offsets) == 1 and A.offsets[0] == 0
@@ -38,23 +40,51 @@ def matrix_is_diagonal(A):
 
 
 def matrix_is_symmetric(A):
-    """ Checks whether a matrix is numerically symmetric """
+    """Checks whether a matrix is numerically symmetric"""
     if matrix_is_sparse(A):
-        return np.allclose((A-A.T).data, 0)
+        return np.allclose((A - A.T).data, 0)
     elif is_cvxopt_spmatrix(A):
-        return np.isclose(max(abs(A-A.T)), 0.0)
+        return np.isclose(max(abs(A - A.T)), 0.0)
     else:
         return np.allclose(A, A.T)
 
 
 def matrix_is_hermitian(A):
-    """ Checks whether a matrix is numerically Hermitian """
+    """Checks whether a matrix is numerically Hermitian"""
     if matrix_is_complex(A):
         if matrix_is_sparse(A):
-            return np.allclose((A-A.T.conj()).data, 0)
+            return np.allclose((A - A.T.conj()).data, 0)
         elif is_cvxopt_spmatrix(A):
-            return np.isclose(max(abs(A-A.ctrans())), 0.0)
+            return np.isclose(max(abs(A - A.ctrans())), 0.0)
         else:
             return np.allclose(A, A.T.conj())
     else:
         return matrix_is_symmetric(A)
+
+
+def matrix_is_positive_definite(A):
+    """Check if the matrix is positive definite.
+
+    Performs a couple of simple tests for positive definiteness:
+     - If any of the diagonal is negative or complex, the matrix is not positive definite
+     - If all Gershgorin circles are positive, the matrix is positive definite
+
+    Returns `None` in case these simple test are inconclusive
+    """
+    # The hermitian/symmetric part of the matrix determines positive definiteness
+    Aherm = (A + A.conj().T) / 2
+
+    # If any of the diagonal is negative or complex, the matrix is not positive definite
+    if Aherm.diagonal().real.min() < 0 or np.abs(np.angle(Aherm.diagonal())).max() > 1e-15:
+        return False
+
+    Adiag = np.diag(Aherm)
+
+    # https://math.stackexchange.com/questions/87528/a-practical-way-to-check-if-a-matrix-is-positive-definite
+    # Test with Gershgorin circle theorem
+    row_sum = np.sum(np.abs(Aherm), axis=1) - np.abs(Adiag)
+    if np.all(Adiag > row_sum):
+        return True
+
+    # Cannot determine positive-definiteness
+    return None

@@ -19,6 +19,7 @@ Mathematical Modules
 
    pymoto.EinSum
    pymoto.MathGeneral
+   pymoto.AutoMod
    pymoto.Inverse
    pymoto.LinSolve
    pymoto.SystemOfEquations
@@ -26,6 +27,8 @@ Mathematical Modules
    pymoto.EigenSolve
    pymoto.Scaling
    pymoto.ConcatSignal
+   pymoto.VecSet
+   pymoto.AddMatrix
 
 Constraint Aggregation
 ------------------------------
@@ -95,9 +98,11 @@ Complex-value Modules
    :nosignatures:
 
    pymoto.MakeComplex
+   pymoto.SplitComplex
    pymoto.RealPart
    pymoto.ImagPart
    pymoto.ComplexNorm
+   pymoto.Conjugate
 
 Common Utilities and Routines
 -----------------------------
@@ -146,4 +151,5 @@ Iterative solvers
 .. autosummary::
    :toctree: stubs
    :nosignatures:
+   
    pymoto.solvers.CG

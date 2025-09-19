@@ -1,10 +1,10 @@
-import unittest
+import pytest
 import numpy as np
 import pymoto as pym
 import numpy.testing as npt
 
 
-class TestThermoMechanical(unittest.TestCase):
+class TestThermoMechanical:
     def test_elemental_average_1dof(self):
         N = 10
         Lx, Ly, Lz = 1, 1, 1
@@ -12,9 +12,7 @@ class TestThermoMechanical(unittest.TestCase):
         domain = pym.DomainDefinition(N, 1, unitx=lx, unity=ly, unitz=lz)
 
         T = pym.Signal("T", state=np.arange(domain.nnodes))
-        m_avg = pym.ElementAverage(T, domain=domain)
-        T_av = m_avg.sig_out[0]
-        m_avg.response()
+        T_av = pym.ElementAverage(domain)(T)
 
         start = 1.5 + 0.5*(N-1)
         T_avchk = np.arange(start, start+N)
@@ -25,9 +23,7 @@ class TestThermoMechanical(unittest.TestCase):
         domain = pym.DomainDefinition(10, 3)
 
         T = pym.Signal("T", state=np.arange(2*domain.nnodes))
-        m_avg = pym.ElementAverage(T, domain=domain)
-        T_av = m_avg.sig_out[0]
-        m_avg.response()
+        T_av = pym.ElementAverage(domain)(T)
 
         T_avchk1 = np.average(np.arange(2 * domain.nnodes)[domain.get_dofconnectivity(2)[:, ::2]], axis=-1)
         T_avchk2 = np.average(np.arange(2 * domain.nnodes)[domain.get_dofconnectivity(2)[:, 1::2]], axis=-1)
@@ -39,9 +35,7 @@ class TestThermoMechanical(unittest.TestCase):
         domain = pym.DomainDefinition(10, 11)
 
         T = pym.Signal("T", state=np.arange(3*domain.nnodes))
-        m_avg = pym.ElementAverage(T, domain=domain)
-        T_av = m_avg.sig_out[0]
-        m_avg.response()
+        T_av = pym.ElementAverage(domain)(T)
 
         T_avchk1 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, ::3]], axis=-1)
         T_avchk2 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, 1::3]], axis=-1)
@@ -55,9 +49,7 @@ class TestThermoMechanical(unittest.TestCase):
         domain = pym.DomainDefinition(10, 11, 12)
 
         T = pym.Signal("T", state=np.arange(domain.nnodes))
-        m_avg = pym.ElementAverage(T, domain=domain)
-        T_av = m_avg.sig_out[0]
-        m_avg.response()
+        T_av = pym.ElementAverage(domain)(T)
 
         T_avchk = np.average(np.arange(domain.nnodes)[domain.get_dofconnectivity(1)], axis=-1)
         npt.assert_allclose(T_avchk, T_av.state)
@@ -66,9 +58,7 @@ class TestThermoMechanical(unittest.TestCase):
         domain = pym.DomainDefinition(10, 11, 12)
 
         T = pym.Signal("T", state=np.arange(3*domain.nnodes))
-        m_avg = pym.ElementAverage(T, domain=domain)
-        T_av = m_avg.sig_out[0]
-        m_avg.response()
+        T_av = pym.ElementAverage(domain)(T)
 
         T_avchk1 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, ::3]], axis=-1)
         T_avchk2 = np.average(np.arange(3 * domain.nnodes)[domain.get_dofconnectivity(3)[:, 1::3]], axis=-1)
@@ -97,14 +87,10 @@ class TestThermoMechanical(unittest.TestCase):
         s_x = pym.Signal('x', state=np.ones(domain.nel))
 
         # Assemble stiffness matrix
-        m_K = pym.AssembleStiffness(s_x, domain=domain, bc=dofidx_mid, e_modulus=E, poisson_ratio=nu, plane='strain')
-        s_K = m_K.sig_out[0]
-        m_K.response()
+        s_K = pym.AssembleStiffness(domain=domain, bc=dofidx_mid, e_modulus=E, poisson_ratio=nu, plane='strain')(s_x)
 
         # Determine equivalent thermal load assuming 1 degree temperature increase
-        m_Fth = pym.ThermoMechanical(s_x, domain=domain, e_modulus=E, poisson_ratio=nu, alpha=alpha, plane='strain')
-        s_Fth = m_Fth.sig_out[0]
-        m_Fth.response()
+        s_Fth = pym.ThermoMechanical(domain=domain, e_modulus=E, poisson_ratio=nu, alpha=alpha, plane='strain')(s_x)
 
         u = np.linalg.solve(s_K.state.toarray(), s_Fth.state)
 
@@ -119,3 +105,7 @@ class TestThermoMechanical(unittest.TestCase):
 
         # Left x displacement should be -alpha*Lx/2
         npt.assert_allclose(u[2*nodidx_left], -alpha * Lx / 2, atol=1e-10)
+
+
+if __name__ == '__main__':
+    pytest.main([__file__])
