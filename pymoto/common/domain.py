@@ -192,13 +192,13 @@ class DomainDefinition:
         """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
-    def get_dofnumber(self, nod_idx: IndexType, dof_idx: IndexType = None, ndof: int = 2):
+    def get_dofnumber(self, nod_idx: IndexType, dof_idx: IndexType = None, ndof: int = 1):
         """Gets the degree of freedom number(s) for node(s) with given node index(es)
 
         Args:
             nod_idx : Node index; can be integer or array
             dof_idx : Dof indes; can be integer or array, if None it will be set to all dofs
-            ndof : Number of degrees of freedom per node
+            ndof (int, optional) : Number of degrees of freedom per node (default is 1)
 
         Returns:
             The dof number(s) corresponding to selected node index(es)
