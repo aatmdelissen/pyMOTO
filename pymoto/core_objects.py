@@ -350,6 +350,21 @@ def _is_valid_module(mod: Any):
     return False
 
 
+def _get_sig_tag(sig: Any) -> str:
+    """Get the tag of a signal, or generate a tag for non-signal
+
+    Args:
+        sig (Any): Signal nor non-signal
+
+    Returns:
+        str: Signal tag
+    """
+    if hasattr(sig, 'tag'):
+        return str(sig.tag)
+    else:
+        return str(type(sig).__name__)
+    
+
 # Type definition for bound method
 class BoundMethod:
     __self__: "Module"
@@ -551,7 +566,7 @@ class Module(ABC):
                 "Inputs: " + "Unconnected"
                 if self.sig_in is None
                 else (
-                    ", ".join([s.tag if _is_valid_signal(s) else type(s) for s in self.sig_in])
+                    ", ".join([_get_sig_tag(s) for s in self.sig_in])
                     if self.n_in > 0
                     else "No inputs"
                 )
@@ -560,7 +575,7 @@ class Module(ABC):
                 "Outputs: " + "Unconnected"
                 if self.sig_out is None
                 else (
-                    ", ".join([s.tag if _is_valid_signal(s) else type(s) for s in self.sig_out])
+                    ", ".join([_get_sig_tag(s) for s in self.sig_out])
                     if self.n_out > 0
                     else "No outputs"
                 )
@@ -677,11 +692,11 @@ class Module(ABC):
         if self.sig_in is None:
             inputs = "Unconnected"
         else:
-            inputs = ", ".join([s.tag if _is_valid_signal(s) else type(s).__name__ for s in self.sig_in])
+            inputs = ", ".join([_get_sig_tag(s) for s in self.sig_in])
         if self.sig_out is None:
             outputs = "Unconnected"
         else:
-            outputs = ", ".join([s.tag if _is_valid_signal(s) else type(s).__name__ for s in self.sig_out])
+            outputs = ", ".join([_get_sig_tag(s) for s in self.sig_out])
         return f"Module {type(self).__name__} ({inputs}) -> ({outputs}) at {hex(id(self))}"
 
     # METHODS TO BE DEFINED BY USER
