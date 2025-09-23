@@ -21,6 +21,8 @@ Already many ingredients and variations of topology optimization are implemented
 - Multigrid preconditioning with conjugate-gradient solver
 - [And more... ](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html)
 
+![Mechanical optimization](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExcXMwMnl4Z3lzODF1bGp0ejY0M3lvYnNsY2FxOTVtc3ZxdGF6dWpvNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/WB1xOQOQvT5zUqRlq5/giphy.gif)
+
 In pyMOTO a topology optimization problem is broken down in small components (called *Modules*), such as density filter, finite-element assembly, linear solve, linear algebra, etc. Next to behaving like a function would (*e.g.* filtering the density field), a `Module` also implements design sensitivities (*i.e.* derivatives or gradients with respect to the inputs of that `Module`) of that operation. These are required for efficiently solving the topology optimization problem, but are usually very cumbersome to implement on the *whole* optimization problem. With `pyMOTO` however, the partial sensitivities are already implemented in each `Module`. When modules are linked together in `pyMOTO`, the chain rule is used to calculate the total sensitivities of the optimization problem (backpropagation). In essence it is a semi-automatic way of calculating design sensitivities.
 
 Due to the modularity of the framework, existing modules can be reused without having to worry about sensitivity correctness. This allows for great flexibility in rearranging the modules, enabling a whole range of topology optimization problems with a limited set of modules. If any functionality is not supported in a `Module` within the standard `pyMOTO` library, custom modules can easily be created.
