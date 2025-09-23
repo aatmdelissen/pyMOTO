@@ -192,19 +192,21 @@ class DomainDefinition:
         """
         return (nodk * (self.nely + 1) + nodj) * (self.nelx + 1) + nodi
 
-    def get_dofnumber(self, nod_idx: IndexType, dof_idx: IndexType = None, ndof: int = 1):
-        """Gets the degree of freedom number(s) for node(s) with given node index(es)
+    def get_dofnumber(self, nod_idx: IndexType, dof_idx: IndexType = None, ndof: int = None):
+        """Gets the degree of freedom number(s) for node(s) with given node number(s)
 
         Args:
-            nod_idx : Node index; can be integer or array
-            dof_idx : Dof indes; can be integer or array, if None it will be set to all dofs
-            ndof (int, optional) : Number of degrees of freedom per node (default is 1)
+            nod_idx : Node number; can be integer or array
+            dof_idx (optional) : Dof index to request (e.g. `0` for x, `[0, 1]` for x and y) (default is all dofs)
+            ndof (optional) : Number of degrees of freedom per node (default is `domain.dim`)
 
         Returns:
             The dof number(s) corresponding to selected node index(es)
         """
         if not isinstance(nod_idx, int):
             nod_idx = np.asarray(nod_idx)
+        if ndof is None:
+            ndof = self.dim
         if dof_idx is None:
             dof_idx = np.arange(ndof)
         if not isinstance(dof_idx, int):
