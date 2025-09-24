@@ -96,7 +96,7 @@ if __name__ == "__main__":
             if domain.dim < 3:
                 zrange = np.array([0])
             else:
-                m_filt.pad_sizes[2] + np.arange(domain.nelz//3, domain.nelz - domain.nelz//3)
+                zrange = m_filt.pad_sizes[2] + np.arange(domain.nelz//3, domain.nelz - domain.nelz//3)
             ex, ey, ez = np.meshgrid(xrange, yrange, zrange)
             m_filt.override_padded_values((ex, ey, ez), 1.0)
             ''' Everything from here is the same as in ex_compliance_robust.py '''
