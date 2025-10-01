@@ -391,7 +391,7 @@ class SolverSparsePardiso(LinearSolver):
             c_data_p = ctypes.POINTER(ctypes.c_float)
         else:
             c_data_p = ctypes.POINTER(ctypes.c_double)
-        if not all([m.flags['C_CONTIGUOUS'] for m in [A.data, A.indptr, A.indices, b, x, self._iparm]]):
+        if not all([m.flags['C_CONTIGUOUS'] for m in [A.data, A.indptr, A.indices, b, x, self._iparm.data]]):
             raise ValueError("Data must be contigouous in memory!")
                     
         self._mkl_pardiso(
