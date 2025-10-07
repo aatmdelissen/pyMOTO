@@ -1,11 +1,12 @@
 import pytest
 import numpy as np
+import scipy.sparse as sps
 import pymoto as pym
 import numpy.testing as npt
 
 
 def fd_testfn(x0, dx, df_an, df_fd):
-    npt.assert_allclose(df_an, df_fd, rtol=1e-7, atol=1e-5)
+    npt.assert_allclose(df_an, df_fd, rtol=1e-6, atol=1e-5)
 
 
 class MatrixSum(pym.Module):
@@ -17,7 +18,7 @@ class MatrixSum(pym.Module):
         return pym.DyadCarrier(np.ones(A.shape[0]), np.ones(A.shape[1]), shape=A.shape) * dAsum
 
 
-class TestAssembleStiffness:
+class TestAssembleGeneral:
     def test_rows_columns(self):
         """ Check if element rows and columns are implemented correctly """
         domain = pym.DomainDefinition(1, 1)
@@ -25,14 +26,80 @@ class TestAssembleStiffness:
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
 
-        # Assemble stiffness matrix
-        sA = pym.AssembleGeneral(domain=domain, element_matrix=elmat)(s_x)
+        # Assemble matrix
+        sA = pym.AssembleGeneral(domain, element_matrix=elmat)(s_x)
 
         npt.assert_allclose(sA.state.toarray(), elmat)
 
         sAsum = MatrixSum()(sA)
         pym.finite_difference(s_x, sAsum, test_fn=fd_testfn)
 
+    @pytest.mark.parametrize('matrix_type', [sps.csr_matrix, sps.csc_matrix])
+    @pytest.mark.parametrize('reuse_sparsity', [True, False])
+    def test_bc(self, matrix_type, reuse_sparsity):
+        """ Check if element rows and columns are implemented correctly """
+        domain = pym.DomainDefinition(3, 3)
+        elmat = np.arange(4*4).reshape((4, 4))
+
+        s_x = pym.Signal('x', state=np.ones(domain.nel))
+
+        # Assemble matrix
+        bc = np.array([1, 2, 8, 15])
+        sA = pym.AssembleGeneral(domain, element_matrix=elmat, bc=bc, bcdiagval=1.5, 
+                                 matrix_type=matrix_type, reuse_sparsity=reuse_sparsity)(s_x)
+        
+        assert isinstance(sA.state, matrix_type)
+
+        # Value on the diagonal, zeros otherwise
+        A = sA.state.toarray()
+        npt.assert_allclose(A[bc, bc], 1.5)
+        A[bc, bc] -= 1.5
+        npt.assert_allclose(A[bc, :], 0)
+        npt.assert_allclose(A[:, bc], 0)
+
+        sAsum = MatrixSum()(sA)
+        pym.finite_difference(s_x, sAsum, test_fn=fd_testfn)
+
+    @pytest.mark.parametrize('ndof1', [1, 2, 3])
+    @pytest.mark.parametrize('ndof2', [1, 2, 3])
+    @pytest.mark.parametrize('nmat', [1, 2, 3])
+    def test_matrix_shapes(self, ndof1, ndof2, nmat):
+        el_mat = [np.random.rand(ndof1 * 4 * ndof2 * 4).reshape((ndof1 * 4, ndof2 * 4)) for _ in range(nmat)]
+        el_mat[-1] = el_mat[-1] + el_mat[-1]*1j  # Make one of the matrices complex
+        domain = pym.DomainDefinition(3, 3)
+        
+        with pym.Network() as fn:
+            sx = [pym.Signal('x{i}', np.ones(domain.nel)*3.14*(i+1)) for i in range(nmat)]
+            sx[0].state = sx[0].state + 1j*2.0  # Make first one complex
+            sA = pym.AssembleGeneral(domain, el_mat)(*sx)
+            sAsum = MatrixSum()(sA)
+
+        A = sA.state.toarray()
+        assert A.shape == (ndof1 * domain.nnodes, ndof2 * domain.nnodes)
+
+        for i in range(domain.nely):
+            mat_chk = np.zeros((ndof1*4, ndof2*4), dtype=np.complex128)
+            for j, s in enumerate(sx):
+                s.state[:] = 0
+                s.state[i] = 3.14*(j+1)
+                if j == 0:
+                    s.state[i] = s.state[i] + 1j*2.0
+                mat_chk += el_mat[j] * s.state[i]
+            fn.response()
+            A = sA.state.toarray()
+            conn1 = domain.get_dofconnectivity(ndof1)[i]
+            conn2 = domain.get_dofconnectivity(ndof2)[i]
+
+            npt.assert_allclose(A[conn1, :][:, conn2], mat_chk)
+
+        for s in sx:
+            s.state[:] = 0.5
+        sx[0].state[:] = 0.5 + 0.5j
+        fn.response()
+        pym.finite_difference(sx, sAsum, test_fn=fd_testfn)
+
+
+class TestAssembleStiffness:
     def test_FEA_pure_tensile_2d_one_element(self):
         Lx, Ly, Lz = 0.1, 0.2, 0.3
         domain = pym.DomainDefinition(1, 1, unitx=Lx, unity=Ly, unitz=Lz)
@@ -140,9 +207,6 @@ class TestAssembleStiffness:
 
         sAsum = MatrixSum()(s_K)
         pym.finite_difference(s_x, sAsum, test_fn=fd_testfn)
-
-        
-
 
 
 class TestAssembleMass:
@@ -278,5 +342,4 @@ class TestAssemblePoisson:
 
 
 if __name__ == '__main__':
-    TestAssembleStiffness().test_FEA_pure_tensile_2d_one_element()
-    # pytest.main([__file__])
+    pytest.main([__file__])

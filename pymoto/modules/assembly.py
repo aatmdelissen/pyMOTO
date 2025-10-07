@@ -1,12 +1,13 @@
 """Assembly modules for finite element analysis"""
 
 import sys
-from typing import Union
+from typing import Union, Iterable
+import warnings
 
 import numpy as np
-from scipy.sparse import csc_matrix
-
+import scipy.sparse as sps
 from pymoto import Module, DyadCarrier, DomainDefinition
+from pymoto.utils import _parse_to_list
 
 try:
     from opt_einsum import contract as einsum
@@ -18,89 +19,189 @@ class AssembleGeneral(Module):
     r"""Assembles a sparse matrix according to element scaling :math:`\mathbf{A} = \sum_e x_e \mathbf{A}_e`
 
     Each element matrix is scaled and with the scaling parameter of that element
-    :math:`\mathbf{A} = \sum_e x_e \mathbf{A}_e`.
+    :math:`\mathbf{A} = \sum_e \sum_i x_{i,e} \mathbf{A}_{i,e}`.
     The number of degrees of freedom per node is deduced from the size of the element matrix passed into the module.
-    For instance, in case an element matrix of shape ``(3*4, 3*4)`` gets passed with a 2D :class:`DomainDefinition`, the
-    number of dofs per node equals ``3``.
+    For instance, in case an element matrix of shape ``(3*4, 2*4)`` gets passed with a 2D :class:`DomainDefinition`, the
+    number of dofs per node equals ``3`` in the row-direction and ``2`` in the column direction.
+
+    Non-square matrices and complex values are supported. Dirichlet boundary conditions are possible to set, which are
+    implemented by setting the entire row and column of the constrained dof to zero, and placing a finite value on the 
+    diagonal (optionally).
 
     Input Signal:
-        - ``x``: Scaling vector of size ``(Nel)``
+        - ``*x``: Scaling vector(s) of size ``(Nel)``
 
     Output Signal:
-        - ``A``: System matrix of size ``(n, n)``
+        - ``A``: System matrix of size ``(m, n)``
     """
 
     def __init__(
         self,
         domain: DomainDefinition,
-        element_matrix: np.ndarray,
+        element_matrix: Union[np.ndarray, Iterable[np.ndarray]],
         bc=None,
         bcdiagval=None,
-        matrix_type=csc_matrix,
+        matrix_type: type = sps.csr_matrix,
         add_constant=None,
+        reuse_sparsity: bool = True,
     ):
         r"""Initialize assembly module
 
         Args:
             domain (:py:class:`pymoto.DomainDefinition`): The domain for which should be assembled
-            element_matrix (np.ndarray): The element matrix :math:`\mathbf{K}_e` of size
-              `(#dofs_per_element, #dofs_per_element)`
+            element_matrix (np.ndarray or List of np.ndarray): The element matrix :math:`\mathbf{K}_e` of size
+              `(#dofs_per_element, #dofs_per_element)`. Multiple element matrices can also be provied
             bc (optional): Indices of any dofs that are constrained to zero (Dirichlet boundary condition).
               These boundary conditions are enforced by setting the row and column of that dof to zero.
             bcdiagval (optional): Value to put on the diagonal of the matrix at dofs where boundary conditions are
               active. Default is maximum value of the element matrix.
             matrix_type (optional): The matrix type to construct. This is a constructor which must accept the arguments
-              `matrix_type((vals, (row_idx, col_idx)), shape=(n, n))`. Defaults to csc_matrix.
-            add_constant (optional): A constant (*e.g.* sparse matrix) to add.
+              `matrix_type((vals, (row_idx, col_idx)), shape=(n, n))`. Defaults to `scipy.sparse.csc_matrix`.
+            add_constant (optional): A constant (*e.g.* sparse matrix) to add. This is added after setting Dirichlet 
+              boundary conditions.
+            reuse_sparsity (bool, optional): Reuse the sparsity pattern of the sparse matrix. This improves performance 
+              during iterations at the cost of a longer setup time.
         """
-        self.elmat = element_matrix
-        self.ndof = self.elmat.shape[-1] // domain.elemnodes  # Number of dofs per node
-        self.n = self.ndof * domain.nnodes  # Matrix size
-        self.nnode = domain.nnodes
+        # Parse element matrices and obtain shape of the system matrix
+        self.elmat = _parse_to_list(element_matrix)
+        self.nmat = len(self.elmat)
+        if self.nmat < 1:
+            raise ValueError("No or invalid element-matrix is given")
+        if self.elmat[0].shape[0] % domain.elemnodes != 0:
+            raise ValueError("Number of rows in element matrix should be a multiple of the number of nodes per element")
+        if self.elmat[0].shape[1] % domain.elemnodes != 0:
+            raise ValueError("Number of cols in element matrix should be a multiple of the number of nodes per element")
+        self.mdof = self.elmat[0].shape[0] // domain.elemnodes  # Number of dofs per node
+        self.ndof = self.elmat[0].shape[1] // domain.elemnodes
+        for i in range(1, self.nmat):
+            if self.elmat[i].shape != self.elmat[0].shape:
+                raise ValueError(
+                    f"Element matrices must be the same shape {self.elmat[i].shape} != {self.elmat[0].shape}")
+        # Matrix size
+        is_square = self.mdof == self.ndof
+        self.m = self.mdof * domain.nnodes  # Rows
+        self.n = self.ndof * domain.nnodes  # Cols
+        self.nel = domain.nel
 
-        self.dofconn = domain.get_dofconnectivity(self.ndof)
-
-        # Row and column indices for the matrix
-        self.rows = np.kron(self.dofconn, np.ones((1, domain.elemnodes * self.ndof), dtype=int)).flatten()
-        self.cols = np.kron(self.dofconn, np.ones((domain.elemnodes * self.ndof, 1), dtype=int)).flatten()
-        self.matrix_type = matrix_type
-
-        # Boundary conditions
-        self.bcdiagval = np.max(element_matrix) if bcdiagval is None else bcdiagval
+        # Determine BC diagonal value
+        self.bc = None
+        self.bcdiagval = bcdiagval
         if bc is not None:
+            if self.mdof != self.ndof:
+                raise NotImplementedError("Passing Dirichlet boundary conditions only works for square matrices")
             self.bc = np.asarray(bc).flatten()
-            bc_inds = np.bitwise_or(np.isin(self.rows, self.bc), np.isin(self.cols, self.bc))
-            self.bcselect = np.argwhere(np.bitwise_not(bc_inds)).flatten()
-            self.bcrows = np.concatenate((self.rows[self.bcselect], self.bc))
-            self.bccols = np.concatenate((self.cols[self.bcselect], self.bc))
-        else:
-            self.bc = None
-            self.bcselect = None
-            self.bcrows = self.rows
-            self.bccols = self.cols
 
+            if bcdiagval is None:
+                esum = self.elmat[0]
+                for i in range(1, self.nmat):
+                    esum = esum + self.elmat[i]
+                self.bcdiagval = np.max(esum)
+
+        # Get matrix sparsity pattern
+        self.dofconn_row = domain.get_dofconnectivity(self.mdof)  # Element connectivity
+        self.dofconn_col = self.dofconn_row if is_square else domain.get_dofconnectivity(self.ndof)
+            
+        intT = int
+        rows = np.kron(self.dofconn_row, np.ones((1, domain.elemnodes * self.ndof), dtype=intT)).flatten()
+        cols = np.kron(self.dofconn_col, np.ones((domain.elemnodes * self.mdof, 1), dtype=intT)).flatten()
+
+        self.matrix_type = matrix_type  # Set matrix type
+        if reuse_sparsity and self.matrix_type not in (sps.csc_matrix, sps.csr_matrix):
+            warnings.warn("Reusing sparsity pattern for matrix type {self.matrix_type} not implemented")
+        self.reuse_sparsity = reuse_sparsity and self.matrix_type in (sps.csc_matrix, sps.csr_matrix)
+
+        if self.reuse_sparsity:
+            if self.matrix_type == sps.csc_matrix:
+                rc = np.vstack((cols, rows))
+            else:  # CSR
+                rc = np.vstack((rows, cols))
+
+            # TODO this function is quite slow. Mabe this can somehow be improved using the knowledge in the Kronecker 
+            #   product for rows/columns?
+            unique_rc, unique_idx, self.datamap = np.unique(rc, axis=1, return_index=True, return_inverse=True)
+
+            # indices: Column index for each value (CSR) or Row index (CSC)
+            # indptr: Data index for each row (CSR) or column (CSC)
+
+            self.indices = unique_rc[1, :]
+            maxval = self.n if self.matrix_type == sps.csc_matrix else self.m
+            self.indptr = np.argwhere(np.diff(unique_rc[0, :], prepend=-1, append=maxval)).flatten()
+
+            # Boundary conditions
+            if self.bc is not None:
+                bc_inds = np.bitwise_or(np.isin(rows, self.bc), np.isin(cols, self.bc))
+                self.bcselect = np.argwhere(np.bitwise_not(bc_inds)).flatten()  # Data from original source to use
+                
+                # Find data indices for diagonal bc entries
+                idx0 = self.indptr[self.bc]  # Select columns (or rows)
+                idx1 = self.indptr[self.bc+1]
+                max_delta = (idx1 - idx0).max()
+                idx_range = idx0[:, None] + np.arange(max_delta)  # range of indices (bc indices, data indices)
+                valid = idx_range < idx1[:, None]  # mask for valid range of indices
+
+                rows = -1 * np.ones_like(idx_range) 
+                rows[valid] = self.indices[idx_range[valid]]  # Get which rows are corresponding (or cols)
+                
+                self.bcadd = idx_range[rows == self.bc[:, None]]
+
+                # Adapt datamap such that we don't need to slice the input data
+                self.datamap[bc_inds] = self.bcadd[0]
+        else:
+            # Boundary conditions
+            if self.bc is not None:
+                bc_inds = np.bitwise_or(np.isin(rows, self.bc), np.isin(cols, self.bc))
+                self.bcselect = np.argwhere(np.bitwise_not(bc_inds)).flatten()
+                self.rows = rows[self.bcselect]
+                self.cols = cols[self.bcselect]
+            else:
+                self.rows, self.cols = rows, cols
+       
         self.add_constant = add_constant
 
-    def __call__(self, xscale: np.ndarray):
-        nel = self.dofconn.shape[0]
-        assert xscale.size == nel, f"Input vector wrong size ({xscale.size}), must be of size #nel ({nel})"
-        scaled_el = (self.elmat.flatten() * xscale[..., np.newaxis]).flatten()
+    def __call__(self, *xscale: np.ndarray):
+        if len(xscale) != self.nmat:
+            raise ValueError(f"One scaling vector must be given for each element matrix ({self.nmat})")
+    
+        dtype = np.result_type(*xscale, *self.elmat)  # Determine dtype
+        for x in xscale:
+            if x.size != self.nel:
+                raise ValueError(f"Input vector wrong size ({x.size}), must be equal to #nel ({self.nel})")
 
-        # Set boundary conditions
-        if self.bc is not None:
-            # Remove entries that correspond to bc before initializing
-            mat_values = np.concatenate((scaled_el[self.bcselect], self.bcdiagval * np.ones(len(self.bc))))
+        # Calculate scaled element data
+        scaled_el = np.zeros(self.elmat[0].size*self.nel, dtype=dtype)
+        for x, m in zip(xscale, self.elmat):
+            scaled_el += (m.flatten()[None, :] * x.flatten()[:, None]).flatten()
+
+        if self.reuse_sparsity:
+            # NOTE: The actual matrix cannot be re-used, because scipy sometimes does some pruning on the background
+            
+            # Calculate data
+            data = np.zeros_like(self.indices, dtype=dtype)
+            np.add.at(data, self.datamap, scaled_el)
+            
+            if self.bc is not None:
+                # Set boundary condition diagonal values
+                data[self.bcadd] = self.bcdiagval
+
+            # Construct sparse matrix
+            mat = self.matrix_type((data, self.indices, self.indptr), shape=(self.m, self.n))
         else:
-            mat_values = scaled_el
+            vals = scaled_el[self.bcselect] if self.bc is not None else scaled_el
 
-        try:
-            mat = self.matrix_type((mat_values, (self.bcrows, self.bccols)), shape=(self.n, self.n))
-        except TypeError as e:
-            raise type(e)(
-                str(e)
-                + "\n\tInvalid matrix_type={}. Either scipy.sparse.cscmatrix or "
-                "scipy.sparse.csrmatrix are supported".format(self.matrix_type)
-            ).with_traceback(sys.exc_info()[2]) from None
+            try:
+                mat = self.matrix_type((vals, (self.rows, self.cols)), shape=(self.m, self.n))
+            except TypeError as e:
+                raise type(e)(
+                    str(e)
+                    + f"Invalid matrix_type={self.matrix_type}. Either scipy.sparse.cscmatrix or "
+                    "scipy.sparse.csrmatrix are supported".format(self.matrix_type)
+                ).with_traceback(sys.exc_info()[2]) from None
+            
+            if self.bc is not None:
+                # Add diagonal entry
+                diag = np.zeros(min(mat.shape))
+                diag[self.bc] = self.bcdiagval
+                mat += sps.diags(diag, shape=mat.shape)
 
         if self.add_constant is not None:
             mat += self.add_constant
@@ -112,15 +213,17 @@ class AssembleGeneral(Module):
         if self.bc is not None:
             dgdmat[self.bc, :] = 0.0
             dgdmat[:, self.bc] = 0.0
-        dx = np.zeros_like(self.sig_in[0].state)
+        dx = [np.zeros_like(s.state) for s in self.sig_in]
         if isinstance(dgdmat, np.ndarray):
-            for i in range(len(dx)):
-                indu, indv = np.meshgrid(self.dofconn[i], self.dofconn[i], indexing="ij")
-                dxi = einsum("ij,ij->", self.elmat, dgdmat[indu, indv])
-                dx[i] = np.real(dxi) if np.isrealobj(dx) else dxi
+            for i in range(self.nel):
+                indu, indv = np.meshgrid(self.dofconn_row[i], self.dofconn_col[i], indexing="ij")
+                for j in range(self.nmat):
+                    dxi = einsum("ij,ij->", self.elmat[j], dgdmat[indu, indv])
+                    dx[j][i] = np.real(dxi) if np.isrealobj(dx[j]) else dxi
         elif isinstance(dgdmat, DyadCarrier):
-            dxi = dgdmat.contract(self.elmat, self.dofconn, self.dofconn)
-            dx[:] = np.real(dxi) if np.isrealobj(dx) else dxi
+            for j in range(self.nmat):
+                dxi = dgdmat.contract(self.elmat[j], self.dofconn_row, self.dofconn_col)
+                dx[j][:] = np.real(dxi) if np.isrealobj(dx[j]) else dxi
         return dx
 
 
