@@ -137,7 +137,7 @@ class LDAWrapper(LinearSolver):
         self.complex = None
         super().__init__(A)
 
-    def update(self, A):
+    def update(self, A, skip_inner_update: bool = False):
         """Clear the internal stored solution vectors and update the internal ``solver``"""
         if self.symmetric is None:
             self.symmetric = matrix_is_symmetric(A)
@@ -155,7 +155,8 @@ class LDAWrapper(LinearSolver):
         self.b_stored.clear()
         self.xadj_stored.clear()
         self.badj_stored.clear()
-        self.solver.update(A)
+        if not skip_inner_update:
+            self.solver.update(A)
 
     def _do_solve_1rhs(self, A, rhs, x_data, b_data, solve_fn, x0=None):
         isel = self.nondiagonal_idx
