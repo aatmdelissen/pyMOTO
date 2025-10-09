@@ -87,9 +87,9 @@ class AssembleGeneral(Module):
         self.bc = None
         self.bcdiagval = bcdiagval
         if bc is not None:
-            if self.mdof != self.ndof:
+            if not is_square:
                 raise NotImplementedError("Passing Dirichlet boundary conditions only works for square matrices")
-            self.bc = np.asarray(bc).flatten()
+            self.bc = np.asarray(bc).ravel()
 
             if bcdiagval is None:
                 esum = self.elmat[0]
@@ -101,9 +101,7 @@ class AssembleGeneral(Module):
         self.dofconn_row = domain.get_dofconnectivity(self.mdof)  # Element connectivity
         self.dofconn_col = self.dofconn_row if is_square else domain.get_dofconnectivity(self.ndof)
             
-        intT = int
-        rows = np.kron(self.dofconn_row, np.ones((1, domain.elemnodes * self.ndof), dtype=intT)).flatten()
-        cols = np.kron(self.dofconn_col, np.ones((domain.elemnodes * self.mdof, 1), dtype=intT)).flatten()
+        intT = int  # Index integer type
 
         self.matrix_type = matrix_type  # Set matrix type
         if reuse_sparsity and self.matrix_type not in (sps.csc_matrix, sps.csr_matrix):
@@ -111,27 +109,110 @@ class AssembleGeneral(Module):
         self.reuse_sparsity = reuse_sparsity and self.matrix_type in (sps.csc_matrix, sps.csr_matrix)
 
         if self.reuse_sparsity:
-            if self.matrix_type == sps.csc_matrix:
-                rc = np.vstack((cols, rows))
-            else:  # CSR
-                rc = np.vstack((rows, cols))
-
-            # TODO this function is quite slow. Mabe this can somehow be improved using the knowledge in the Kronecker 
-            #   product for rows/columns?
-            unique_rc, unique_idx, self.datamap = np.unique(rc, axis=1, return_index=True, return_inverse=True)
-
             # indices: Column index for each value (CSR) or Row index (CSC)
             # indptr: Data index for each row (CSR) or column (CSC)
+            sparsity_method = 'manual'
+            if sparsity_method == 'unique':
+                rows = np.kron(self.dofconn_row, np.ones((1, domain.elemnodes * self.ndof), dtype=intT)).ravel()
+                cols = np.kron(self.dofconn_col, np.ones((domain.elemnodes * self.mdof, 1), dtype=intT)).ravel()
 
-            self.indices = unique_rc[1, :]
-            maxval = self.n if self.matrix_type == sps.csc_matrix else self.m
-            self.indptr = np.argwhere(np.diff(unique_rc[0, :], prepend=-1, append=maxval)).flatten()
+                # -------- METHOD BASED ON UNIQUE -------
+                # This way of constructing csr/csc data structure is much easier, but also much slower...
+                if self.matrix_type == sps.csc_matrix:
+                    rc = np.vstack((cols, rows))
+                else:  # CSR
+                    rc = np.vstack((rows, cols))
+                unique_rc, unique_idx, self.datamap = np.unique(rc, axis=1, return_index=True, return_inverse=True)
 
+                self.indices = unique_rc[1, :]
+                maxval = self.n if self.matrix_type == sps.csc_matrix else self.m
+                self.indptr = np.argwhere(np.diff(unique_rc[0, :], prepend=-1, append=maxval)).ravel()
+            elif sparsity_method == 'manual':
+                # -------- MANUAL CONSTRUCITON OF CSR/CSC STRUCTURE -------
+                # self.indices = np.zeros(nnz)
+                # self.indptr = np.zeros(self.m + 1)
+                if self.matrix_type == sps.csr_matrix:
+                    row_conn, col_conn = self.dofconn_row, self.dofconn_col
+                    rows_per_el, cols_per_el = self.mdof * domain.elemnodes, self.ndof * domain.elemnodes
+                    num_rows = self.m
+                else:  # Reverse row and col for CSC
+                    row_conn, col_conn = self.dofconn_col, self.dofconn_row,
+                    rows_per_el, cols_per_el = self.ndof * domain.elemnodes, self.mdof * domain.elemnodes
+                    num_rows = self.n
+
+                # --- Sort row indices of all elements
+                row_indices_flat = row_conn.ravel()  # List of all rows                           (#rows/el * #el, )
+                index = np.argsort(row_indices_flat)  # Sort the rows from low to high            (#rows/el * #el, )
+                rows_sorted = row_indices_flat[index]  # Row index for each node                  (#rows/el * #el, )
+                from_el = index // rows_per_el  # Element corresponding to each the row           (#rows/el * #el, )
+                irow, counts = np.unique(rows_sorted, return_counts=True)  # Get unique row numbers (#rows, )
+                cmax = counts.max()  # Maximum number of elements per row
+                max_cols_per_row = cmax * cols_per_el  # Maximum number of columns per row
+
+                # --- Sort column indices of all elements
+                # List of columns in each row: Not all rows have the same number of columns, so -1 denotes there is no 
+                # column in that row
+                column_map = -np.ones((num_rows, max_cols_per_row), dtype=intT)  # (#rows, #maxcols/row)
+                # Select vector for first entry of each unique value
+                select = np.argwhere(np.diff(rows_sorted, prepend=-1)>0).ravel()  
+                for i in range(cmax):
+                    # Set correct columns in each row
+                    column_map[irow, i*cols_per_el:(i+1)*cols_per_el] =  col_conn[from_el[select]]
+                    # Increment selector and look for the next value. If no values are remaining, remove from the set
+                    irow = irow[counts>1]
+                    select = select[counts>1] + 1
+                    counts = counts[counts>1] - 1
+
+                # Sort column indices per row
+                idxsort_colmap = np.argsort(column_map, axis=1)
+                sorted_column_map = column_map[np.arange(num_rows)[:, None], idxsort_colmap]
+                valid_col_entries = sorted_column_map >= 0  # All valid column entries
+                # Select unique entries in the column map
+                diff_sorted_cols = np.diff(sorted_column_map, axis=1, prepend=-1)
+                select_unique = np.logical_and(diff_sorted_cols > 0, valid_col_entries)
+                
+                # --- Construct CSR data layout
+                # Select all valid columns for the column indices (sorted row first, then column)
+                self.indices = sorted_column_map[select_unique]  # (nnz, )
+                nnz = self.indices.size
+
+                # Get row index pointer (number of columns per row)
+                self.indptr = np.zeros(num_rows + 1, dtype=intT)
+                np.cumsum(np.sum(select_unique, axis=1), out=self.indptr[1:])
+
+                # Data index (reverse mapping)
+                target_data_indices = np.arange(nnz)  # Indices of the sparse matrix data-vector (nnz, )
+                sorted_target_data = -np.ones_like(sorted_column_map)  
+                sorted_target_data[select_unique] = target_data_indices
+                
+                for i in range(cmax):
+                    # Fill next duplicate entry with the same data-target index
+                    sel = np.logical_and(valid_col_entries, sorted_target_data < 0)
+                    tar = np.roll(sel, -1, axis=1)  
+                    sorted_target_data[sel] = sorted_target_data[tar]
+
+                # Reverse sort columns
+                unsorted_target_data = np.empty_like(sorted_column_map)
+                unsorted_target_data[np.arange(num_rows)[:, None], idxsort_colmap] = sorted_target_data
+
+                # Reverse sort rows
+                orig_data = np.zeros((domain.nel * rows_per_el, cols_per_el), dtype=intT)
+                orig_data[index[None, :], :] = unsorted_target_data[unsorted_target_data>=0].reshape((-1, cols_per_el))
+                
+                if self.matrix_type == sps.csc_matrix:
+                    # Extra transpose for the element matrix
+                    self.datamap = np.swapaxes(orig_data.reshape((-1, rows_per_el, cols_per_el)), 1, 2).ravel()
+                else:
+                    self.datamap = orig_data.ravel()
+            else:
+                raise NotImplementedError(f"Sparsity method {sparsity_method} not implemented")
+        
             # Boundary conditions
             if self.bc is not None:
-                bc_inds = np.bitwise_or(np.isin(rows, self.bc), np.isin(cols, self.bc))
-                self.bcselect = np.argwhere(np.bitwise_not(bc_inds)).flatten()  # Data from original source to use
-                
+                max_rc = self.n if self.matrix_type == sps.csc_matrix else self.m
+                row_indices = np.repeat(np.arange(max_rc), self.indptr[1:] - self.indptr[:-1])
+                bc_inds = np.logical_or(np.isin(self.indices, self.bc), np.isin(row_indices, self.bc))[self.datamap]
+ 
                 # Find data indices for diagonal bc entries
                 idx0 = self.indptr[self.bc]  # Select columns (or rows)
                 idx1 = self.indptr[self.bc+1]
@@ -144,13 +225,16 @@ class AssembleGeneral(Module):
                 
                 self.bcadd = idx_range[rows == self.bc[:, None]]
 
-                # Adapt datamap such that we don't need to slice the input data
+                # Adapt datamap such that we don't need to slice the input data: the values are just added to the 
+                # diagonal, which is then overwritten with the diagonal value
                 self.datamap[bc_inds] = self.bcadd[0]
         else:
+            rows = np.kron(self.dofconn_row, np.ones((1, domain.elemnodes * self.ndof), dtype=intT)).ravel()
+            cols = np.kron(self.dofconn_col, np.ones((domain.elemnodes * self.mdof, 1), dtype=intT)).ravel()
             # Boundary conditions
             if self.bc is not None:
                 bc_inds = np.bitwise_or(np.isin(rows, self.bc), np.isin(cols, self.bc))
-                self.bcselect = np.argwhere(np.bitwise_not(bc_inds)).flatten()
+                self.bcselect = np.argwhere(np.bitwise_not(bc_inds)).ravel()
                 self.rows = rows[self.bcselect]
                 self.cols = cols[self.bcselect]
             else:
@@ -168,9 +252,13 @@ class AssembleGeneral(Module):
                 raise ValueError(f"Input vector wrong size ({x.size}), must be equal to #nel ({self.nel})")
 
         # Calculate scaled element data
-        scaled_el = np.zeros(self.elmat[0].size*self.nel, dtype=dtype)
+        scaled_el = None
         for x, m in zip(xscale, self.elmat):
-            scaled_el += (m.flatten()[None, :] * x.flatten()[:, None]).flatten()
+            el_add = (m.ravel()[None, :] * x.ravel()[:, None]).ravel()
+            if scaled_el is None:
+                scaled_el = el_add.astype(dtype, copy=False)
+            else:
+                scaled_el += el_add
 
         if self.reuse_sparsity:
             # NOTE: The actual matrix cannot be re-used, because scipy sometimes does some pruning on the background

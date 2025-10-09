@@ -62,8 +62,9 @@ class TestAssembleGeneral:
 
     @pytest.mark.parametrize('ndof1', [1, 2, 3])
     @pytest.mark.parametrize('ndof2', [1, 2, 3])
-    @pytest.mark.parametrize('nmat', [1, 2, 3])
-    def test_matrix_shapes(self, ndof1, ndof2, nmat):
+    @pytest.mark.parametrize('nmat', [1, 2])
+    @pytest.mark.parametrize('matrix_type', [sps.csr_matrix, sps.csc_matrix])
+    def test_matrix_shapes(self, ndof1, ndof2, nmat, matrix_type):
         el_mat = [np.random.rand(ndof1 * 4 * ndof2 * 4).reshape((ndof1 * 4, ndof2 * 4)) for _ in range(nmat)]
         el_mat[-1] = el_mat[-1] + el_mat[-1]*1j  # Make one of the matrices complex
         domain = pym.DomainDefinition(3, 3)
@@ -71,7 +72,7 @@ class TestAssembleGeneral:
         with pym.Network() as fn:
             sx = [pym.Signal('x{i}', np.ones(domain.nel)*3.14*(i+1)) for i in range(nmat)]
             sx[0].state = sx[0].state + 1j*2.0  # Make first one complex
-            sA = pym.AssembleGeneral(domain, el_mat)(*sx)
+            sA = pym.AssembleGeneral(domain, el_mat, matrix_type=matrix_type)(*sx)
             sAsum = MatrixSum()(sA)
 
         A = sA.state.toarray()

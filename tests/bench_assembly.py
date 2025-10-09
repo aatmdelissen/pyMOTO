@@ -46,19 +46,22 @@ def setup_matrix_multi(x, domain, idx_bc, idx_f, w=0.0, eta=0.0, xmin=1e-9, **kw
 
     xfilt = pym.FilterConv(domain, radius=3)(x)
     xsimp = pym.MathGeneral(f'{xmin} + {1-xmin}*inp0^3')(xfilt)
-
+    
+    inps = [xsimp]
     elmat = [pym.AssembleStiffness(dummy_domain).elmat[0]]
     if eta != 0:
         # Damping stiffness with other interpolation to ensure there is no linear dependency
         elmat.append(1j*eta*pym.AssembleStiffness(dummy_domain).elmat[0])
+        inps.append(xfilt)
 
     if w != 0:
         elmat.append(- w**2 * pym.AssembleMass(dummy_domain, ndof=domain.dim).elmat[0])
+        inps.append(xfilt)
 
-    return pym.AssembleGeneral(domain, elmat, bc=idx_bc, **kwargs)(xsimp, xfilt, xfilt)
+    return pym.AssembleGeneral(domain, elmat, bc=idx_bc, **kwargs)(*inps)
 
 
-def test_assembly(n=20, w=1, eta=0.1):
+def test_assembly(n=20, w=0., eta=0.):
     np.random.seed(0)
 
     domain, idx_bc, idx_f = setup_3d_domain(n)
@@ -69,8 +72,8 @@ def test_assembly(n=20, w=1, eta=0.1):
     # Setup network
     start = time.perf_counter()
     with pym.Network() as fn:
-        # _su = setup_matrix_solver(sx, domain, idx_bc, idx_f, w=w, eta=eta, reuse_sparsity=True)
-        _su = setup_matrix_multi(sx, domain, idx_bc, idx_f, w=w, eta=eta, reuse_sparsity=True)
+        _su = setup_matrix_solver(sx, domain, idx_bc, idx_f, w=w, eta=eta, reuse_sparsity=True)
+        # _su = setup_matrix_multi(sx, domain, idx_bc, idx_f, w=w, eta=eta, reuse_sparsity=True)
     elapsed = time.perf_counter() - start
     print(f"Network initialization, SETUP -- Elapsed time: {elapsed:0.4f} seconds")
     
