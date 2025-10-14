@@ -94,21 +94,23 @@ class TestEinSum:
         npt.assert_allclose(out_chk, s_out.state)
         pym.finite_difference(tosig=s_out, test_fn=self.fd_testfn)
 
-    # TODO: Sensitivity does not work for this
-    # def test_einsum_mat_diag(self):
-    #     n = 3
-    #
-    #     a = np.random.rand(n, n)
-    #
-    #     out_chk = np.diag(a)
-    #
-    #     s_a = pym.Signal("mat", a)
-    #     s_out = pym.Signal("diag(A)")
-    #
-    #     blk = pym.EinSum(s_a, s_out, expression="ii->i")
-    #
-    #     npt.assert_allclose(out_chk, s_out.state)
-    #     pym.finite_difference(test_fn=self.fd_testfn)
+    def test_einsum_mat_diag(self):
+        n = 3
+    
+        a = np.random.rand(n, n)
+    
+        out_chk = np.diag(a)
+    
+        s_a = pym.Signal("mat", a)
+
+        s_out = pym.EinSum("ii->i")(s_a)
+        s_out.tag = "diag(A)"
+        
+        npt.assert_allclose(out_chk, s_out.state)
+
+        # TODO: Sensitivity does not work for this, as the sensitivity would have repeated index in the output
+        pytest.raises(NotImplementedError, pym.finite_difference, tosig=s_out, test_fn=self.fd_testfn)
+        # pym.finite_difference(test_fn=self.fd_testfn)
 
     @pytest.mark.parametrize('B', [make_mat(4), 1j*make_mat(4), make_mat(4) + 1j * make_mat(4)], 
                              ids=['real', 'imaginary', 'complex'])
@@ -141,6 +143,18 @@ class TestEinSum:
 
         s_out = pym.EinSum("ij,jk,k->ik")(s_A, s_B, s_v)
         s_out.tag = 'A.B.v'
+
+        npt.assert_allclose(out_chk, s_out.state)
+        pym.finite_difference(tosig=s_out, test_fn=self.fd_testfn, dx=1e-5)
+
+
+    def test_scalar_constant(self):
+        A, B = make_mat(100, 7), make_mat(100, 7)
+        out_chk = np.einsum(',iB,iC->CB', 1e6, A, B)
+
+        s_A = pym.Signal('A', A.copy())
+        s_out = pym.EinSum(',iB,iC->CB')(1e6, s_A, B)
+        s_out.tag = 'c.A.B'
 
         npt.assert_allclose(out_chk, s_out.state)
         pym.finite_difference(tosig=s_out, test_fn=self.fd_testfn, dx=1e-5)

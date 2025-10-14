@@ -219,18 +219,10 @@ class EinSum(Module):
             ind_in = [self.indices_out]
             ind_in += [elem for i, elem in enumerate(self.indices_in) if i != ar]
             arg_in = [v for i, v in enumerate(inps) if i != ar]
-            arg_complex = [np.iscomplexobj(v) for i, v in enumerate(inps) if i != ar]
             ind_out = self.indices_in[ar]
-
-            op = ",".join(ind_in) + "->" + ind_out
-            if not np.iscomplexobj(inps[ar]) and np.any(arg_complex) and np.iscomplexobj(df_in):
-                da_i = np.zeros_like(inps[ar]) + 0j
-                einsum(op, df_in, *arg_in, out=da_i, optimize=True)
-                da_i = da_i.real
-            else:
-                da_i = np.zeros_like(inps[ar])
-                einsum(op, df_in, *arg_in, out=da_i, optimize=True)
-            df_out.append(da_i)
+            op = ",".join(ind_in) + "->" + ind_out  # Adjoint operator
+            da_i = einsum(op, df_in, *arg_in, optimize=True)  # Perform adjoint einsum
+            df_out.append(da_i.real if not np.iscomplexobj(inps[ar]) else da_i)
         return df_out
 
 
