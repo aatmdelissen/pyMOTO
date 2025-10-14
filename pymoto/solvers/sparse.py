@@ -383,11 +383,10 @@ class SolverSparsePardiso(LinearSolver):
         if A is None:
             A = self.A
         if b is None:
-            b = np.zeros((A.shape[0], 1), dtype=A.dtype)  # Dummy rhs
-        if not b.flags['C_CONTIGUOUS']:
-            # Convert rhs to be contiguous (C)
-            # Sometimes slicing (e.g. in LDA wrapper) may introduce unwanted non-contiguousness
-            b = np.ascontiguousarray(b)  
+            b = np.zeros((A.shape[0], 1), dtype=A.dtype, order='F')  # Dummy rhs
+        # Convert rhs to be contiguous (F)
+        # Sometimes slicing (e.g. in LDA wrapper) may introduce unwanted non-contiguousness
+        b = np.require(b, requirements='F')
         x = np.zeros_like(b, dtype=A.dtype)
         pardiso_error = ctypes.c_int32(0)
         c_int32_p = ctypes.POINTER(ctypes.c_int32)
@@ -395,10 +394,6 @@ class SolverSparsePardiso(LinearSolver):
             c_data_p = ctypes.POINTER(ctypes.c_float)
         else:
             c_data_p = ctypes.POINTER(ctypes.c_double)
-        
-        if not all([m.flags['C_CONTIGUOUS'] for m in [A.data, A.indptr, A.indices, b, x, self._iparm.data]]):
-            # raise ValueError("Data must be contiguous in memory!")
-            warnings.warn("Data is not contiguous in memory. Errors may occur!")
                     
         self._mkl_pardiso(
             self._pt.ctypes.data_as(ctypes.POINTER(self._pt_type[0])),  # pt
