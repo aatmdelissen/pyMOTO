@@ -207,6 +207,7 @@ class LDAWrapper(LinearSolver):
         # Check tolerance
         self._last_rtol = self.residual(A, sol, rhs if rhs.ndim > 1 else rhs.reshape(-1, 1))
         self._did_solve = self._last_rtol > self.tol
+        # Flag called 'did_solve', but solve still has to be done at this point ;)
         # If tolerance too large, use the solver for new values
         if np.any(self._did_solve):
             if x0 is not None:

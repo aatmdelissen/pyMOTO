@@ -384,6 +384,10 @@ class SolverSparsePardiso(LinearSolver):
             A = self.A
         if b is None:
             b = np.zeros((A.shape[0], 1), dtype=A.dtype)  # Dummy rhs
+        if not b.flags['C_CONTIGUOUS']:
+            # Convert rhs to be contiguous (C)
+            # Sometimes slicing (e.g. in LDA wrapper) may introduce unwanted non-contiguousness
+            b = np.ascontiguousarray(b)  
         x = np.zeros_like(b, dtype=A.dtype)
         pardiso_error = ctypes.c_int32(0)
         c_int32_p = ctypes.POINTER(ctypes.c_int32)
