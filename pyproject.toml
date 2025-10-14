@@ -50,12 +50,6 @@ Issues = "https://github.com/aatmdelissen/pyMOTO/issues"
 "Release notes" = "https://github.com/aatmdelissen/pyMOTO/releases/latest"
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "ruff",
-    "pre-commit"
-]
-
 fast = [
     "mkl",
     "opt-einsum",
@@ -68,6 +62,13 @@ ext = [
     "opt-einsum",
     "jax[cpu]",    
     "autograd[scipy]",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+    "pre-commit"
 ]
 
 ## ----- Setuptools Configuration -----
