@@ -407,7 +407,8 @@ def minimize_oc(
             s.state = xnew[cumlens[i] : cumlens[i + 1]]
 
 
-def minimize_mma(variables: SignalsT, responses: SignalsT, function: Module = None, **kwargs):
+def minimize_mma(variables: SignalsT, responses: SignalsT, function: Module = None, 
+                 maxit=100, tolx=1e-4, tolf=1e-4, **kwargs):
     """Execute minimization using the MMA-method
     Svanberg (1987), The method of moving asymptotes - a new method for structural optimization
 
@@ -432,10 +433,8 @@ def minimize_mma(variables: SignalsT, responses: SignalsT, function: Module = No
 
     """
     # Save initial state
-    if function is None:
-        function = Network.active[0]
-    mma = MMA(function, variables, responses, **kwargs)
-    mma.response()
+    mma = MMA(variables, responses, function, **kwargs)
+    mma.optimize(maxiter=maxit, tolx=tolx, tolf=tolf)
 
 
 def minimize_slp(variables, responses, function=None, xmin=0, xmax=1, move=0.2, maxit=100, tolx=1e-4, tolf=1e-4, 
