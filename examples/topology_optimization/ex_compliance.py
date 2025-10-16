@@ -74,20 +74,12 @@ if __name__ == "__main__":
 
     # Make signal for design vector, and fill with initial values
     sx = pym.Signal('x', state=np.ones(domain.nel) * volfrac)
-
-    def analysis(s_input, domain):
-        s_output = pym.DensityFilter(domain)(s_input)
-        return s_output
     
     # Start building the modular network
     # Filter
     sxfilt = pym.FilterConv(domain, radius=filter_radius, ymin_bc=0, ymax_bc=0, zmin_bc=0, zmax_bc=0)(sx)
     sxfilt.tag = "Filtered design"
     sx_analysis = sxfilt
-
-
-    s_1 = analysis(sx, domain)
-    s_2 = analysis(sxfilt, domain)
 
     # Show the design on the screen as it optimizes
     if domain.dim == 2:
