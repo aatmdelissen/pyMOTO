@@ -113,8 +113,19 @@ Common Utilities and Routines
    pymoto.DomainDefinition
    pymoto.DyadCarrier
    pymoto.finite_difference
+
+Optimizers
+
+.. autosummary::
+   :toctree: stubs
+   :nosignatures:
+
    pymoto.minimize_oc
    pymoto.minimize_mma
+   pymoto.minimize_slp
+   pymoto.OC
+   pymoto.MMA
+   pymoto.SLP
 
 Linear Solvers
 --------------

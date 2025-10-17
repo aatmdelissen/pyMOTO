@@ -1,14 +1,47 @@
 from abc import ABC, abstractmethod
+import warnings
 import numpy as np
+from scipy.optimize import linprog
 from ..utils import _parse_to_list, _concatenate_to_array
-from ..core_objects import Network
+from ..core_objects import Network, Module, SignalsT, Signal
 
 
 class Optimizer(ABC):
     """General abstract optimizer object"""
-    def __init__(self, variables, responses, function=None, slice_network=False, xmin=None, xmax=None):
+    def __init__(self, 
+                 variables: SignalsT, 
+                 responses: SignalsT, 
+                 function: Network = None, 
+                 slice_network: bool = False, 
+                 xmin=None, 
+                 xmax=None,         
+                 verbosity: int = 2,
+    ):
+        """Initialize general optimization object
+
+        Args:
+            variables (Signal(s)): One or more variable Signals defining the design variables
+            responses (Signal(s)): One or more response Signals, where the first is to be minimized and the others are 
+              constraints in negative null form.
+            function (Network, optional): The Network defining the optimization problem. Defaults to None.
+            slice_network (bool, optional): If True, only the modules connecting variable and response signals are
+              evaluated. Defaults to False.
+            xmin (optional): Minimum design variable (can be passed as scalar: same value for all variables, 
+              vector: each variable has a unique value, list of scalars/vectors: for each variable signal)
+            xmax (optional): Maximum design variable (can be passed as scalar: same value for all variables, 
+              vector: each variable has a unique value, list of scalars/vectors: for each variable signal)
+            verbosity (int, optional): Level of information to printDefaults to 2.
+              0 - No prints
+              1 - Only convergence message
+              2 - Convergence and iteration info (default)
+              3 - Additional info on variables and GCMMA inner iteration info (when applicable)
+              4 - Additional info on sensitivity information. 
+        """
         self.variables = _parse_to_list(variables)
         self.responses = _parse_to_list(responses)
+
+        self.verbosity = verbosity
+
         if function is None:
             function = Network.active[0]
 
@@ -219,16 +252,51 @@ class Optimizer(ABC):
 
             print(f"  | Changes: {', '.join(change_msgs)}")
     
-    @abstractmethod
     def optimize(self, maxiter: int = 100, tolx: float = 1e-4, tolf: float = 1e-4):
-        """ Perform an optimization 
+        """ Perform a gradient-based optimization 
 
         Args:
             maxiter (int, optional): Maximum number of iteration. Defaults to 100.
             tolx (float, optional): Stopping criterium for relative design change. Defaults to 1e-4.
             tolf (float, optional): Stopping criterium for relative objective change. Defaults to 1e-4.
         """
-        raise NotImplementedError()
+        nom = type(self).__name__
+        xval = self.x
+        gcur = 0.0
+        while self.iter < maxiter:
+            # Calculate new design
+            xnew, g, dg = self.step(x=xval)
+
+            # Check function change convergence criterion
+            gprev, gcur = gcur, g
+            rel_df = np.linalg.norm(gcur - gprev) / np.linalg.norm(gcur)
+            if rel_df < tolf:
+                if self.verbosity >= 1:
+                    print(f"{nom} converged: Relative function change |Δf|/|f| ({rel_df}) below tolerance ({tolf})")
+                break
+
+            if self.verbosity >= 3:
+                # Display info on variables (and sensitivities)
+                self.print_variable_info(dg=(dg if  self.verbosity >= 4 else None))
+
+            if self.verbosity >= 2:
+                # Display iteration status message
+                self.print_iteration_info(g, 
+                                          report_feasibility=(self.verbosity >= 3), 
+                                          xold=(xval if self.verbosity >= 3 else None),
+                                          xnew=(xnew if self.verbosity >= 3 else None))
+
+            # Stopping criteria on step size
+            rel_stepsize = np.linalg.norm((xval - xnew) / self.dx) / np.linalg.norm(xval / self.dx)
+            if rel_stepsize < tolx:
+                if self.verbosity >= 1:
+                    print(f"{nom} converged: Relative stepsize |Δx|/|x| ({rel_stepsize}) below tolerance ({tolx})")
+                break
+
+            xval = xnew
+            self.iter += 1
+            if self.verbosity >= 3:
+                print("-"*50)
     
     @abstractmethod
     def step(self, 
@@ -248,3 +316,217 @@ class Optimizer(ABC):
             dg: (Evaluated) design sensitivities
         """
         raise NotImplementedError()
+
+
+class OC(Optimizer):
+    def __init__(self,
+        variables: SignalsT,
+        response: Signal,
+        function: Network,
+        slice_network=False,
+        move=0.1,
+        xmin=0.0,
+        xmax=1.0,
+        verbosity: int = 2,
+        l1init: float = 0.0,
+        l2init: float = 100000.0,
+        l1l2tol: float = 1e-4,
+        maxvol: float = None,
+    ):
+        """Optimality criteria optimization algorithm
+
+        Args:
+            variables: One or more variable Signals defining the design variables
+            response: Response signal to be minimized (objective)
+            function: The Network defining the optimization problem
+        
+        Keyword Args:
+            slice_network (bool): If True, only the modules connecting variable and response signals are evaluated. 
+              Defaults to False.
+            move: Move limit on relative variable change per iteration (can be passed as scalar: same value for 
+              all variables, vector: each variable has a unique value, list of scalars/vectors: for each variable 
+              signal). Defaults to 0.1.
+            xmin: Minimum design variable (can be passed as scalar: same value for all variables, 
+              vector: each variable has a unique value, list of scalars/vectors: for each variable signal). 
+              Defaults to 0.0.
+            xmax: Maximum design variable (can be passed as scalar: same value for all variables, 
+              vector: each variable has a unique value, list of scalars/vectors: for each variable signal). 
+              Defaults to 1.0.
+            verbosity (int): Level of information to print. Defaults to 2.
+              0 - No prints
+              1 - Only convergence message
+              2 - Convergence and iteration info (default)
+              3 - Additional info on variables and GCMMA inner iteration info (when applicable)
+              4 - Additional info on sensitivity information
+            l1init (int): Internal OC parameter. Defaults to 0.
+            l2init (int): Internal OC parameter. Defaults to 100000.
+            l1l2tol (float): Internal OC parameter. Defaults to 1e-4.
+            maxvol (float): Volume fraction. Defaults to None.
+        """
+        super().__init__(variables, response, function, slice_network=slice_network, 
+                         xmin=xmin, xmax=xmax, verbosity=verbosity)
+
+        # Move limit
+        if np.asarray(move).size > 1:
+            self.move = self._parse_bound(move, which='move')
+        else:
+            self.move = move
+
+        # Other parameters
+        self.dx = self.xmax - self.xmin
+
+        # OC parameters
+        self.l1init = l1init
+        self.l2init = l2init
+        self.l1l2tol = l1l2tol
+        self.maxvol = maxvol
+    
+    def step(self, 
+             x: np.ndarray = None, 
+             g: np.ndarray = None, 
+             dg: np.ndarray = None) -> (np.ndarray, np.ndarray, np.ndarray):
+        
+        if x is None:
+            x = self.x  # Gather the states
+        else:
+            self.x = x  # Set the new states
+        
+        if self.maxvol is None:
+            self.maxvol = np.sum(x) / x.size
+
+        if g is None:
+            g = self.calculate_g()
+
+        if dg is None:
+            dg = self.calculate_dg()
+
+        # Clip positive sensitivities
+        maxdg = dg.max()
+        if maxdg > 1e-15:
+            warnings.warn(f"OC only works for negative sensitivities: max(dgdx) = {maxdg}. Clipping positive values.")
+        dg = np.minimum(dg, 0)
+
+        # Calculate bounds
+        lb = np.maximum(self.xmin, x - self.move)
+        ub = np.minimum(self.xmax, x + self.move)
+
+        # Do OC update
+        xnew = x.copy()
+        l1, l2 = self.l1init, self.l2init
+        while l2 - l1 > self.l1l2tol:
+            lmid = 0.5 * (l1 + l2)
+            xnew[:] = np.clip(x * np.sqrt(-dg / lmid), lb, ub)
+            l1, l2 = (lmid, l2) if np.sum(xnew) - self.maxvol * x.size > 0 else (l1, lmid)
+
+        return xnew, g, dg
+
+
+class SLP(Optimizer):
+    def __init__(self, 
+                 variables: SignalsT,
+                 responses: SignalsT,
+                 function: Network,
+                 slice_network: bool =False,
+                 move=0.1,
+                 xmin=0.0,
+                 xmax=1.0,
+                 verbosity: int = 2,
+                 adaptive_movelimit: bool = True,
+                 **kwargs):
+        """SLP optimization algorithm
+        Warning: This optimizer is experimental and is not very robust (yet)
+
+        Args:
+          variables: One or more variable Signals defining the design variables
+          responses: One or more response Signals, where the first is to be minimized and the others are constraints 
+            in negative null form.
+          function: The Network defining the optimization problem
+           
+        Keyword Args:
+          slice_network: If True, only the modules connecting variable and response signals are evaluated
+          move: Move limit on relative variable change per iteration (can be passed as scalar: same value for all 
+            variables, vector: each variable has a unique value, list of scalars/vectors: for each variable signal)
+          xmin: Minimum design variable (can be passed as scalar: same value for all variables, vector: each variable 
+            has a unique value, list of scalars/vectors: for each variable signal)
+          xmax: Maximum design variable (can be passed as scalar: same value for all variables, vector: each variable 
+            has a unique value, list of scalars/vectors: for each variable signal)
+          adaptive_movelimit (bool): Move limit is adapted based on variable oscillation behavior. Defaults to True.
+          asyincr (float): Increase of adaptive movelimit when no oscillation is present. Default is 1.2
+          asydecr (float): Decrease in adaptive movelimit when variable is oscillating. Default is 0.7
+          asyinit (float): Initial adaptive movelimit value. Default is 1.0
+          asybound (float): Lower bound on adaptive movelimit. Default is 1e-2
+        """
+        super().__init__(variables, responses, function, slice_network=slice_network, xmin=xmin, xmax=xmax)
+
+        # For adaptive movelimit
+        self.adaptive_movelimit = adaptive_movelimit
+        self.asyincr = kwargs.get('asyincr', 1.2)
+        self.asydecr = kwargs.get('asydecr', 0.7)
+        self.asyinit = kwargs.get('asyinit', 1.0)
+        self.asybound = kwargs.get('asybound', 1e-2)
+
+        # Move limit
+        if np.asarray(move).size > 1:
+            self.move = self._parse_bound(move, which='move')
+        else:
+            self.move = move
+
+        # Other variables
+        self.xold1, self.xold2 = None, None
+        self.dx = self.xmax - self.xmin
+        if self.adaptive_movelimit:
+            self.offset = self.asyinit * np.ones(self.n)
+        else:
+            self.offset = 1.0
+    
+    def step(self, 
+             x: np.ndarray = None, 
+             g: np.ndarray = None, 
+             dg: np.ndarray = None) -> (np.ndarray, np.ndarray, np.ndarray):
+        if x is None:
+            x = self.x  # Gather the states
+        else:
+            self.x = x  # Set the new states
+
+        if g is None:
+            g = self.calculate_g()
+
+        if dg is None:
+            dg = self.calculate_dg()
+
+        # Update ASYMPTOTES
+        # Calculation of the asymptotes low and upp :
+        # For iter = 1,2 the asymptotes are fixed depending on asyinit
+        if self.adaptive_movelimit and self.xold1 is not None and self.xold2 is not None:
+            # depending on if the signs of xval - xold and xold - xold2 are opposite, indicating an oscillation
+            # in the variable xi
+            # if the signs are equal the asymptotes are slowing down the convergence and should be relaxed
+
+            # check for oscillations in variables
+            # if zzz positive no oscillations, if negative --> oscillations
+            zzz = (x - self.xold1) * (self.xold1 - self.xold2)
+            # decrease those variables that are oscillating equal to asydecr
+            self.offset[zzz > 0] *= self.asyincr
+            self.offset[zzz < 0] *= self.asydecr
+
+            # check with minimum and maximum bounds of asymptotes, as they cannot be to close or far from the variable
+            # give boundaries for upper and lower asymptotes
+            self.offset = np.clip(self.offset, self.asybound, 1.0)  # Max offset is 1
+
+        max_dx = self.offset * self.move * self.dx
+
+        lb = np.maximum(self.xmin, x - max_dx)
+        ub = np.minimum(self.xmax, x + max_dx)
+        Ac = np.vstack(dg[1:, :]) if dg.shape[0] > 1 else None
+        bc = Ac @ x - np.hstack(g[1:]) if dg.shape[0] > 1 else None
+        
+        res = linprog(dg[0, :], Ac, bc, bounds=np.vstack([lb, ub]).T, options={"disp": False})
+        if not res.success:
+            print(res)
+            return x, g, dg
+        xnew = res.x
+
+        # Update design vector
+        self.xold2, self.xold1 = self.xold1, x
+
+        return xnew, g, dg

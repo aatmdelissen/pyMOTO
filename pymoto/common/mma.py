@@ -9,32 +9,6 @@ class MMA(Optimizer):
       - Svanberg, K. (1987). The Method of Moving Asymptotes. IJNME, 24(2), 359–373. 
         https://doi.org/10.1002/nme.1620240207
       - Svanberg, K. (2007). MMA and GCMMA – two methods for nonlinear optimization. Kth, 1, 1–15.
-    
-    Args:
-        variables: One or more varaible Signals defining the design variables
-        responses: One or more response Signals, where the first is to be minimized and the others are constraints in 
-          negative null form.
-        function: The Network defining the optimization problem
-
-    Keyword Args:
-        slice_network: If True, only the modules connecting variable and response signals are evaluated
-        move: Move limit on relative variable change per iteration (can be passed as scalar: same value for all 
-          variables, vector: each variable has a unique value, list of scalars/vectors: for each variable signal)
-        xmin: Minimum design variable (can be passed as scalar: same value for all variables, vector: each variable 
-          has a unique value, list of scalars/vectors: for each variable signal)
-        xmax: Maximum design variable (can be passed as scalar: same value for all variables, vector: each variable 
-          has a unique value, list of scalars/vectors: for each variable signal)
-        fn_callback: A function that is called just before calling the response() in each (outer) iteration
-        verbosity: Level of information to print
-          0 - No prints
-          1 - Only convergence message
-          2 - Convergence and iteration info (default)
-          3 - Additional info on variables and GCMMA inner iteration info (when applicable)
-          4 - Additional info on sensitivity information
-        mmaversion: Which MMA algorithm to use
-          "MMA1987" - Original version of MMA
-          "MMA2007" - Improved version of MMA
-          "GCMMA" - Globally-convergent version of MMA
     """
 
     def __init__(
@@ -46,15 +20,39 @@ class MMA(Optimizer):
         move=0.1,
         xmin=0.0,
         xmax=1.0,
-        fn_callback=None,
         verbosity=2,
         mmaversion="MMA2007",
         **kwargs,
     ):
-        super().__init__(variables, responses, function, slice_network=slice_network, xmin=xmin, xmax=xmax)
-       
-        self.verbosity = verbosity
-        self.fn_callback = fn_callback
+        """
+        Args:
+          variables: One or more variable Signals defining the design variables
+          responses: One or more response Signals, where the first is to be minimized and the others are constraints 
+            in negative null form.
+          function: The Network defining the optimization problem
+
+        Keyword Args:
+          slice_network: If True, only the modules connecting variable and response signals are evaluated
+          move: Move limit on relative variable change per iteration (can be passed as scalar: same value for all 
+            variables, vector: each variable has a unique value, list of scalars/vectors: for each variable signal)
+          xmin: Minimum design variable (can be passed as scalar: same value for all variables, vector: each variable 
+            has a unique value, list of scalars/vectors: for each variable signal)
+          xmax: Maximum design variable (can be passed as scalar: same value for all variables, vector: each variable 
+            has a unique value, list of scalars/vectors: for each variable signal)
+          verbosity: Level of information to print
+            0 - No prints
+            1 - Only convergence message
+            2 - Convergence and iteration info (default)
+            3 - Additional info on variables and GCMMA inner iteration info (when applicable)
+            4 - Additional info on sensitivity information
+          mmaversion: Which MMA algorithm to use
+            "MMA1987" - Original version of MMA
+            "MMA2007" - Improved version of MMA
+            "GCMMA" - Globally-convergent version of MMA
+          **kwargs: Additional MMA options (see code for details)
+        """
+        super().__init__(variables, responses, function, slice_network=slice_network, 
+                         xmin=xmin, xmax=xmax, verbosity=verbosity)
 
         # Operational options
         if np.asarray(move).size > 1:
@@ -94,49 +92,6 @@ class MMA(Optimizer):
         if len(self.c) != self.m:
             raise RuntimeError(f"Length of the c vector ({len(self.c)}) should be equal to # constraints ({self.m}).")
         self.d = np.ones(self.m)
-        
-    def optimize(self, maxiter: int = 100, tolx: float = 1e-4, tolf: float = 1e-4):
-        xval = self.x
-        gcur = 0.0
-        while self.iter < maxiter:
-            # Optional function callback
-            if self.fn_callback is not None:
-                self.fn_callback()  
-                xval = self.x  # In case the function callback updates the variable state
-
-            # Calculate new design
-            xnew, g, dg = self.step(x=xval)
-
-            # Check function change convergence criterion
-            gprev, gcur = gcur, g
-            rel_fchange = np.linalg.norm(gcur - gprev) / np.linalg.norm(gcur)
-            if rel_fchange < tolf:
-                if self.verbosity >= 1:
-                    print(f"MMA converged: Relative function change |Δf|/|f| ({rel_fchange}) below tolerance ({tolf})")
-                break
-
-            if self.verbosity >= 3:
-                # Display info on variables (and sensitivities)
-                self.print_variable_info(dg=(dg if  self.verbosity >= 4 else None))
-
-            if self.verbosity >= 2:
-                # Display iteration status message
-                self.print_iteration_info(g, 
-                                          report_feasibility=(self.verbosity >= 3), 
-                                          xold=(xval if self.verbosity >= 3 else None),
-                                          xnew=(xnew if self.verbosity >= 3 else None))
-
-            # Stopping criteria on step size
-            rel_stepsize = np.linalg.norm((xval - xnew) / self.dx) / np.linalg.norm(xval / self.dx)
-            if rel_stepsize < tolx:
-                if self.verbosity >= 1:
-                    print(f"MMA converged: Relative stepsize |Δx|/|x| ({rel_stepsize}) below tolerance ({tolx})")
-                break
-
-            xval = xnew
-            self.iter += 1
-            if self.verbosity >= 3:
-                print("-"*50)
 
     def step(self, x: np.ndarray = None, 
              g: np.ndarray = None, 
@@ -274,6 +229,7 @@ class MMA(Optimizer):
         
         return xmma
 
+    @profile
     @staticmethod
     def subsolv(epsimin, low, upp, alfa, beta, P, Q, a0, a, b, c, d, x0=None):
         r"""This function solves the MMA subproblem
@@ -363,13 +319,14 @@ class MMA(Optimizer):
                 lam * s - epsi,  # res [m]
             ])
 
-            residunorm = np.linalg.norm(residu)
-            residumax = np.max(np.abs(residu))
+            resi2 = residu**2
+            residunorm = resi2.sum() #np.linalg.norm(residu)
+            residumax = resi2.max()  # np.max(np.abs(residu))
 
             ittt = 0
             # the algorithm is terminated when the maximum residual has become smaller than 0.9*epsilon
             # and epsilon has become sufficiently small (and not too many iterations are used)
-            while residumax > 0.9 * epsi and ittt < maxittt:
+            while residumax > (0.9 * epsi)**2 and ittt < maxittt:
                 ittt = ittt + 1
 
                 # Newton's method: first create the variable steps
@@ -499,12 +456,13 @@ class MMA(Optimizer):
                         np.array([zet * z - epsi]),  # rezet [1]
                         lam * s - epsi,  # res [m]
                     ])
-                    if np.linalg.norm(residu) < residunorm:
+                    resi2 = residu**2
+                    if resi2.sum() < residunorm: #np.linalg.norm(residu) < residunorm:
                         break
                     steg /= 2  # Reduce stepsize
 
-                residunorm = np.linalg.norm(residu)
-                residumax = np.max(np.abs(residu))
+                residunorm = resi2.sum() # np.linalg.norm(residu)
+                residumax = resi2.max()  # np.max(np.abs(residu))
 
             if ittt > maxittt - 2:
                 print(f"MMA Subsolver: itt = {ittt}, at epsi = {'%.3e' % epsi}")

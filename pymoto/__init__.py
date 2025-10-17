@@ -5,7 +5,7 @@ from .common.domain import DomainDefinition
 # Imports from common
 from .common.dyadcarrier import DyadCarrier
 from .common.mma import MMA
-from .common.optimizers import Optimizer
+from .common.optimizers import Optimizer, OC, SLP
 
 # Import solvers
 from . import solvers
@@ -39,6 +39,8 @@ __all__ = [
     "minimize_slp",
     # Common
     "MMA",
+    "OC",
+    "SLP",
     "Optimizer",
     "DyadCarrier",
     "DomainDefinition",

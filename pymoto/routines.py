@@ -1,11 +1,11 @@
 import warnings
 import numpy as np
-from .utils import _parse_to_list, _concatenate_to_array
+from .utils import _parse_to_list
 from .core_objects import Signal, Module, Network, SignalsT
 from .common.mma import MMA
-from typing import List, Iterable, Callable
+from .common.optimizers import OC, SLP
+from typing import Callable
 from scipy.sparse import issparse
-from scipy.optimize import linprog
 
 
 # flake8: noqa: C901
@@ -297,404 +297,63 @@ def finite_difference(
     print("=========================================================================================================\n")
 
 
-def obtain_sensitivities(signals: Iterable[Signal]) -> List:
-    """Obtains sensitivities from a list of signals, replacing None by zeros of correct length
-
-    :param signals: The list of signals
-    :return: List of sensitivities
-    """
-    sens = []
-
-    for s in signals:
-        the_sens = s.sensitivity
-
-        if the_sens is None:
-            the_state = s.state
-            if the_state is not None:
-                the_sens = np.zeros_like(the_state)
-
-        sens.append(the_sens)
-    return sens
-
-
-def minimize_oc(
-    variables: SignalsT,
-    objective: Signal,
-    function: Module = None,
-    tolx=1e-4,
-    tolf=1e-4,
-    maxit=100,
-    xmin=0.0,
-    xmax=1.0,
-    move=0.2,
-    l1init=0,
-    l2init=100000,
-    l1l2tol=1e-4,
-    maxvol=None,
-    verbosity=2,
-):
+def minimize_oc(variables: SignalsT, objective: Signal, function: Module = None,
+                maxit: int = 100, tolx: float = 1e-4, tolf: float = 1e-4, **kwargs):
     """Execute minimization using the OC-method
 
     Args:
-        variables: The Signals defining the design variables
-        objective: The objective function Signal to be minimized
-        function (optional): The Network defining the optimization problem
+        variables: One or more varaible Signals defining the design variables
+        response: Response signal to be minimized (objective)
 
     Keyword Args:
+        function (optional): The Network defining the optimization problem
+        maxit: Maximum number of iterations
         tolx: Stopping criterium for relative design change
         tolf: Stopping criterium for relative objective change
-        maxit: Maximum number of iteration
-        xmin: Minimum design variable (can be a vector)
-        xmax: Maximum design variable (can be a vector)
-        move: Move limit
-        l1init: OC internal parameter
-        l2init: OC internal parameter
-        l1l2tol: OC internal parameter
-        verbosity: 0 - No prints, 1 - Only convergence message, 2 - Convergence and iteration info
-
+        **kwargs: Arguments passed to :py:class:`pymoto.OC`
     """
-    variables = _parse_to_list(variables)
-    xval, cumlens = _concatenate_to_array([s.state for s in variables])
+    oc = OC(variables, objective, function, **kwargs)
+    oc.optimize(maxiter=maxit, tolx=tolx, tolf=tolf)
 
-    if function is None:
-        function = Network.active[0]
-
-    if maxvol is None:
-        maxvol = np.sum(xval)
-
-    f = 0.0
-    for it in range(maxit):
-        # Calculate response
-        if it > 0 or objective.state is None:
-            function.response()
-        fprev, f = f, objective.state
-        rel_fchange = abs(f - fprev) / abs(f)
-        if rel_fchange < tolf:
-            if verbosity >= 1:
-                print(f"OC converged: Relative function change |Δf|/|f| ({rel_fchange}) below tolerance ({tolf})")
-            break
-
-        if verbosity >= 2:
-            print("It. {0: 4d}, f0 = {1: .2e}, Δf = {2: .2e}".format(it, f, f - fprev))
-
-        # Calculate sensitivity of the objective
-        function.reset()
-        objective.sensitivity = 1.0
-        function.sensitivity()
-        dfdx, _ = _concatenate_to_array(obtain_sensitivities(variables))
-        maxdfdx = max(dfdx)
-        if maxdfdx > 1e-15:
-            warnings.warn(f"OC only works for negative sensitivities: max(dfdx) = {maxdfdx}. Clipping positive values.")
-        dfdx = np.minimum(dfdx, 0)
-
-        # Do OC update
-        l1, l2 = l1init, l2init
-        while l2 - l1 > l1l2tol:
-            lmid = 0.5 * (l1 + l2)
-            xnew = np.clip(xval * np.sqrt(-dfdx / lmid), np.maximum(xmin, xval - move), np.minimum(xmax, xval + move))
-            l1, l2 = (lmid, l2) if np.sum(xnew) - maxvol > 0 else (l1, lmid)
-
-        # Stopping criteria on step size
-        rel_stepsize = np.linalg.norm(xval - xnew) / np.linalg.norm(xval)
-        if rel_stepsize < tolx:
-            if verbosity >= 1:
-                print(f"OC converged: Relative stepsize |Δx|/|x| ({rel_stepsize}) below tolerance ({tolx})")
-            break
-
-        xval = xnew
-        # Set the new states
-        for i, s in enumerate(variables):
-            s.state = xnew[cumlens[i] : cumlens[i + 1]]
 
 
 def minimize_mma(variables: SignalsT, responses: SignalsT, function: Module = None, 
-                 maxit=100, tolx=1e-4, tolf=1e-4, **kwargs):
+                 maxit: int = 100, tolx: float = 1e-4, tolf: float = 1e-4, **kwargs):
     """Execute minimization using the MMA-method
     Svanberg (1987), The method of moving asymptotes - a new method for structural optimization
 
     Args:
-        variables: The Signals defining the design variables
-        responses: A list of Signals, where the first is to be minimized and the others are constraints
-        function (optional): The Network defining the optimization problem
+        variables: One or more variable Signals defining the design variables
+        responses: One or more response Signals, where the first is to be minimized and the others are constraints in 
+          negative null form.
 
     Keyword Args:
+        function (optional): The Network defining the optimization problem
+        maxit: Maximum number of iterations
         tolx: Stopping criterium for relative design change
         tolf: Stopping criterium for relative objective change
-        maxit: Maximum number of iteration
-        move: Move limit on relative variable change per iteration
-        xmin: Minimum design variable (can be a vector)
-        xmax: Maximum design variable (can be a vector)
-        verbosity: Level of information to print
-          0 - No prints
-          1 - Only convergence message
-          2 - Convergence and iteration info (default)
-          3 - Additional info on variables
-          4 - Additional info on sensitivity information
-
+        **kwargs: Arguments passed to :py:class:`pymoto.MMA`
     """
-    # Save initial state
     mma = MMA(variables, responses, function, **kwargs)
     mma.optimize(maxiter=maxit, tolx=tolx, tolf=tolf)
 
 
-def minimize_slp(variables, responses, function=None, xmin=0, xmax=1, move=0.2, maxit=100, tolx=1e-4, tolf=1e-4, 
-                 verbosity: int = 2, adaptive_movelimit: bool = True):
+def minimize_slp(variables: SignalsT, responses: SignalsT, function: Module = None, 
+                 maxit: int = 100, tolx: float = 1e-4, tolf: float = 1e-4, **kwargs):
     """Sequential linear programming optimization algorithm
 
     Args:
-        variables: The Signals defining the design variables
-        responses: A list of Signals, where the first is to be minimized and the others are constraints
+        variables: One or more variable Signals defining the design variables
+        responses: One or more response Signals, where the first is to be minimized and the others are constraints in 
+          negative null form.
+
+    Keyword Args:
         function (optional): The Network defining the optimization problem
-        xmin (optional): Minimum design variable (can be a vector)
-        xmax (optional): Maximum design variable (can be a vector)
-        move (optional): Move limit on relative variable change per iteration
-        maxit (optional): Maximum number of iteration
-        tolx (optional): Stopping criterium for relative design change
-        tolf (optional): Stopping criterium for relative objective change
-        verbosity (optional): Level of information to print
-          0 - No prints
-          1 - Only convergence message
-          2 - Convergence and iteration info (default)
-          3 - Additional info on variables
-          4 - Additional info on sensitivity information
-        adaptive_movelimit (optional): Move limit is adapted based on variable oscillation behavior
+        maxit: Maximum number of iterations
+        tolx: Stopping criterium for relative design change
+        tolf: Stopping criterium for relative objective change
+        **kwargs: Arguments passed to :py:class:`pymoto.SLP`
     """
-    variables = _parse_to_list(variables)
-    responses = _parse_to_list(responses)
-
-    if len(responses) > 1:
-        raise NotImplementedError("SLP currently only for unconstrained optimization")
-
-    # For adaptive movelimit
-    asyincr = 1.2
-    asydecr = 0.7
-    asyinit = 1.0
-    asybound = 10.0
-
-    # Save initial state
-    xval, cumlens = _concatenate_to_array([s.state for s in variables])
-    n = len(xval)
-
-    # Set lower bounds
-    if not hasattr(xmin, "__len__"):
-        xmin = xmin * np.ones_like(xval)
-    elif len(xmin) == len(variables):
-        xminvals = xmin
-        xmin = np.zeros_like(xval)
-        for i in range(len(xminvals)):
-            xmin[cumlens[i]:cumlens[i + 1]] = xminvals[i]
-
-    if len(xmin) != n:
-        raise RuntimeError(f"Length of the xmin vector ({len(xmin)}) should be equal to # design variables ({n})")
-
-    # Upper bounds
-    if not hasattr(xmax, "__len__"):
-        xmax = xmax * np.ones_like(xval)
-    elif len(xmax) == len(variables):
-        xmaxvals = xmax
-        xmax = np.zeros_like(xval)
-        for i in range(len(xmaxvals)):
-            xmax[cumlens[i]:cumlens[i + 1]] = xmaxvals[i]
-
-    if len(xmax) != n:
-        raise RuntimeError(f"Length of the xmax vector ({len(xmax)}) should be equal to # design variables ({n})")
-
-    dx = xmax - xmin
-    offset = asyinit * np.ones(n) if adaptive_movelimit else 1.0
-    xold1, xold2 = None, None
-
-    # Move limit
-    if hasattr(move, "__len__"):
-        # Set movelimit in case of multiple are given
-        move_input = np.asarray(move).copy()
-        if move_input.size == len(variables):
-            move = np.zeros_like(xval)
-            for i in range(move_input.size):
-                move[cumlens[i]:cumlens[i + 1]] = move_input[i]
-        elif len(move) != n:
-            raise RuntimeError(f"""Length of the move vector ({len(move)}) should be equal to number of 
-                                design variable signals ({len(variables)}) or total number of 
-                                design variables ({n}).""")
-
-    # Get function
-    if function is None:
-        function = Network.active[0]
-
-    fcur = 0.0
-    for iter in range(maxit):
-        # Reset all signals in function block
-        function.reset()
-
-        # Set the new states
-        for i, s in enumerate(variables):
-            if cumlens[i + 1] - cumlens[i] == 1:
-                s.state = xval[cumlens[i]]
-            else:
-                s.state = xval[cumlens[i]:cumlens[i + 1]]
-
-        if iter > 0 or any([s.state is None for s in responses]):
-            # Calculate response; first iteration may already be calculated
-            function.response()
-
-        xval, _ = _concatenate_to_array([s.state for s in variables])
-
-        # Save response
-        f = ()
-        for s in responses:
-            if np.size(s.state) != 1:
-                raise TypeError("State of responses must be scalar.")
-            if np.iscomplexobj(s.state):
-                raise TypeError("Responses must be real-valued.")
-            f += (s.state,)
-
-        # Check function change convergence criterion
-        fprev, fcur = fcur, responses[0].state
-        rel_fchange = abs(fcur - fprev) / abs(fcur)
-        if rel_fchange < tolf:
-            if verbosity >= 1:
-                print(f"SLP converged: Relative function change |Δf|/|f| ({rel_fchange}) below tolerance ({tolf})")
-            break
-
-        # Calculate and save sensitivities
-        df = ()
-        for i, s_out in enumerate(responses):
-            for s in responses:
-                s.reset()
-
-            s_out.sensitivity = s_out.state * 0 + 1.0
-
-            function.sensitivity()
-
-            sens_list = []
-            for v in variables:
-                sens_list.append(v.sensitivity if v.sensitivity is not None else 0 * v.state)
-            dff, _ = _concatenate_to_array(sens_list)
-            df += (dff,)
-
-            # Reset sensitivities for the next response
-            function.reset()
-
-        if verbosity >= 3:
-            # Display info on variables
-            show_sensitivities = verbosity >= 4
-            msg = ""
-            for i, s in enumerate(variables):
-                if show_sensitivities:
-                    msg += "{0:>10s} = ".format(s.tag[:10])
-                else:
-                    msg += f"{s.tag} = "
-
-                # Display value range
-                fmt = "% .2e"
-                minval, maxval = np.min(s.state), np.max(s.state)
-                mintag, maxtag = fmt % minval, fmt % maxval
-                if mintag == maxtag:
-                    if show_sensitivities:
-                        msg += f"       {mintag}      "
-                    else:
-                        msg += f" {mintag}"
-                else:
-                    sep = "…" if len(s.state) > 2 else ","
-                    msg += f"[{mintag}{sep}{maxtag}]"
-                    if show_sensitivities:
-                        msg += " "
-
-                if show_sensitivities:
-                    # Display info on sensivity values
-                    for j, s_out in enumerate(responses):
-                        msg += "| {0:s}/{1:11s} = ".format("d" + s_out.tag, "d" + s.tag[:10])
-                        minval = np.min(df[j][cumlens[i] : cumlens[i + 1]])
-                        maxval = np.max(df[j][cumlens[i] : cumlens[i + 1]])
-                        mintag, maxtag = fmt % minval, fmt % maxval
-                        if mintag == maxtag:
-                            msg += f"       {mintag}      "
-                        else:
-                            sep = "…" if cumlens[i + 1] - cumlens[i] > 2 else ","
-                            msg += f"[{mintag}{sep}{maxtag}] "
-                    msg += "\n"
-                elif i != len(variables) - 1:
-                    msg += ", "
-            print(msg)
-
-        # # ASYMPTOTES
-        # Calculation of the asymptotes low and upp :
-        # For iter = 1,2 the asymptotes are fixed depending on asyinit
-        if xold1 is not None and xold2 is not None and adaptive_movelimit:
-            # depending on if the signs of xval - xold and xold - xold2 are opposite, indicating an oscillation
-            # in the variable xi
-            # if the signs are equal the asymptotes are slowing down the convergence and should be relaxed
-
-            # check for oscillations in variables
-            # if zzz positive no oscillations, if negative --> oscillations
-            zzz = (xval - xold1) * (xold1 - xold2)
-            # decrease those variables that are oscillating equal to asydecr
-            offset[zzz > 0] *= asyincr
-            offset[zzz < 0] *= asydecr
-
-            # check with minimum and maximum bounds of asymptotes, as they cannot be to close or far from the variable
-            # give boundaries for upper and lower asymptotes
-            offset = np.clip(offset, 1 / (asybound**2), 1.0)
-
-        max_dx = offset * move * dx
-
-        lb = np.maximum(xmin, xval-max_dx)
-        ub = np.minimum(xmax, xval+max_dx)
-        Ac = np.vstack(df[1:]) if len(df) > 1 else None
-        bc = Ac @ xval - np.hstack(f[1:]) if len(df) > 1 else None
-        
-        res = linprog(df[0], Ac, bc, bounds=np.vstack([lb, ub]).T, options={"disp": False})
-        if not res.success:
-            print(res)
-            return
-        xnew = res.x
-
-        # Stopping criteria on step size
-        rel_stepsize = np.linalg.norm((xval - xnew) / dx) / np.linalg.norm(xval / dx)
-        if rel_stepsize < tolx:
-            if verbosity >= 1:
-                print(f"SLP converged: Relative stepsize |Δx|/|x| ({rel_stepsize}) below tolerance ({tolx})")
-            break
-
-        if verbosity >= 2:
-            # Display iteration status message
-            msgs = ["g{0:d}({1:s}): {2:+.4e}".format(i, s.tag, f[i]) for i, s in enumerate(responses)]
-            if len(responses) > 1:
-                max_infeasibility = max(f[1:len(responses)])
-                is_feasible = max_infeasibility <= 0
-                feasibility_tag = "[f] " if is_feasible else "[ ] "
-            else:
-                feasibility_tag = ""  # No constraints, so always feasible :)
-
-            print("It. {0: 4d}, {1:s}{2}".format(iter, feasibility_tag, ", ".join(msgs)))
-
-        if verbosity >= 3:
-            # Report design feasibility
-            g_orig = f[:len(responses)]
-            if g_orig[1:].size > 0:
-                iconst_max = np.argmax(g_orig[1:])
-                print(
-                    f"  | {np.sum(g_orig[1:] > 0)} / {len(g_orig) - 1} violated constraints, "
-                    f"max. violation ({responses[iconst_max + 1].tag}) = {'%.2g' % g_orig[iconst_max + 1]}"
-                )
-
-            # Print design changes
-            change_msgs = []
-            for i, s in enumerate(variables):
-                minchg = np.min(
-                    abs(xval[cumlens[i] : cumlens[i + 1]] - xnew[cumlens[i] : cumlens[i + 1]])
-                )
-                maxchg = np.max(
-                    abs(xval[cumlens[i] : cumlens[i + 1]] - xnew[cumlens[i] : cumlens[i + 1]])
-                )
-                fmt = "%.2g"
-                mintag, maxtag = fmt % minchg, fmt % maxchg
-
-                if mintag == maxtag:
-                    change_msgs.append(f"Δ({s.tag}) = {mintag}")
-                else:
-                    change_msgs.append(f"Δ({s.tag}) = {mintag}…{maxtag}")
-
-            print(f"  | Changes: {', '.join(change_msgs)}")
-
-        # Update design vector
-        xold2, xold1, xval = xold1, xval, xnew
+    slp = SLP(variables, responses, function, **kwargs)
+    slp.optimize(maxiter=maxit, tolx=tolx, tolf=tolf)
+    
