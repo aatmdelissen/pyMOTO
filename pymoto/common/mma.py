@@ -229,7 +229,6 @@ class MMA(Optimizer):
         
         return xmma
 
-    @profile
     @staticmethod
     def subsolv(epsimin, low, upp, alfa, beta, P, Q, a0, a, b, c, d, x0=None):
         r"""This function solves the MMA subproblem
@@ -320,8 +319,8 @@ class MMA(Optimizer):
             ])
 
             resi2 = residu**2
-            residunorm = resi2.sum() #np.linalg.norm(residu)
-            residumax = resi2.max()  # np.max(np.abs(residu))
+            residunorm = resi2.sum()
+            residumax = resi2.max()
 
             ittt = 0
             # the algorithm is terminated when the maximum residual has become smaller than 0.9*epsilon
@@ -336,8 +335,6 @@ class MMA(Optimizer):
                 xl1 = x - low
                 ux2 = ux1**2
                 xl2 = xl1**2
-                ux3 = ux1 * ux2
-                xl3 = xl1 * xl2
 
                 uxinv1 = 1.0 / ux1
                 xlinv1 = 1.0 / xl1
@@ -361,7 +358,7 @@ class MMA(Optimizer):
                 dellam = gvec - a * z - y - b + epsi / lam
 
                 # calculation of diagonal matrices Dx Dy Dlam
-                diagx = 2 * (plam / ux3 + qlam / xl3) + xsi / (x - alfa) + eta / (beta - x)
+                diagx = 2 * (plam / (ux1 * ux2) + qlam / (xl1 * xl2)) + xsi / (x - alfa) + eta / (beta - x)
                 diagy = d + mu / y
 
                 diaglam = s / lam
@@ -457,12 +454,13 @@ class MMA(Optimizer):
                         lam * s - epsi,  # res [m]
                     ])
                     resi2 = residu**2
-                    if resi2.sum() < residunorm: #np.linalg.norm(residu) < residunorm:
+                    resinorm_ii = resi2.sum()
+                    if resinorm_ii < residunorm:
                         break
                     steg /= 2  # Reduce stepsize
 
-                residunorm = resi2.sum() # np.linalg.norm(residu)
-                residumax = resi2.max()  # np.max(np.abs(residu))
+                residunorm = resinorm_ii
+                residumax = resi2.max()
 
             if ittt > maxittt - 2:
                 print(f"MMA Subsolver: itt = {ittt}, at epsi = {'%.3e' % epsi}")
