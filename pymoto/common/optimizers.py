@@ -3,39 +3,41 @@ import warnings
 import numpy as np
 from scipy.optimize import linprog
 from ..utils import _parse_to_list, _concatenate_to_array
-from ..core_objects import Network, Module, SignalsT, Signal
+from ..core_objects import Network, SignalsT, Signal
 
 
 class Optimizer(ABC):
     """General abstract optimizer object"""
-    def __init__(self, 
-                 variables: SignalsT, 
-                 responses: SignalsT, 
-                 function: Network = None, 
-                 slice_network: bool = False, 
-                 xmin=None, 
-                 xmax=None,         
-                 verbosity: int = 2,
+
+    def __init__(
+        self,
+        variables: SignalsT,
+        responses: SignalsT,
+        function: Network = None,
+        slice_network: bool = False,
+        xmin=None,
+        xmax=None,
+        verbosity: int = 2,
     ):
         """Initialize general optimization object
 
         Args:
             variables (Signal(s)): One or more variable Signals defining the design variables
-            responses (Signal(s)): One or more response Signals, where the first is to be minimized and the others are 
+            responses (Signal(s)): One or more response Signals, where the first is to be minimized and the others are
               constraints in negative null form.
             function (Network, optional): The Network defining the optimization problem. Defaults to None.
             slice_network (bool, optional): If True, only the modules connecting variable and response signals are
               evaluated. Defaults to False.
-            xmin (optional): Minimum design variable (can be passed as scalar: same value for all variables, 
+            xmin (optional): Minimum design variable (can be passed as scalar: same value for all variables,
               vector: each variable has a unique value, list of scalars/vectors: for each variable signal)
-            xmax (optional): Maximum design variable (can be passed as scalar: same value for all variables, 
+            xmax (optional): Maximum design variable (can be passed as scalar: same value for all variables,
               vector: each variable has a unique value, list of scalars/vectors: for each variable signal)
             verbosity (int, optional): Level of information to printDefaults to 2.
               0 - No prints
               1 - Only convergence message
               2 - Convergence and iteration info (default)
               3 - Additional info on variables and GCMMA inner iteration info (when applicable)
-              4 - Additional info on sensitivity information. 
+              4 - Additional info on sensitivity information.
         """
         self.variables = _parse_to_list(variables)
         self.responses = _parse_to_list(responses)
@@ -71,26 +73,26 @@ class Optimizer(ABC):
         self.n = xval.size  # Number of design parameters
 
         # Set lower bound
-        if xmin is None and all([hasattr(s, 'min') for s in self.variables]):
+        if xmin is None and all([hasattr(s, "min") for s in self.variables]):
             # Try to obtain from signal
             xmin = [s.min for s in self.variables]
 
         if xmin is not None:
-            self.xmin = self._parse_bound(xmin, which='xmin')
-        
+            self.xmin = self._parse_bound(xmin, which="xmin")
+
         # Set upper bound
-        if xmax is None and all([hasattr(s, 'max') for s in self.variables]):
+        if xmax is None and all([hasattr(s, "max") for s in self.variables]):
             # Try to obtain from signal
             xmax = [s.max for s in self.variables]
 
         if xmax is not None:
-            self.xmax = self._parse_bound(xmax, which='xmax')
+            self.xmax = self._parse_bound(xmax, which="xmax")
 
         # Initialize other parameters
         self.iter = 0
 
-    def _parse_bound(self, xbnd, which='bounds'):
-        """ Helper function to get upper and lower bound vector"""
+    def _parse_bound(self, xbnd, which="bounds"):
+        """Helper function to get upper and lower bound vector"""
         xbnd = np.asarray(xbnd)
         if xbnd.size == 1:  # Just one value is given
             bvec = xbnd * np.ones(self.n)  # TODO: Check if this can be replaced with one value
@@ -106,14 +108,15 @@ class Optimizer(ABC):
                     - scalar
                     - equal to the number of variable signals ({len(self.variables)})
                     - equal to number of design variables ({self.n})
-                """)
-                    
+                """
+            )
+
         assert bvec.size == self.n
         return bvec
 
     @property
     def x(self):
-        """ Set current design variable vector """
+        """Set current design variable vector"""
         xval, _ = _concatenate_to_array([s.state for s in self.variables])
         assert xval.size == self.n
         return xval
@@ -131,7 +134,7 @@ class Optimizer(ABC):
                 s.state = v[self._cumlens[i] : self._cumlens[i + 1]]
 
     def calculate_g(self):
-        """ Calculate function response g(x) """
+        """Calculate function response g(x)"""
         if not self.response_is_uptodate:
             self.function.response()  # Automatically calculate response when x is out of date
             self.response_is_uptodate = True
@@ -143,13 +146,13 @@ class Optimizer(ABC):
         if any(np.asarray(s.state).size > 1 for s in self.responses):
             raise TypeError("Responses for optimziation must be scalar.")  # Else calculate_dg must be adapted
         return _concatenate_to_array([s.state for s in self.responses])[0]
-    
+
     def calculate_dg(self):
-        """ Calculate Jacobian dg/dx """
+        """Calculate Jacobian dg/dx"""
         dg = ()
         self.function.reset()
         for i, s_out in enumerate(self.responses):
-            s_out.sensitivity = s_out.state * 0 + 1.0   # Seed response
+            s_out.sensitivity = s_out.state * 0 + 1.0  # Seed response
 
             self.function.sensitivity()  # Backpropagation
 
@@ -158,7 +161,7 @@ class Optimizer(ABC):
 
             self.function.reset()  # Reset sensitivities for the next sensitivity
         return np.vstack(dg)
-    
+
     def print_variable_info(self, dg: np.ndarray = None):
         """Print information on variables (and sensitivities)
 
@@ -206,8 +209,9 @@ class Optimizer(ABC):
                 msg += ", "
         print(msg)
 
-    def print_iteration_info(self, g: np.ndarray, report_feasibility: bool = False, 
-                             xold: np.ndarray = None, xnew: np.ndarray = None):
+    def print_iteration_info(
+        self, g: np.ndarray, report_feasibility: bool = False, xold: np.ndarray = None, xnew: np.ndarray = None
+    ):
         """Print iteration information
 
         Args:
@@ -235,7 +239,7 @@ class Optimizer(ABC):
                     f"  | {np.sum(g[1:] > 0)} / {nresp - 1} violated constraints, "
                     f"max. violation ({self.responses[iconst_max + 1].tag}) = {'%.2g' % g[iconst_max + 1]}"
                 )
-        
+
         if xnew is not None and xold is not None:
             x_diff = np.abs(xnew - xold)
             change_msgs = []
@@ -251,9 +255,9 @@ class Optimizer(ABC):
                     change_msgs.append(f"Δ({s.tag}) = {mintag}…{maxtag}")
 
             print(f"  | Changes: {', '.join(change_msgs)}")
-    
+
     def optimize(self, maxiter: int = 100, tolx: float = 1e-4, tolf: float = 1e-4):
-        """ Perform a gradient-based optimization 
+        """Perform a gradient-based optimization
 
         Args:
             maxiter (int, optional): Maximum number of iteration. Defaults to 100.
@@ -277,14 +281,16 @@ class Optimizer(ABC):
 
             if self.verbosity >= 3:
                 # Display info on variables (and sensitivities)
-                self.print_variable_info(dg=(dg if  self.verbosity >= 4 else None))
+                self.print_variable_info(dg=(dg if self.verbosity >= 4 else None))
 
             if self.verbosity >= 2:
                 # Display iteration status message
-                self.print_iteration_info(g, 
-                                          report_feasibility=(self.verbosity >= 3), 
-                                          xold=(xval if self.verbosity >= 3 else None),
-                                          xnew=(xnew if self.verbosity >= 3 else None))
+                self.print_iteration_info(
+                    g,
+                    report_feasibility=(self.verbosity >= 3),
+                    xold=(xval if self.verbosity >= 3 else None),
+                    xnew=(xnew if self.verbosity >= 3 else None),
+                )
 
             # Stopping criteria on step size
             rel_stepsize = np.linalg.norm((xval - xnew) / self.dx) / np.linalg.norm(xval / self.dx)
@@ -296,14 +302,13 @@ class Optimizer(ABC):
             xval = xnew
             self.iter += 1
             if self.verbosity >= 3:
-                print("-"*50)
-    
+                print("-" * 50)
+
     @abstractmethod
-    def step(self, 
-             x: np.ndarray = None, 
-             g: np.ndarray = None, 
-             dg: np.ndarray = None) -> (np.ndarray, np.ndarray, np.ndarray):
-        """ Performs a single optimization step
+    def step(
+        self, x: np.ndarray = None, g: np.ndarray = None, dg: np.ndarray = None
+    ) -> (np.ndarray, np.ndarray, np.ndarray):
+        """Performs a single optimization step
 
         Args:
             x (np.ndarray, optional): The design vector to evaluate. When not provided, use information set in state
@@ -319,7 +324,8 @@ class Optimizer(ABC):
 
 
 class OC(Optimizer):
-    def __init__(self,
+    def __init__(
+        self,
         variables: SignalsT,
         response: Signal,
         function: Network,
@@ -339,18 +345,18 @@ class OC(Optimizer):
             variables: One or more variable Signals defining the design variables
             response: Response signal to be minimized (objective)
             function: The Network defining the optimization problem
-        
+
         Keyword Args:
-            slice_network (bool): If True, only the modules connecting variable and response signals are evaluated. 
+            slice_network (bool): If True, only the modules connecting variable and response signals are evaluated.
               Defaults to False.
-            move: Move limit on relative variable change per iteration (can be passed as scalar: same value for 
-              all variables, vector: each variable has a unique value, list of scalars/vectors: for each variable 
+            move: Move limit on relative variable change per iteration (can be passed as scalar: same value for
+              all variables, vector: each variable has a unique value, list of scalars/vectors: for each variable
               signal). Defaults to 0.1.
-            xmin: Minimum design variable (can be passed as scalar: same value for all variables, 
-              vector: each variable has a unique value, list of scalars/vectors: for each variable signal). 
+            xmin: Minimum design variable (can be passed as scalar: same value for all variables,
+              vector: each variable has a unique value, list of scalars/vectors: for each variable signal).
               Defaults to 0.0.
-            xmax: Maximum design variable (can be passed as scalar: same value for all variables, 
-              vector: each variable has a unique value, list of scalars/vectors: for each variable signal). 
+            xmax: Maximum design variable (can be passed as scalar: same value for all variables,
+              vector: each variable has a unique value, list of scalars/vectors: for each variable signal).
               Defaults to 1.0.
             verbosity (int): Level of information to print. Defaults to 2.
               0 - No prints
@@ -363,12 +369,13 @@ class OC(Optimizer):
             l1l2tol (float): Internal OC parameter. Defaults to 1e-4.
             maxvol (float): Volume fraction. Defaults to None.
         """
-        super().__init__(variables, response, function, slice_network=slice_network, 
-                         xmin=xmin, xmax=xmax, verbosity=verbosity)
+        super().__init__(
+            variables, response, function, slice_network=slice_network, xmin=xmin, xmax=xmax, verbosity=verbosity
+        )
 
         # Move limit
         if np.asarray(move).size > 1:
-            self.move = self._parse_bound(move, which='move')
+            self.move = self._parse_bound(move, which="move")
         else:
             self.move = move
 
@@ -380,17 +387,15 @@ class OC(Optimizer):
         self.l2init = l2init
         self.l1l2tol = l1l2tol
         self.maxvol = maxvol
-    
-    def step(self, 
-             x: np.ndarray = None, 
-             g: np.ndarray = None, 
-             dg: np.ndarray = None) -> (np.ndarray, np.ndarray, np.ndarray):
-        
+
+    def step(
+        self, x: np.ndarray = None, g: np.ndarray = None, dg: np.ndarray = None
+    ) -> (np.ndarray, np.ndarray, np.ndarray):
         if x is None:
             x = self.x  # Gather the states
         else:
             self.x = x  # Set the new states
-        
+
         if self.maxvol is None:
             self.maxvol = np.sum(x) / x.size
 
@@ -422,33 +427,35 @@ class OC(Optimizer):
 
 
 class SLP(Optimizer):
-    def __init__(self, 
-                 variables: SignalsT,
-                 responses: SignalsT,
-                 function: Network,
-                 slice_network: bool =False,
-                 move=0.1,
-                 xmin=0.0,
-                 xmax=1.0,
-                 verbosity: int = 2,
-                 adaptive_movelimit: bool = True,
-                 **kwargs):
+    def __init__(
+        self,
+        variables: SignalsT,
+        responses: SignalsT,
+        function: Network,
+        slice_network: bool = False,
+        move=0.1,
+        xmin=0.0,
+        xmax=1.0,
+        verbosity: int = 2,
+        adaptive_movelimit: bool = True,
+        **kwargs,
+    ):
         """SLP optimization algorithm
         Warning: This optimizer is experimental and is not very robust (yet)
 
         Args:
           variables: One or more variable Signals defining the design variables
-          responses: One or more response Signals, where the first is to be minimized and the others are constraints 
+          responses: One or more response Signals, where the first is to be minimized and the others are constraints
             in negative null form.
           function: The Network defining the optimization problem
-           
+
         Keyword Args:
           slice_network: If True, only the modules connecting variable and response signals are evaluated
-          move: Move limit on relative variable change per iteration (can be passed as scalar: same value for all 
+          move: Move limit on relative variable change per iteration (can be passed as scalar: same value for all
             variables, vector: each variable has a unique value, list of scalars/vectors: for each variable signal)
-          xmin: Minimum design variable (can be passed as scalar: same value for all variables, vector: each variable 
+          xmin: Minimum design variable (can be passed as scalar: same value for all variables, vector: each variable
             has a unique value, list of scalars/vectors: for each variable signal)
-          xmax: Maximum design variable (can be passed as scalar: same value for all variables, vector: each variable 
+          xmax: Maximum design variable (can be passed as scalar: same value for all variables, vector: each variable
             has a unique value, list of scalars/vectors: for each variable signal)
           adaptive_movelimit (bool): Move limit is adapted based on variable oscillation behavior. Defaults to True.
           asyincr (float): Increase of adaptive movelimit when no oscillation is present. Default is 1.2
@@ -456,18 +463,22 @@ class SLP(Optimizer):
           asyinit (float): Initial adaptive movelimit value. Default is 1.0
           asybound (float): Lower bound on adaptive movelimit. Default is 1e-2
         """
-        super().__init__(variables, responses, function, slice_network=slice_network, xmin=xmin, xmax=xmax)
+        super().__init__(
+            variables, responses, function, slice_network=slice_network, xmin=xmin, xmax=xmax, verbosity=verbosity
+        )
+        # SLP options
+        self.infeasibility_method = kwargs.get("infeasibility_method", "relax")  # 'relax' or 'penalty'
 
         # For adaptive movelimit
         self.adaptive_movelimit = adaptive_movelimit
-        self.asyincr = kwargs.get('asyincr', 1.2)
-        self.asydecr = kwargs.get('asydecr', 0.7)
-        self.asyinit = kwargs.get('asyinit', 1.0)
-        self.asybound = kwargs.get('asybound', 1e-2)
+        self.asyincr = kwargs.get("asyincr", 1.2)
+        self.asydecr = kwargs.get("asydecr", 0.7)
+        self.asyinit = kwargs.get("asyinit", 1.0)
+        self.asybound = kwargs.get("asybound", 1e-2)
 
         # Move limit
         if np.asarray(move).size > 1:
-            self.move = self._parse_bound(move, which='move')
+            self.move = self._parse_bound(move, which="move")
         else:
             self.move = move
 
@@ -478,11 +489,10 @@ class SLP(Optimizer):
             self.offset = self.asyinit * np.ones(self.n)
         else:
             self.offset = 1.0
-    
-    def step(self, 
-             x: np.ndarray = None, 
-             g: np.ndarray = None, 
-             dg: np.ndarray = None) -> (np.ndarray, np.ndarray, np.ndarray):
+
+    def step(
+        self, x: np.ndarray = None, g: np.ndarray = None, dg: np.ndarray = None
+    ) -> (np.ndarray, np.ndarray, np.ndarray):
         if x is None:
             x = self.x  # Gather the states
         else:
@@ -517,14 +527,57 @@ class SLP(Optimizer):
 
         lb = np.maximum(self.xmin, x - max_dx)
         ub = np.minimum(self.xmax, x + max_dx)
-        Ac = np.vstack(dg[1:, :]) if dg.shape[0] > 1 else None
-        bc = Ac @ x - np.hstack(g[1:]) if dg.shape[0] > 1 else None
-        
-        res = linprog(dg[0, :], Ac, bc, bounds=np.vstack([lb, ub]).T, options={"disp": False})
-        if not res.success:
-            print(res)
-            return x, g, dg
-        xnew = res.x
+        Ac = dg[1:, :] if g.size > 1 else None
+        bc = Ac @ x - g[1:] if g.size > 1 else None
+
+        min_g = g + np.sum(dg * ((dg > 0) * (lb - x) + (dg < 0) * (ub - x)), axis=1)
+        max_g = g + np.sum(dg * ((dg > 0) * (ub - x) + (dg < 0) * (lb - x)), axis=1)
+
+        # In case minimum g is infeasible, relax constraints a bit
+        feasible_optimum = False
+        if g.size == 1 or np.all(min_g[1:] < 0):
+            res = linprog(dg[0, :], Ac, bc, bounds=np.vstack([lb, ub]).T, options={"disp": False})
+            if res.success:
+                xnew = res.x
+                feasible_optimum = True
+
+        if not feasible_optimum:
+            if "relax" in self.infeasibility_method.lower():
+                maxitt = 10
+                cmax = np.argmax(g[1:])
+                alpha0 = (min_g[cmax + 1] + 1e-10 * (g[cmax + 1] - min_g[cmax + 1])) / g[cmax + 1]
+                alpha1 = 1.0  # 0 is no relaxation, 1 is full relaxation
+                alpha = alpha0
+                for itt in range(maxitt):
+                    # Bi-section with constraint relaxation
+                    bc_relaxed = bc + (g[1:] > 0) * alpha * g[1:] if bc is not None else None
+                    res = linprog(dg[0, :], Ac, bc_relaxed, bounds=np.vstack([lb, ub]).T, options={"disp": False})
+                    if self.verbosity >= 4:
+                        succ = "Yes" if res.success else "No"
+                        print(
+                            f"  || SLP Bisection {itt}, relaxation = {alpha} ({alpha0} ... {alpha1}), success = {succ}"
+                        )
+                    if res.success:
+                        alpha1 = alpha
+                        xnew = res.x
+                    else:
+                        alpha0 = alpha
+                    if abs(alpha1 - alpha0) < 1e-8:
+                        break
+                    alpha = (alpha0 + alpha1) / 2
+
+            if "penalty" in self.infeasibility_method.lower():
+                # Make unconstrained
+                penalty_factor = 1.0
+
+                p = np.ones_like(g)
+                p[1:] = penalty_factor * g[1:] * (g[1:] > 0)
+                p /= max_g - min_g + 1e-16
+                if self.verbosity >= 4:
+                    print(f"  || SLP Penalty factors = {p}")
+
+                res = linprog(p @ dg, bounds=np.vstack([lb, ub]).T, options={"disp": False})
+                xnew = res.x
 
         # Update design vector
         self.xold2, self.xold1 = self.xold1, x

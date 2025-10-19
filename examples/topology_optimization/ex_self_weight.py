@@ -25,6 +25,7 @@ References:
 """
 
 import numpy as np
+from scipy.sparse import diags
 import pymoto as pym
 
 # Problem settings
@@ -38,8 +39,9 @@ nu = 0.3
 rho = 2700  # kg/m^3
 
 # Loadcase
-load = 0.0 # 1000.0  # Constant point load on the top left of the domain, in negative y direction (N)
+load = 0.0 # 100.0  # Constant point load on the top left of the domain, in negative y direction (N)
 gravity = np.array([0.0, -1.0]) * 9.81  # Gravity (m/s^2)
+# Note: Adding a point-load makes convergence easier
 
 """ Choose boundary condition type
 1: arch
@@ -50,11 +52,11 @@ gravity = np.array([0.0, -1.0]) * 9.81  # Gravity (m/s^2)
 bc = 1
 
 # Constraint on maximum volume
-use_volume_constraint = False
+use_volume_constraint = True
 max_volume = 0.2  # Maximum allowed volume fraction
 
 # Constraint on maximum stress
-use_stress_constraint = False
+use_stress_constraint = True
 maximum_vm_stress = 0.2e+6  # Maximum stress value (Pa)
 
 
@@ -111,7 +113,13 @@ if __name__ == "__main__":
         s_penalized_variables = pym.MathGeneral(f"{xmin} + {1 - xmin}*(0.01*inp0 + 0.99*inp0^3)")(s_filtered_variables)
 
         # Assemble stiffness matrix
-        s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu, bc=fixed_dofs)(s_penalized_variables)
+        # Apply boundary conditions by adding relatively stiff springs. This helps reduce edge stress concentrations.
+        bc_diag = np.zeros_like(f_const)
+        bc_diag[fixed_dofs] = 100 * E * np.prod(domain.element_size)
+        if hasattr(fixed_dofs, '__len__') and fixed_dofs.size > 2:
+            bc_diag[fixed_dofs[[0, -1]]] /= 2 # edge effect 
+        Kfix = diags(bc_diag)  
+        s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu, add_constant=Kfix)(s_penalized_variables)
 
         # Determine gravity load
         mass_el = rho * np.prod(domain.element_size)  # Mass of one element
@@ -173,6 +181,6 @@ if __name__ == "__main__":
     # pym.finite_difference(s_variables, responses, dx=1e-4)
 
     # Optimization (try different algorithms by uncommenting)
-    # pym.minimize_slp(s_variables, responses)  # Only unconstrained
+    pym.minimize_slp(s_variables, responses)
     # pym.minimize_oc(s_variables, responses[0], verbosity=2, maxit=300)  # Only unconstrained
-    pym.minimize_mma(s_variables, responses, verbosity=2, maxit=300, move=0.1)
+    # pym.minimize_mma(s_variables, responses, verbosity=2, maxit=300, move=0.1)
