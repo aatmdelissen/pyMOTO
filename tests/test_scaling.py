@@ -33,40 +33,54 @@ class TestScaling:
 
         pym.finite_difference(sx, s_scaled, test_fn=self.fd_testfn)
 
-    def test_lower_constraint(self):
-        sx = pym.Signal('x', 1.0)
-        m = pym.Scaling(scaling=15.0, minval=0.5)
+    @pytest.mark.parametrize("minval", [-0.5, 0.0, 0.5])
+    def test_lower_constraint(self, minval):
+        sx = pym.Signal('x', 0.0)
+        m = pym.Scaling(scaling=15.0, minval=minval)
         s_scaled = m(sx)
-        assert s_scaled.state < 0.0
-        sx.state = 0.5
-        m.response()
-        assert s_scaled.state == 0.0
-        sx.state = 0.4
-        m.response()
-        assert s_scaled.state > 0.0
-        sx.state = 0.0
+
+        x_values = minval + np.linspace(-1, 1, 21)
+        for x in x_values:
+            sx.state = x
+            m.response()
+            if x < minval:
+                assert s_scaled.state > 0.0
+            elif x == minval:
+                assert s_scaled.state == 0.0
+            else:
+                assert s_scaled.state < 0.0
+
+        sx.state = minval - (abs(minval) if minval != 0 else 1.0)
         m.response()
         assert s_scaled.state == 15.0
 
         pym.finite_difference(sx, s_scaled, test_fn=self.fd_testfn)
 
-    def test_upper_constraint(self):
-        sx = pym.Signal('x', 1.0)
-        m = pym.Scaling(scaling=15.0, maxval=0.5)
+    @pytest.mark.parametrize("maxval", [-0.5, 0.0, 0.5])
+    def test_upper_constraint(self, maxval):
+        sx = pym.Signal('x', 0.0)
+        m = pym.Scaling(scaling=15.0, maxval=maxval)
         s_scaled = m(sx)
-        assert s_scaled.state > 0.0
-        sx.state = 0.5
-        m.response()
-        assert s_scaled.state == 0.0
-        sx.state = 0.4
-        m.response()
-        assert s_scaled.state < 0.0
-        sx.state = 1.0
+
+        x_values = maxval + np.linspace(-1, 1, 21)
+        for x in x_values:
+            sx.state = x
+            m.response()
+            if x < maxval:
+                assert s_scaled.state < 0.0
+            elif x == maxval:
+                assert s_scaled.state == 0.0
+            else:
+                assert s_scaled.state > 0.0
+
+        sx.state = maxval + (abs(maxval) if maxval != 0 else 1.0)
         m.response()
         assert s_scaled.state == 15.0
 
         pym.finite_difference(sx, s_scaled, test_fn=self.fd_testfn)
 
+
+    
 
 if __name__ == '__main__':
     pytest.main([__file__])

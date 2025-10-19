@@ -12,10 +12,12 @@ class Scaling(Module):
     For the constraints, the negative null-form convention is used, which means the constraint is :math:`y(x) \leq 0`.
 
     Upper limit constraint :math:`x\leq x_\text{max}` (`maxval` is specified):
-    :math:`y = s \left( \frac{x}{x_\text{max}} - 1 \right)`
+    :math:`y = s \left( \frac{x - x_\text{max}}{|x_\text{max}|} \right)`
 
     Lower limit constraint :math:`x\geq x_\text{min}` (`minval` is specified):
-    :math:`y = s \left( 1 - \frac{x}{x_\text{min}} \right)`
+    :math:`y = s \left( \frac{x_\text{min} - x}{|x_\text{min}|} \right)`
+
+    Note: If the supplied minimum or maximum value is equal to zero, the normalization will be skipped.
 
     Input Signal:
         - ``x``: Unscaled variable :math:`x`
@@ -40,14 +42,18 @@ class Scaling(Module):
         # In case of constraints, initial x-value is not required for scaling-factor
         if self.minval is not None or self.maxval is not None:
             self.sf = self.scaling
+        else:
+            self.sf = None
 
     def __call__(self, x):
-        if not hasattr(self, "sf"):
+        if self.sf is None:
             self.sf = self.scaling / np.linalg.norm(x)
         if self.minval is not None:
-            g = 1 - x / self.minval
+            nrm = 1 if self.minval == 0 else abs(self.minval)
+            g = (self.minval - x) / nrm
         elif self.maxval is not None:
-            g = x / self.maxval - 1
+            nrm = 1 if self.maxval == 0 else abs(self.maxval)
+            g = (x - self.maxval) / nrm
         else:
             g = x
         return g * self.sf
@@ -55,8 +61,10 @@ class Scaling(Module):
     def _sensitivity(self, dy):
         dg = dy * self.sf
         if self.minval is not None:
-            return -dg / self.minval
+            nrm = 1 if self.minval == 0 else abs(self.minval)
+            return -dg / nrm
         elif self.maxval is not None:
-            return dg / self.maxval
+            nrm = 1 if self.maxval == 0 else abs(self.maxval)
+            return dg / nrm
         else:
             return dg
