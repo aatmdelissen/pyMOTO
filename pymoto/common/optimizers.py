@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 from scipy.optimize import linprog
 from ..utils import _parse_to_list, _concatenate_to_array
-from ..core_objects import Network, SignalsT, Signal
+from ..core_objects import Network, SignalsT, Signal, _is_valid_signal
 
 
 class Optimizer(ABC):
@@ -40,7 +40,11 @@ class Optimizer(ABC):
               4 - Additional info on sensitivity information.
         """
         self.variables = _parse_to_list(variables)
+        if not all(_is_valid_signal(s) for s in self.variables):
+            raise TypeError("All variables must be valid Signal objects")
         self.responses = _parse_to_list(responses)
+        if not all(_is_valid_signal(s) for s in self.responses):
+            raise TypeError("All responses must be valid Signal objects")
 
         self.verbosity = verbosity
 
