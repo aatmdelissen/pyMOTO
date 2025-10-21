@@ -58,14 +58,21 @@ class TestModule:
         assert m.sig_out[0].state == a.state + b.state
         assert m.sig_out[1].state == c.state + a.state
 
-    def test_initialize2_homogeneous_with_values(self):
+    def test_initialize2_homogeneous_with_constant_values(self):
         a = 1.0
         b = 2.0
         c = 3.0
 
         class MyMod(pym.Module):
+            def __init__(self):
+                self.sens_called = False
+
             def __call__(self, x, y, z):
                 return x+y, z+x
+
+            def _sensitivity(self, da, db):
+                self.sens_called = True
+                return da + db, da, db
 
         m = MyMod()
         d, e = m(a, b, c)
@@ -75,7 +82,9 @@ class TestModule:
         assert d == a + b
         assert e == c + a
 
-        pytest.raises(RuntimeError, m.sensitivity)
+        # No sensitivity defined, so signals are still None
+        m.sensitivity()
+        assert not m.sens_called
 
     def test_initialize2_heterogeneous(self):
         a = pym.Signal('x1', 1.0)
@@ -215,8 +224,11 @@ class TestModule:
         bl.sensitivity()
         assert a.sensitivity == 2.15, "First sensitivity run after reset"
 
-    def test_sink_module_wvalue(self):
+    def test_sink_module_w_constantvalue(self):
         class SinkMod(pym.Module):
+            def __init__(self):
+                self.did_sens = False
+
             def __call__(self, in1):
                 self.got_in1 = in1
 
@@ -229,7 +241,9 @@ class TestModule:
         m(a)
         assert m.got_in1 == 1.256, "State variable passed to _reponse function"
 
-        pytest.raises(RuntimeError, m.sensitivity)
+        m.sensitivity()
+        assert not m.did_sens, "No input signals, so sensitivity should not run"
+        
 
     def test_wrong_number_of_inputs(self):
         class WrongResponse(pym.Module):
