@@ -612,10 +612,10 @@ class Module(ABC):
             # Get all sensitivity values of the outputs
             sens_in = self.get_output_sensitivities(as_list=True)
 
-            if (self.sig_in is None or not contains_signal(*self.sig_in)) and (
-                self.sig_out is None or not contains_signal(*self.sig_out)
-            ):
-                raise RuntimeError("Cannot run sensitivity as there are no connected signals")
+            has_sig_in = self.sig_in is not None and contains_signal(*self.sig_in)
+            has_sig_out = self.sig_out is not None and contains_signal(*self.sig_out)
+            if not (has_sig_in or has_sig_out):
+                return  # Nothing to be run as there are no connected signals
 
             if self.n_out > 0 and all([s is None for s in sens_in]):
                 return  # If none of the adjoint variables is set
@@ -626,8 +626,7 @@ class Module(ABC):
             # Check if enough sensitivities are calculated
             if len(sens_out) != self.n_in:
                 raise TypeError(f"""Number of sensitivities calculated ({len(sens_out)}) is unequal to 
-                                number of input signals ({self.n_in})"""
-                )
+                                number of input signals ({self.n_in})""")
 
             # Add the sensitivities to the signals
             for i, ds in enumerate(sens_out):
