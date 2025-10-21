@@ -26,19 +26,19 @@ class Scaling(Module):
         - ``y``: Scaled variable :math:`y`
     """
 
-    def __init__(self, scaling: float = 100.0, minval: float = None, maxval: float = None):
+    def __init__(self, scaling: float = 100.0, minval: float = None, maxval: float = None, minmax_smooth: float = 1.0):
         """Initialize the scaling module
 
         Args:
             scaling (float, optional): Value :math:`s` to scale with. Defaults to 100.0.
             minval (float, optional): Minimum value :math:`x_\text{min}` for negative-null-form constraint
             maxval (float, optional): Maximum value :math:`x_\text{max}` for negative-null-form constraint
+            minmax_smooth (float, optional): Smoothing parameter for double-sided constraints. Defaults to 1.0.
         """
         self.minval = minval
         self.maxval = maxval
         self.scaling = scaling
-        if self.minval is not None and self.maxval is not None:
-            raise RuntimeError("Only one-sided constraints are allowed. Either provide only minval or only maxval.")
+        self.minmax_smooth = minmax_smooth
         # In case of constraints, initial x-value is not required for scaling-factor
         if self.minval is not None or self.maxval is not None:
             self.sf = self.scaling
@@ -48,7 +48,11 @@ class Scaling(Module):
     def __call__(self, x):
         if self.sf is None:
             self.sf = self.scaling / np.linalg.norm(x)
-        if self.minval is not None:
+        if self.minval is not None and self.maxval is not None:
+            midp = (self.minval + self.maxval) / 2
+            diff = (self.maxval - self.minval) / 2
+            g = np.sqrt((x - midp)**2 + self.minmax_smooth*diff**2) - np.sqrt((1 + self.minmax_smooth)*diff**2)
+        elif self.minval is not None:
             nrm = 1 if self.minval == 0 else abs(self.minval)
             g = (self.minval - x) / nrm
         elif self.maxval is not None:
@@ -60,7 +64,12 @@ class Scaling(Module):
 
     def _sensitivity(self, dy):
         dg = dy * self.sf
-        if self.minval is not None:
+        if self.minval is not None and self.maxval is not None:
+            midp = (self.minval + self.maxval) / 2
+            diff = (self.maxval - self.minval) / 2
+            x = self.get_input_states()
+            return dg * (x - midp) / np.sqrt((x - midp)**2 + self.minmax_smooth*diff**2)
+        elif self.minval is not None:
             nrm = 1 if self.minval == 0 else abs(self.minval)
             return -dg / nrm
         elif self.maxval is not None:

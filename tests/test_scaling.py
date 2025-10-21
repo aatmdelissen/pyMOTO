@@ -79,7 +79,24 @@ class TestScaling:
 
         pym.finite_difference(sx, s_scaled, test_fn=self.fd_testfn)
 
+    @pytest.mark.parametrize("minval,maxval", [(-0.5, -0.1), (-0.5, 0.0), (-0.5, 0.5), (0.0, 0.5), (0.1, 0.5)])
+    def test_double_constraint(self, minval, maxval):
+        sx = pym.Signal('x', 0.0)
+        m = pym.Scaling(scaling=15.0, minval=minval, maxval=maxval)
+        s_scaled = m(sx)
 
+        x_values = maxval + np.linspace(-1, 1, 21)
+        for x in x_values:
+            sx.state = x
+            m.response()
+            if minval < x < maxval:
+                assert s_scaled.state < 0.0
+            elif x == maxval or x == minval:
+                npt.assert_allclose(s_scaled.state, 0.0, atol=1e-14)
+            else:
+                assert s_scaled.state > 0.0
+
+        pym.finite_difference(sx, s_scaled, test_fn=self.fd_testfn)
     
 
 if __name__ == '__main__':
