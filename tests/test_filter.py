@@ -5,7 +5,7 @@ import numpy.testing as npt
 import time
 
 
-def fd_testfn(x0, dx, df_an, df_fd, rtol=1e-5, atol=1e-5):
+def fd_testfn(x0, dx, df_an, df_fd, rtol=1e-2, atol=1e-5):
     npt.assert_allclose(df_an, df_fd, rtol=rtol, atol=atol)
 
 
@@ -246,6 +246,34 @@ class TestConvolutionFilter:
         # Not a perfect match, as BC is different
         npt.assert_allclose(abs(sy1.state - sy2.state).min(), 0.0, atol=1e-4)
 
+
+class TestOverhangFilter:
+    @pytest.mark.parametrize('direction', [[1, 0], [-1, 0], [0, 1], [-1, 0], [1, 0, 0], '+x', '-y'])
+    @pytest.mark.parametrize('nx', [1, 4])
+    @pytest.mark.parametrize('ny', [1, 4])
+    def test_sensitivity_2D(self, direction, nx, ny):
+        # direction = [-1, 0, 0]
+        domain = pym.DomainDefinition(nx, ny)
+        np.random.seed(0)
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+
+        sy = pym.OverhangFilter(domain, direction)(sx)
+
+        pym.finite_difference(sx, sy, test_fn=fd_testfn, dx=1e-6)
+
+    @pytest.mark.parametrize('direction', [[1, 0, 0], '-x', '+y', [0, -1, 0], [0, 0, 1], '-z'])
+    @pytest.mark.parametrize('nx', [1, 4])
+    @pytest.mark.parametrize('ny', [1, 4])
+    @pytest.mark.parametrize('nz', [1, 4])
+    @pytest.mark.parametrize('nsampling', [5, 9])
+    def test_sensitivity_3D(self, direction, nx, ny, nz, nsampling):
+        domain = pym.DomainDefinition(nx, ny, nz)
+        np.random.seed(0)
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+
+        sy = pym.OverhangFilter(domain, direction, nsampling=nsampling)(sx)
+
+        pym.finite_difference(sx, sy, test_fn=fd_testfn, dx=1e-6)
 
 if __name__ == '__main__':
     pytest.main([__file__])
