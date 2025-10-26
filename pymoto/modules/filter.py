@@ -499,15 +499,15 @@ class OverhangFilter(Module):
             dir_orth1, dir_orth2 = dir_orth2, dir_orth1  # Make sure the z-direction is last for 2D
 
         # Select layer offsets from:
-        layer_offsets = [np.zeros(3, dtype=int) for _ in range(9)]
+        layer_offsets = np.zeros((9, 3), dtype=int)
         for i in range(3):  # 3-point 2D supports
-            layer_offsets[i][dir_orth1] = i - 1
+            layer_offsets[i, dir_orth1] = i - 1
         for i in range(2):  # 5-point 3D supports
-            layer_offsets[3 + i][dir_orth2] = -1 + 2 * i
+            layer_offsets[3 + i, dir_orth2] = -1 + 2 * i
         for i in range(2):  # 9-point 3D supports
             for j in range(2):
-                layer_offsets[5 + 2 * i + j][dir_orth1] = -1 + 2 * j
-                layer_offsets[5 + 2 * i + j][dir_orth2] = -1 + 2 * i
+                layer_offsets[5 + 2 * i + j, dir_orth1] = -1 + 2 * j
+                layer_offsets[5 + 2 * i + j, dir_orth2] = -1 + 2 * i
         layer_offsets = layer_offsets[: self.nsampling]
         return layer_offsets
 
@@ -539,8 +539,8 @@ class OverhangFilter(Module):
 
         # Determine padding size
         pad_size = np.zeros((3, 2), dtype=int)
-        pad_size[:, 0] = -np.minimum(*layer_offsets)  # Padding on negative side
-        pad_size[:, 1] = np.maximum(*layer_offsets)  # Padding on positive side
+        pad_size[:, 0] = -layer_offsets.min(axis=0)  # Padding on negative side
+        pad_size[:, 1] = layer_offsets.max(axis=0)  # Padding on positive side
         origin = pad_size[:, 0]
         pad_size = tuple(tuple(p) for p in pad_size)
 
@@ -608,8 +608,8 @@ class OverhangFilter(Module):
 
         # Determine padding size
         pad_size = np.zeros((3, 2), dtype=int)
-        pad_size[:, 0] = -np.minimum(*layer_offsets)  # Padding on negative side
-        pad_size[:, 1] = np.maximum(*layer_offsets)  # Padding on positive side
+        pad_size[:, 0] = -layer_offsets.min(axis=0)  # Padding on negative side
+        pad_size[:, 1] = layer_offsets.max(axis=0)  # Padding on positive side
         origin = pad_size[:, 0]
         pad_size = tuple(tuple(p) for p in pad_size)
 
