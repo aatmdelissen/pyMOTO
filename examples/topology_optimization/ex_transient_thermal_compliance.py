@@ -80,7 +80,7 @@ if __name__ == "__main__":
     # solver = pym.solvers.SolverSparsePardiso()  # Requires Intel MKL installed
     # solver = pym.solvers.SolverSparseCholeskyCVXOPT()  # Requires cvxopt installed
     # solver = pym.solvers.SolverSparseCholeskyScikit()  # Requires scikit installed
-    sT = func.append(pym.TransientThermal([sK, sC, sq], end=end_time, dt=dt, T_0=T_0, solver=solver))
+    sT = func.append(pym.TransientSolve([sq, sK, sC], end=end_time, dt=dt, x0=T_0, solver=solver))
     sT.tag = "temperatures"
 
     # Output the design, temperature, and heat field to a Paraview file
