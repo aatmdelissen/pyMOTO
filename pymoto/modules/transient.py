@@ -2,7 +2,7 @@ import numpy as np
 from pymoto import Module, DyadCarrier
 from pymoto.solvers import auto_determine_solver, LDAWrapper
 
-class TransientThermal(Module):
+class TransientSolve(Module):
     r""" Solves the transient thermal problem :math:`\mathbf{K}\mathbf{T} + \mathbf{C}\dot{\mathbf{T}} = \mathbf{Q}`
 
     Solves the transient thermal problem :math:`\mathbf{K}\mathbf{T} + \mathbf{C}\dot{\mathbf{T}} = \mathbf{Q}`, which
@@ -45,7 +45,7 @@ class TransientThermal(Module):
             self.steps = int(self.end/self.dt)
             b = np.tile(b, (self.steps + 1, 1)).T
         else:
-            self.steps = b.shape[1]
+            self.steps = b.shape[1] - 1
 
         # prepare matrices for solve
         C_step = C.multiply(1 / self.dt)
@@ -73,7 +73,7 @@ class TransientThermal(Module):
 
         # perform solve for every time step
         for i in range(self.steps):
-            rhs = self.theta * b[:, i + 1] + (1 - self.theta) * Q[:, i] - self.mat_backward.dot(self.state[:, i])
+            rhs = self.theta * b[:, i + 1] + (1 - self.theta) * b[:, i] - self.mat_backward.dot(self.state[:, i])
             self.state[:, i + 1] = self.solver.solve(rhs)
 
         return self.state
@@ -94,7 +94,7 @@ class TransientThermal(Module):
         dC = DyadCarrier(list(lams[:, 1:].T), list((1/self.dt)*np.diff(self.state).T))
 
         # sensitivities to input heat
-        db = np.zeros_like(self.sig_in[2].state)
+        db = np.zeros_like(self.sig_in[0].state)
         db[:, 1:] -= self.theta*lams[:, 1:]
         db[:, :-1] -= (1-self.theta)*lams[:, 1:]
 
