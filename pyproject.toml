@@ -10,7 +10,7 @@ authors = [
     { name = "Arnoud Delissen", email = "arnouddelissen+pymoto@gmail.com" },
 ]
 readme = "README.md"
-requires-python = ">=3.8" 
+requires-python = ">=3.9" 
 dependencies = [
     "numpy>=2.0",
     "scipy>=1.7",
