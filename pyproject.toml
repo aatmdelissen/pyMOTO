@@ -12,7 +12,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.8" 
 dependencies = [
-    "numpy",
+    "numpy>=2.0",
     "scipy>=1.7",
     "sympy",
     "matplotlib",
@@ -77,10 +77,6 @@ include = ["pymoto/*"]
 
 [tool.hatch.version]
 path = "pymoto/__init__.py"
-
-## ----- Conda Configuration -----
-[tool.hatch.build.targets.conda]
-channels = ['aatmdelissen']
 
 ## ----- Ruff Configuration -----
 [tool.ruff]
