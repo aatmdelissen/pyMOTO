@@ -71,7 +71,7 @@ dev = [
     "pre-commit"
 ]
 
-## ----- Setuptools Configuration -----
+## ----- Hatchling Configuration -----
 [tool.hatch.build.targets.sdist]
 include = ["pymoto/*"]
 
