@@ -100,7 +100,7 @@ class MMA(Optimizer):
             x = self.x  # Gather the states
         else:
             self.x = x  # Set the new states
-        is_gcmma = "gcmma" in self.mmaversion
+        is_gcmma = "gcmma" in self.mmaversion.lower()
         max_gcmmait = self.gcmma_maxit  if is_gcmma else 1  # One iteration of GCMMA is same as MMA
         self.gest = None
         xnew = None
@@ -169,7 +169,8 @@ class MMA(Optimizer):
 
     def mmasub(self, xval, g, dg, rho=1e-5):
         # Quickfix: in case of only unconstrained optimization, add a dummy constraint with zero sensitivities
-        if g.size == 1:
+        unconstrained = g.size == 1
+        if unconstrained:
             g = np.hstack((g, -1.0))
             dg = np.vstack((dg, np.zeros(self.n)))
 
@@ -225,6 +226,8 @@ class MMA(Optimizer):
         
         # Estimated function value
         self.gest = np.sum(P / (self.upp - xmma) + Q / (xmma - self.low), axis=1) - rhs
+        if unconstrained:
+            self.gest = self.gest[[0]]
         self.dk = np.sum( (self.upp - self.low) * (xmma - xval)**2 / ((self.upp - xmma) * (xmma - self.low) * self.dx))
         
         return xmma
