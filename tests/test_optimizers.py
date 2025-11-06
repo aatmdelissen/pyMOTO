@@ -29,10 +29,10 @@ optimizers = [
 @pytest.mark.parametrize('optimizer', optimizers)
 def test_unconstrained(optimizer, n):
     class SphereFunction(pym.Module):
-        def __call__(self, x: float | np.ndarray) -> float:
+        def __call__(self, x) -> float:
             return np.sum(x**2)
         
-        def _sensitivity(self, dy: float) -> float | np.ndarray:
+        def _sensitivity(self, dy: float):
             x = self.get_input_states()
             return dy*2*x
         
