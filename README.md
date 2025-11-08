@@ -2,7 +2,7 @@
 [![anaconda.org/aatmdelissen/pymoto](https://anaconda.org/aatmdelissen/pymoto/badges/version.svg)](https://anaconda.org/aatmdelissen/pymoto)
 [![pypi.org/project/pyMOTO](https://badge.fury.io/py/pyMOTO.svg)](https://pypi.org/project/pyMOTO/)
 
-# pyMOTO
+# pyMOTO | Python library for Modular Topology Optimization
 
 * [Link to Documentation](https://pymoto.readthedocs.io)
 * [Link to Examples gallery](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html)
@@ -10,7 +10,7 @@
 
 ![Thermal optimization](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExNXVsN21weW16Z3JudHVleWFyOG1qYjgxcXB5eWdraGczZDlmZWJkdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/kaoKxLKQCE4Nomj5og/giphy.gif)
 
-This python library offers modular and easy reconfigurable code to perform topology optimization. 
+This python library offers modular and easily reconfigurable code to perform topology optimization. 
 Already many ingredients and variations of topology optimization are implemented! Examples are:
 - Density filtering, robust formulations
 - 2D and 3D topology optimization
