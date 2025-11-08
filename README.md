@@ -4,11 +4,11 @@
 
 # pyMOTO | Modular Topology Optimization in Python
 
-* [Link to Documentation](https://pymoto.readthedocs.io)
-* [Link to Examples gallery](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html)
-* [Link to GitHub](https://github.com/aatmdelissen/pyMOTO)
+- **Documentation** [https://pymoto.readthedocs.io](https://pymoto.readthedocs.io)
+- **Examples gallery** [https://pymoto.readthedocs.io/en/latest/auto_examples/index.html](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html)
+- **Github repository** [https://github.com/aatmdelissen/pyMOTO](https://github.com/aatmdelissen/pyMOTO)
 
-![Thermal optimization](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExNXVsN21weW16Z3JudHVleWFyOG1qYjgxcXB5eWdraGczZDlmZWJkdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/kaoKxLKQCE4Nomj5og/giphy.gif)
+![3D Thermal heat-sink topology optimization](https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExNXVsN21weW16Z3JudHVleWFyOG1qYjgxcXB5eWdraGczZDlmZWJkdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/kaoKxLKQCE4Nomj5og/giphy.gif)
 
 This python library offers modular and easily reconfigurable code to perform topology optimization. 
 Already many ingredients and variations of topology optimization are implemented! Examples are:
@@ -22,7 +22,7 @@ Already many ingredients and variations of topology optimization are implemented
 - Various optimizers suited for topology optimziation (OC, MMA, GCMMA, ...)
 - [And more... ](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html)
 
-![Mechanical optimization](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExcXMwMnl4Z3lzODF1bGp0ejY0M3lvYnNsY2FxOTVtc3ZxdGF6dWpvNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/WB1xOQOQvT5zUqRlq5/giphy.gif)
+![3D Mechanical MBB beam topology optimization](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExcXMwMnl4Z3lzODF1bGp0ejY0M3lvYnNsY2FxOTVtc3ZxdGF6dWpvNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/WB1xOQOQvT5zUqRlq5/giphy.gif)
 
 In `pymoto` a topology optimization problem is broken down into reusable sub-components (called *Modules*), such as density filter, finite-element assembly, linear solve, linear algebra, etc. Next to behaving like a function would (*e.g.* filtering the density field), a `Module` also implements design sensitivities (*i.e.* derivatives or gradients with respect to the inputs of that `Module`) of that operation. These are required for efficiently solving the topology optimization problem, but are usually very cumbersome to implement on the *whole* optimization problem. With `pymoto` however, the partial sensitivities are already implemented in each `Module`. When modules are linked together in `pymoto`, the chain rule is used to calculate the total sensitivities of the optimization problem (backpropagation). In essence it is a semi-automatic way of calculating design sensitivities.
 
