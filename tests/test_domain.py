@@ -10,7 +10,7 @@ def fd_testfn(x0, dx, df_an, df_fd):
 
 def test_node_numbering_2D():
     Nx, Ny = 100, 142
-    domain = pym.DomainDefinition(Nx, Ny, unitx=0.1, unity=0.2)
+    domain = pym.VoxelDomain(Nx, Ny, unitx=0.1, unity=0.2)
     i_nod, j_nod = 10, 20
     n_idx = domain.get_nodenumber(i_nod, j_nod)
     i_chk, j_chk = domain.get_node_indices(n_idx)
@@ -26,7 +26,7 @@ def test_node_numbering_2D():
 @pytest.mark.parametrize("select_dofs", [0, np.array([0, 1])])
 def test_dof_numbering_2D_2dofs(select_nodes_i, select_nodes_j, select_dofs):
     Nx, Ny = 100, 142
-    domain = pym.DomainDefinition(Nx, Ny, unitx=0.1, unity=0.2)
+    domain = pym.VoxelDomain(Nx, Ny, unitx=0.1, unity=0.2)
 
     n_idx = domain.nodes[select_nodes_i, select_nodes_j]
     ndof = 2
@@ -41,7 +41,7 @@ def test_dof_numbering_2D_2dofs(select_nodes_i, select_nodes_j, select_dofs):
 
 def test_node_numbering_array_2D():
     Nx, Ny = 100, 142
-    domain = pym.DomainDefinition(Nx, Ny, unitx=0.1, unity=0.2)
+    domain = pym.VoxelDomain(Nx, Ny, unitx=0.1, unity=0.2)
     i_nod, j_nod = np.meshgrid(np.arange(Nx+1), np.arange(Ny+1), indexing='ij')
     n_idx = domain.get_nodenumber(i_nod, j_nod)
     i_chk, j_chk = domain.get_node_indices(n_idx)
@@ -56,7 +56,7 @@ def test_node_numbering_array_2D():
 
 def test_node_numbering_3D():
     Nx, Ny, Nz = 100, 142, 284
-    domain = pym.DomainDefinition(Nx, Ny, Nz, unitx=0.1, unity=0.2, unitz=0.3)
+    domain = pym.VoxelDomain(Nx, Ny, Nz, unitx=0.1, unity=0.2, unitz=0.3)
     i_nod, j_nod, k_nod = 10, 20, 30
     n_idx = domain.get_nodenumber(i_nod, j_nod, k_nod)
     i_chk, j_chk, k_chk = domain.get_node_indices(n_idx)
@@ -70,7 +70,7 @@ def test_node_numbering_3D():
 
 def test_node_numbering_array_3D():
     Nx, Ny, Nz = 100, 142, 284
-    domain = pym.DomainDefinition(Nx, Ny, Nz, unitx=0.1, unity=0.2, unitz=0.3)
+    domain = pym.VoxelDomain(Nx, Ny, Nz, unitx=0.1, unity=0.2, unitz=0.3)
     i_nod, j_nod, k_nod = np.meshgrid(np.arange(Nx+1), np.arange(Ny+1), np.arange(Nz+1), indexing='ij')
     n_idx = domain.get_nodenumber(i_nod, j_nod, k_nod)
     i_chk, j_chk, k_chk = domain.get_node_indices(n_idx)
@@ -86,7 +86,7 @@ def test_node_numbering_array_3D():
 
 def test_shape_fn_2D():
     unitx, unity = 0.8, 0.3
-    domain = pym.DomainDefinition(1, 1, unitx=unitx, unity=unity)
+    domain = pym.VoxelDomain(1, 1, unitx=unitx, unity=unity)
 
     for i, n in enumerate(domain.node_numbering):
         N_chk = np.zeros(domain.elemnodes)
@@ -96,7 +96,7 @@ def test_shape_fn_2D():
 
 def test_shape_fn_derivatives_2D():
     unitx, unity = 0.8, 0.3
-    domain = pym.DomainDefinition(1, 1, unitx=unitx, unity=unity)
+    domain = pym.VoxelDomain(1, 1, unitx=unitx, unity=unity)
     pos = np.array([0.2, 0.1])
 
     class ShapeFn(pym.Module):

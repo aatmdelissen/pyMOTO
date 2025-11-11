@@ -52,7 +52,7 @@ def test_dense_eigensolver(A, modifier):
     sLamsum.tag = "lambdasum"
     sVecsum = pym.EinSum('ij->')(sU)
     sVecsum.tag = "vecsum"
-    sSumsum = pym.MathGeneral('inp0 + inp1')(sLamsum, sVecsum)
+    sSumsum = pym.MathExpression('inp0 + inp1')(sLamsum, sVecsum)
     sSumsum.tag = "allsum"
 
     # Test residual and normalization
@@ -114,7 +114,7 @@ def test_dense_generalized_eigensolver(A, B, Amodifier, Bmodifier):
     sLamsum.tag = "lambdasum"
     sVecsum = pym.EinSum('ij->')(sU)
     sVecsum.tag = "vecsum"
-    sSumsum = pym.MathGeneral('inp0 + inp1')(sLamsum, sVecsum)
+    sSumsum = pym.MathExpression('inp0 + inp1')(sLamsum, sVecsum)
     sSumsum.tag = "allsum"
 
     print(f"lambdas = {slambda.state}")
@@ -176,7 +176,7 @@ def test_dense_generalized_eigensolver(A, B, Amodifier, Bmodifier):
 def test_eigensolve_sparse(generalized):
     np.random.seed(0)
     nx, ny = 3, 6
-    domain = pym.DomainDefinition(nx, ny)
+    domain = pym.VoxelDomain(nx, ny)
     bc = (domain.nodes[0, :]*2 + np.arange(2)[None]).flatten()
     s_x = pym.Signal('x', state=np.ones(domain.nel)*0.5)
 
@@ -206,7 +206,7 @@ def test_eigensolve_sparse(generalized):
 def test_eigensolve_sparse_generalized(complex_matrix):
     np.random.seed(0)
     nx, ny = 3, 4
-    domain = pym.DomainDefinition(nx, ny)
+    domain = pym.VoxelDomain(nx, ny)
     bc = (domain.nodes[0, :]*2 + np.arange(2)[None]).flatten()
     xvec = np.ones(domain.nel)*0.5
     s_x = pym.Signal('x', state=xvec)

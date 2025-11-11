@@ -31,7 +31,7 @@ class TestMathGeneral:
         sVec = pym.Signal("a", copy.deepcopy(a))
         sScalar = pym.Signal("b", copy.deepcopy(b))
 
-        mod = pym.MathGeneral("inp0*inp1")
+        mod = pym.MathExpression("inp0*inp1")
         sRes = mod(sVec, sScalar)
         sRes.tag = 'result'
 
@@ -65,7 +65,7 @@ class TestMathGeneral:
         sv1 = pym.Signal("v1", np.random.rand(15))
         sv2 = pym.Signal("v2", np.random.rand(15))
 
-        sRes = pym.MathGeneral("inp0*inp1")(sv1, sv2)
+        sRes = pym.MathExpression("inp0*inp1")(sv1, sv2)
         sRes.tag = 'v1*v2'
 
         # Check value of response
@@ -83,7 +83,7 @@ class TestMathGeneral:
         sv3 = pym.Signal("v3", np.random.rand(2, 2, 15))
         s_scalar = pym.Signal("c", 3.5)
 
-        sRes = pym.MathGeneral("inp0*inp1*inp2*inp3")(sv1, sv2, sv3, s_scalar)
+        sRes = pym.MathExpression("inp0*inp1*inp2*inp3")(sv1, sv2, sv3, s_scalar)
         sRes.tag = 'v1*v2*v3*c'
 
         # Check value of response
@@ -101,7 +101,7 @@ class TestMathGeneral:
         sv3 = pym.Signal("v3", np.random.rand(2, 1, 2, 15))
         s_scalar = pym.Signal("c", 3.5)
 
-        sRes = pym.MathGeneral("inp0*inp1*inp2*inp3")(sv1, sv2, sv3, s_scalar)
+        sRes = pym.MathExpression("inp0*inp1*inp2*inp3")(sv1, sv2, sv3, s_scalar)
         sRes.tag = 'v1*v2*v3*c'
 
         # Check value of response
@@ -119,7 +119,7 @@ class TestMathGeneral:
         v3 = np.random.rand(2, 1, 2, 15)
         s_scalar = pym.Signal("c", 3.5)
 
-        sRes = pym.MathGeneral("inp0*inp1*inp2*inp3")(sv1, sv2, v3, s_scalar)
+        sRes = pym.MathExpression("inp0*inp1*inp2*inp3")(sv1, sv2, v3, s_scalar)
         sRes.tag = 'v1*v2*v3*c'
 
         # Check value of response
@@ -130,7 +130,7 @@ class TestMathGeneral:
         pym.finite_difference(tosig=sRes, test_fn=self.fd_testfn)
 
     def test_with_only_constant(self):
-        val = pym.MathGeneral("sqrt(inp0)")(np.array([1,2,3]))
+        val = pym.MathExpression("sqrt(inp0)")(np.array([1,2,3]))
         npt.assert_allclose(val, np.sqrt(np.array([1,2,3])))
 
 

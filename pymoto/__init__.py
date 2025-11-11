@@ -1,9 +1,10 @@
 __version__ = "2.0.0-rc1"
 
-from .common.domain import DomainDefinition
+import warnings
 
 # Imports from common
-from .common.dyadcarrier import DyadCarrier
+from .common.domain import VoxelDomain
+from .common.dyadcarrier import DyadicMatrix
 from .common.mma import MMA
 from .common.optimizers import Optimizer, OC, SLP
 
@@ -19,7 +20,7 @@ from .modules.assembly import ElementOperation, Strain, Stress, ElementAverage, 
 from .modules.autodiff import AutoMod
 from .modules.complex import MakeComplex, SplitComplex, RealPart, ImagPart, ComplexNorm, Conjugate
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
-from .modules.generic import MathGeneral, EinSum, ConcatSignal, VecSet, AddMatrix
+from .modules.generic import MathExpression, EinSum, ConcatSignal, SetValue, AddMatrix
 from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, Print
 from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations, StaticCondensation
 from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, SoftMinMax, KSFunction
@@ -42,17 +43,17 @@ __all__ = [
     "OC",
     "SLP",
     "Optimizer",
-    "DyadCarrier",
-    "DomainDefinition",
+    "DyadicMatrix",
+    "VoxelDomain",
     "solvers",
     # Helpers
     "AggScaling",
     "AggActiveSet",
     # Modules
-    "MathGeneral",
+    "MathExpression",
     "EinSum",
     "ConcatSignal",
-    "VecSet",
+    "SetValue",
     "AddMatrix",
     "Inverse",
     "LinSolve",
@@ -93,3 +94,24 @@ __all__ = [
     "KSFunction",
     "Scaling",
 ]
+
+## Deprecations (https://stackoverflow.com/a/55139609/11702471)
+DEPRECATED_NAMES = [('MathGeneral', 'MathExpression', '2.2'),
+                    ('VecSet', 'SetValue', '2.2'),
+                    ('DomainDefinition', 'VoxelDomain', '2.2'),
+                    ('DyadCarrier', 'DyadicMatrix', '2.2'),
+                    ]  # (old-name, new-name, removed-after-version)
+
+
+def __getattr__(name):
+    for old_name, new_name, v in DEPRECATED_NAMES:
+        if name == old_name:
+            warnings.warn(f"`{old_name}` is renamed `{new_name}` and will be removed after version {v}",
+                          DeprecationWarning,
+                          stacklevel=2)
+            return globals()[new_name]
+    raise AttributeError(f"module {__name__} has no attribute {name}")
+
+
+def __dir__():
+    return sorted(__all__ + [names[0] for names in DEPRECATED_NAMES])

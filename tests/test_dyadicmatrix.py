@@ -9,23 +9,23 @@ def generate_random(*dn, lower=-1.0, upper=1.0):
     return np.random.rand(*dn) * (upper - lower) + lower
 
 
-class TestDyadCarrier:
+class TestDyadicMatrix:
     # flake8: noqa: C901
     @staticmethod
     def setup_dyads(n=10, complex=False, nonsquare=False, empty=True, rnd=generate_random):
         dyads = {}
 
         if empty:
-            dyads['empty'] = pym.DyadCarrier()
+            dyads['empty'] = pym.DyadicMatrix()
 
         ndyads = [1, 2, 10]
         for s in ndyads:
-            dyads[f'square_{s}_dyads'] = pym.DyadCarrier([rnd(n) for _ in range(s)], [rnd(n) for _ in range(s)])
+            dyads[f'square_{s}_dyads'] = pym.DyadicMatrix([rnd(n) for _ in range(s)], [rnd(n) for _ in range(s)])
 
         if complex:
             for s in ndyads:
                 dyads[f'square_complex_{s}_dyads'] = \
-                    pym.DyadCarrier([rnd(n)+1j*rnd(n) for _ in range(s)],
+                    pym.DyadicMatrix([rnd(n)+1j*rnd(n) for _ in range(s)],
                                     [rnd(n)+1j*rnd(n) for _ in range(s)])
 
         if nonsquare:
@@ -35,24 +35,24 @@ class TestDyadCarrier:
             for off_u in nonsquare_offsets_u:
                 for s in ndyads:
                     dyads[f'nonsquare_u_{s}_dyads'] = \
-                        pym.DyadCarrier([rnd(n+off_u) for _ in range(s)],
+                        pym.DyadicMatrix([rnd(n+off_u) for _ in range(s)],
                                         [rnd(n) for _ in range(s)])
             for off_v in nonsquare_offsets_v:
                 for s in ndyads:
                     dyads[f'nonsquare_v_{s}_dyads'] = \
-                        pym.DyadCarrier([rnd(n) for _ in range(s)],
+                        pym.DyadicMatrix([rnd(n) for _ in range(s)],
                                         [rnd(n+off_v) for _ in range(s)])
 
             if complex:
                 for off_u in nonsquare_offsets_u:
                     for s in ndyads:
                         dyads[f'nonsquare_u_complex_{s}_dyads'] = \
-                            pym.DyadCarrier([rnd(n+off_u)+1j*rnd(n+off_u) for _ in range(s)],
+                            pym.DyadicMatrix([rnd(n+off_u)+1j*rnd(n+off_u) for _ in range(s)],
                                             [rnd(n)+1j*rnd(n) for _ in range(s)])
                 for off_v in nonsquare_offsets_v:
                     for s in ndyads:
                         dyads[f'nonsquare_v_complex_{s}_dyads'] = \
-                            pym.DyadCarrier([rnd(n)+1j*rnd(n) for _ in range(s)],
+                            pym.DyadicMatrix([rnd(n)+1j*rnd(n) for _ in range(s)],
                                             [rnd(n+off_v)+1j*rnd(n+off_v) for _ in range(s)])
         return dyads
 
@@ -63,7 +63,7 @@ class TestDyadCarrier:
         v1 = np.random.rand(n)
         v2 = np.random.rand(n)
 
-        dyad1 = pym.DyadCarrier(u1, v1)
+        dyad1 = pym.DyadicMatrix(u1, v1)
         assert len(dyad1.u) == 1
         assert len(dyad1.v) == 1
         assert len(dyad1.u[0]) == len(u1)
@@ -72,7 +72,7 @@ class TestDyadCarrier:
         assert np.allclose(dyad1.v[0], v1)
         assert dyad1.shape == (10, 10)
 
-        dyad2 = pym.DyadCarrier([u1, u2], [v1, v2])
+        dyad2 = pym.DyadicMatrix([u1, u2], [v1, v2])
         assert len(dyad2.u) == 2
         assert len(dyad2.v) == 2
         assert len(dyad2.u[0]) == len(u1)
@@ -85,19 +85,19 @@ class TestDyadCarrier:
         npt.assert_allclose(dyad2.v[1], v2)
         assert dyad2.shape == (10, 10)
 
-        dyad3 = pym.DyadCarrier(np.random.rand(2, n), np.random.rand(2, n))
+        dyad3 = pym.DyadicMatrix(np.random.rand(2, n), np.random.rand(2, n))
         assert len(dyad3.u) == 1
         assert len(dyad3.v) == 1
         assert dyad3.shape == (10, 10)
 
-        dyad4 = pym.DyadCarrier(np.random.rand(2, n), np.random.rand(3, n))
+        dyad4 = pym.DyadicMatrix(np.random.rand(2, n), np.random.rand(3, n))
         assert len(dyad4.u) == 1
         assert len(dyad4.v) == 1
         assert dyad4.shape == (10, 10)
 
         ue = np.random.rand(n)
         ve = np.random.rand(2, n)
-        dyad5 = pym.DyadCarrier(ue, ve)
+        dyad5 = pym.DyadicMatrix(ue, ve)
         assert len(dyad5.u) == 1
         assert len(dyad5.v) == 1
         npt.assert_allclose(dyad5.u[0], ue)
@@ -106,10 +106,10 @@ class TestDyadCarrier:
 
         uf = np.random.rand(5)
         vf = np.random.rand(10)
-        dyad6 = pym.DyadCarrier(uf, vf)
+        dyad6 = pym.DyadicMatrix(uf, vf)
         assert dyad6.shape == (5, 10)
 
-        dyad7 = pym.DyadCarrier()
+        dyad7 = pym.DyadicMatrix()
         assert len(dyad7.u) == 0
         assert len(dyad7.v) == 0
         dyad7.add_dyad(u1)
@@ -124,35 +124,35 @@ class TestDyadCarrier:
         npt.assert_allclose(dyad7.v[1], v2)
 
         # with shape
-        dyad7a = pym.DyadCarrier(shape=(n, n))
+        dyad7a = pym.DyadicMatrix(shape=(n, n))
         assert dyad7a.shape == (n, n)
         dyad7.add_dyad(u1)
         assert dyad7a.shape == (n, n)
         pytest.raises(TypeError, dyad7.add_dyad, uf, vf)
 
-        dyad8 = pym.DyadCarrier(u1)
+        dyad8 = pym.DyadicMatrix(u1)
         assert len(dyad8.u) == 1
         assert len(dyad8.v) == 1
         npt.assert_allclose(dyad8.u[0], u1)
         npt.assert_allclose(dyad8.v[0], u1)
 
         u9_1 = np.random.rand(2, 3, n)
-        dyad9 = pym.DyadCarrier(u9_1, v1)
+        dyad9 = pym.DyadicMatrix(u9_1, v1)
         assert len(dyad9.u) == 1
         assert len(dyad9.v) == 1
         uchk = u9_1[0, 0, :] + u9_1[0, 1, :] + u9_1[0, 2, :] + u9_1[1, 0, :] + u9_1[1, 1, :] + u9_1[1, 2, :]
         npt.assert_allclose(dyad9.u[0], uchk)
         npt.assert_allclose(dyad9.v[0], v1)
 
-        pytest.raises(TypeError, pym.DyadCarrier, u1, [v1, v2])
+        pytest.raises(TypeError, pym.DyadicMatrix, u1, [v1, v2])
 
-        pytest.raises(TypeError, pym.DyadCarrier, [u1, np.random.rand(n + 1)], [v1, v2])
+        pytest.raises(TypeError, pym.DyadicMatrix, [u1, np.random.rand(n + 1)], [v1, v2])
 
-        pytest.raises(TypeError, pym.DyadCarrier, [u1, [1.0, 2.0, 3.0]], [v1, v2])
+        pytest.raises(TypeError, pym.DyadicMatrix, [u1, [1.0, 2.0, 3.0]], [v1, v2])
 
-        pytest.raises(TypeError, pym.DyadCarrier, [u1, u2], [v1, np.random.rand(n + 1)])
+        pytest.raises(TypeError, pym.DyadicMatrix, [u1, u2], [v1, np.random.rand(n + 1)])
 
-        pytest.raises(TypeError, pym.DyadCarrier, [u1, u2], [v1, [1.0, 2.0, 3.0]])
+        pytest.raises(TypeError, pym.DyadicMatrix, [u1, u2], [v1, [1.0, 2.0, 3.0]])
 
     def test_math_operations(self):
         n = 10
@@ -161,8 +161,8 @@ class TestDyadCarrier:
         v1 = np.random.rand(n)
         v2 = np.random.rand(n)
 
-        a = pym.DyadCarrier(u1, v1)
-        b = pym.DyadCarrier([u1, u2], [v1, v2])
+        a = pym.DyadicMatrix(u1, v1)
+        b = pym.DyadicMatrix([u1, u2], [v1, v2])
 
         ap = +a
         assert a.u[0] is not ap.u[0]
@@ -238,15 +238,15 @@ class TestDyadCarrier:
         v1c = v1 + 1j * np.random.rand(n)
         v2c = v2 + 1j * np.random.rand(n)
 
-        a = pym.DyadCarrier([u1c, u2], [v1, v2])
-        b = pym.DyadCarrier([u1, u2c], [v1, v2c])
-        c = pym.DyadCarrier([u1c, u2c], [v1c, v2c])
-        d = pym.DyadCarrier([u1, u2], [v1, v2])
+        a = pym.DyadicMatrix([u1c, u2], [v1, v2])
+        b = pym.DyadicMatrix([u1, u2c], [v1, v2c])
+        c = pym.DyadicMatrix([u1c, u2c], [v1c, v2c])
+        d = pym.DyadicMatrix([u1, u2], [v1, v2])
 
-        assert a.iscomplex(), "DyadCarrier should be recognized as complex, even if 1 entry is complex"
-        assert b.iscomplex(), "DyadCarrier should be recognized as complex, even if 1 entry is complex"
-        assert c.iscomplex(), "DyadCarrier should be recognized as complex"
-        assert not d.iscomplex(), "DyadCarrier should be recognized as real"
+        assert a.iscomplex(), "DyadicMatrix should be recognized as complex, even if 1 entry is complex"
+        assert b.iscomplex(), "DyadicMatrix should be recognized as complex, even if 1 entry is complex"
+        assert c.iscomplex(), "DyadicMatrix should be recognized as complex"
+        assert not d.iscomplex(), "DyadicMatrix should be recognized as real"
 
         # Complex conjugations
         npt.assert_allclose(np.conj(a.todense()), a.conj().todense())
@@ -285,21 +285,21 @@ class TestDyadCarrier:
         v1 = np.random.rand(n)
         v2 = np.random.rand(n)
 
-        a = pym.DyadCarrier([u1, u2], [v1, v2])
+        a = pym.DyadicMatrix([u1, u2], [v1, v2])
 
         achk = np.outer(u1, v1) + np.outer(u2, v2)
         npt.assert_allclose(achk, a.todense())
 
         uu1 = np.random.rand(2, n)
         vv1 = np.random.rand(2, n)
-        b = pym.DyadCarrier(uu1, vv1)
+        b = pym.DyadicMatrix(uu1, vv1)
         bchk = np.outer(uu1[0, :], vv1[0, :]) + np.outer(uu1[1, :], vv1[0, :]) \
             + np.outer(uu1[0, :], vv1[1, :]) + np.outer(uu1[1, :], vv1[1, :])
         npt.assert_allclose(b.todense(), bchk)
 
         cu1 = np.random.rand(2, 2, n)
         cv1 = np.random.rand(2, 2, n)
-        c = pym.DyadCarrier(cu1, cv1)
+        c = pym.DyadicMatrix(cu1, cv1)
         cchk = np.outer(cu1[0, 0, :], cv1[0, 0, :]) + np.outer(cu1[0, 1, :], cv1[0, 0, :]) \
             + np.outer(cu1[0, 0, :], cv1[0, 1, :]) + np.outer(cu1[0, 1, :], cv1[0, 1, :]) \
             + np.outer(cu1[1, 0, :], cv1[0, 0, :]) + np.outer(cu1[1, 1, :], cv1[0, 0, :]) \
@@ -310,20 +310,20 @@ class TestDyadCarrier:
             + np.outer(cu1[1, 0, :], cv1[1, 1, :]) + np.outer(cu1[1, 1, :], cv1[1, 1, :])
         npt.assert_allclose(c.todense(), cchk)
 
-        d = pym.DyadCarrier([u1, uu1], [vv1, v1])
+        d = pym.DyadicMatrix([u1, uu1], [vv1, v1])
         dchk = np.outer(u1, vv1[0, :]) + np.outer(u1, vv1[1, :]) + np.outer(uu1[0, :], v1) + np.outer(uu1[1, :], v1)
         npt.assert_allclose(d.todense(), dchk)
 
-        large_dyad = pym.DyadCarrier(np.random.rand(4000))
+        large_dyad = pym.DyadicMatrix(np.random.rand(4000))
         pytest.warns(ResourceWarning, large_dyad.todense)
 
-        empty_dyad = pym.DyadCarrier()
+        empty_dyad = pym.DyadicMatrix()
         assert empty_dyad.todense().shape == (0, 0)
 
         u3 = np.random.rand(15)
         u4 = np.random.rand(15)
 
-        dyad5 = pym.DyadCarrier([u3, u4], [v1, v2])
+        dyad5 = pym.DyadicMatrix([u3, u4], [v1, v2])
         dyad5chk = np.outer(u3, v1) + np.outer(u4, v2)
         npt.assert_allclose(dyad5chk, dyad5.todense())
 
@@ -334,7 +334,7 @@ class TestDyadCarrier:
         v1 = np.random.rand(n) + 1j * np.random.rand(n)
         v2 = np.random.rand(n) + 1j * np.random.rand(n)
 
-        dyad1 = pym.DyadCarrier([u1, u2], [v1, v2])
+        dyad1 = pym.DyadicMatrix([u1, u2], [v1, v2])
         dyad1chk = np.outer(u1, v1) + np.outer(u2, v2)
         npt.assert_allclose(dyad1chk, dyad1.todense())
 
@@ -351,7 +351,7 @@ class TestDyadCarrier:
         v1 = np.random.rand(n)
         v2 = np.random.rand(n)
 
-        a = pym.DyadCarrier([u1, u2], [v1, v2])
+        a = pym.DyadicMatrix([u1, u2], [v1, v2])
         diag = np.random.rand(1, n)
         S = spsp.spdiags(diag, 0, m=diag.size, n=diag.size)  # Size must be given for scipy==1.7
 
@@ -362,7 +362,7 @@ class TestDyadCarrier:
         np.random.seed(0)
         n = 10000
 
-        a = pym.DyadCarrier([np.random.rand(n) for _ in range(30)], [np.random.rand(n) for _ in range(30)])
+        a = pym.DyadicMatrix([np.random.rand(n) for _ in range(30)], [np.random.rand(n) for _ in range(30)])
         # diag = np.random.rand(1, n)
         # S = spsp.random(n, n, density=200/(n*n)).tocsc()  # Size must be given for scipy==1.7
         # for i in range(100):
@@ -390,7 +390,7 @@ class TestDyadCarrier:
         v1 = np.random.rand(n)
         v2 = np.random.rand(n)
 
-        a = pym.DyadCarrier([u1, u2], [v1, v2])
+        a = pym.DyadicMatrix([u1, u2], [v1, v2])
         diag = np.random.rand(1, n - 2)
         S = spsp.spdiags(diag, 0, m=diag.size, n=diag.size)
 
@@ -409,8 +409,8 @@ class TestDyadCarrier:
     def test_add_to_zeroarray(self):
         n = 10
         zer = np.array(0, dtype=object)
-        zer += pym.DyadCarrier(np.random.rand(n), np.random.rand(n))
-        assert isinstance(zer, pym.DyadCarrier)
+        zer += pym.DyadicMatrix(np.random.rand(n), np.random.rand(n))
+        assert isinstance(zer, pym.DyadicMatrix)
 
     def test_dot(self):
         n = 10
@@ -608,7 +608,7 @@ def test_contract(vec_complex, mat_complex):
     v1 = np.random.rand(n) + vc * np.random.rand(n)
     v2 = np.random.rand(n) + vc * np.random.rand(n)
 
-    a = pym.DyadCarrier([u1, u2], [v1, v2])
+    a = pym.DyadicMatrix([u1, u2], [v1, v2])
 
     npt.assert_allclose(a.contract(), np.dot(u1, v1) + np.dot(u2, v2))
 
@@ -648,7 +648,7 @@ def test_contract_batch(vec_complex, mat_complex):
     v1 = np.random.rand(n) + vc * np.random.rand(n)
     v2 = np.random.rand(n) + vc * np.random.rand(n)
 
-    a = pym.DyadCarrier([u1, u2], [v1, v2])
+    a = pym.DyadicMatrix([u1, u2], [v1, v2])
 
     # Batch matrix
     a_mat = np.random.rand(3, n, n) + mc * np.random.rand(3, n, n)

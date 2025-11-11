@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
     if nz == 0:  # 2D analysis
         # Generate a grid
-        domain = pym.DomainDefinition(nx, ny)
+        domain = pym.VoxelDomain(nx, ny)
 
         if thermal:
             ndof = 1  # Number of dofs per node
@@ -53,7 +53,7 @@ if __name__ == "__main__":
             force_dofs = ndof * domain.nodes[nx, ny//2] + 1
 
     else:
-        domain = pym.DomainDefinition(nx, ny, nz)
+        domain = pym.VoxelDomain(nx, ny, nz)
         boundary_nodes = domain.nodes[0, :, :].flatten()
 
         if thermal:
@@ -89,7 +89,7 @@ if __name__ == "__main__":
             pym.PlotDomain(domain, saveto="out/design", clim=[0, 1])(sx_analysis)
 
         # SIMP material interpolation
-        sSIMP = pym.MathGeneral(f"{xmin} + {1.0 - xmin}*inp0^3")(sx_analysis)
+        sSIMP = pym.MathExpression(f"{xmin} + {1.0 - xmin}*inp0^3")(sx_analysis)
 
         # System matrix assembly module
         if thermal:
@@ -146,7 +146,7 @@ if __name__ == "__main__":
         svol.tag = 'volume'
 
         # Volume constraint
-        sg1 = pym.MathGeneral(f'10*(inp0/{domain.nel} - {volfrac})')(svol)
+        sg1 = pym.MathExpression(f'10*(inp0/{domain.nel} - {volfrac})')(svol)
         sg1.tag = "volume constraint"
 
     # Maybe you want to check the design-sensitivities?

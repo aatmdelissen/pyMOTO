@@ -5,7 +5,7 @@ import scipy.sparse as sps
 from scipy.sparse.linalg import splu, spilu
 from .solvers import LinearSolver
 from .auto_determine import auto_determine_solver
-from pymoto import DomainDefinition
+from pymoto import VoxelDomain
 
 
 class Preconditioner(LinearSolver):
@@ -128,7 +128,7 @@ class GeometricMultigrid(Preconditioner):
     _available_cycles = ["v", "w"]
 
     def __init__(self, 
-                 domain: DomainDefinition, 
+                 domain: VoxelDomain, 
                  A=None, cycle: str = "V", 
                  inner_level: LinearSolver = None, 
                  smoother: LinearSolver = None, 
@@ -137,7 +137,7 @@ class GeometricMultigrid(Preconditioner):
         """Initialize the geometric multigrid preconditioner
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The domain
+            domain (:py:class:`pymoto.VoxelDomain`): The domain
             A (matrix, optional): The matrix
             cycle (str, optional): _description_. Defaults to "V".
             inner_level (:py:class:`pymoto.solvers.LinearSolver`, optional): Inner solver for the coarse grid, for 
@@ -159,7 +159,7 @@ class GeometricMultigrid(Preconditioner):
         self.smoother = DampedJacobi(w=0.5) if smoother is None else smoother
         self.smooth_steps = smooth_steps
         self.R = None
-        self.sub_domain = DomainDefinition(
+        self.sub_domain = VoxelDomain(
             domain.nelx // 2, domain.nely // 2, domain.nelz // 2, domain.unitx * 2, domain.unity * 2, domain.unitz * 2
         )
 

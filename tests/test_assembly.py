@@ -15,13 +15,13 @@ class MatrixSum(pym.Module):
 
     def _sensitivity(self, dAsum):
         A = self.get_input_states()
-        return pym.DyadCarrier(np.ones(A.shape[0]), np.ones(A.shape[1]), shape=A.shape) * dAsum
+        return pym.DyadicMatrix(np.ones(A.shape[0]), np.ones(A.shape[1]), shape=A.shape) * dAsum
 
 
 class TestAssembleGeneral:
     def test_rows_columns(self):
         """ Check if element rows and columns are implemented correctly """
-        domain = pym.DomainDefinition(1, 1)
+        domain = pym.VoxelDomain(1, 1)
         elmat = np.arange(4*4).reshape((4, 4))
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
@@ -38,7 +38,7 @@ class TestAssembleGeneral:
     @pytest.mark.parametrize('reuse_sparsity', [True, False])
     def test_bc(self, matrix_type, reuse_sparsity):
         """ Check if element rows and columns are implemented correctly """
-        domain = pym.DomainDefinition(3, 3)
+        domain = pym.VoxelDomain(3, 3)
         elmat = np.arange(4*4).reshape((4, 4))
 
         s_x = pym.Signal('x', state=np.ones(domain.nel))
@@ -67,7 +67,7 @@ class TestAssembleGeneral:
     def test_matrix_shapes(self, ndof1, ndof2, nmat, matrix_type):
         el_mat = [np.random.rand(ndof1 * 4 * ndof2 * 4).reshape((ndof1 * 4, ndof2 * 4)) for _ in range(nmat)]
         el_mat[-1] = el_mat[-1] + el_mat[-1]*1j  # Make one of the matrices complex
-        domain = pym.DomainDefinition(3, 3)
+        domain = pym.VoxelDomain(3, 3)
         
         with pym.Network() as fn:
             sx = [pym.Signal('x{i}', np.ones(domain.nel)*3.14*(i+1)) for i in range(nmat)]
@@ -103,7 +103,7 @@ class TestAssembleGeneral:
 class TestAssembleStiffness:
     def test_FEA_pure_tensile_2d_one_element(self):
         Lx, Ly, Lz = 0.1, 0.2, 0.3
-        domain = pym.DomainDefinition(1, 1, unitx=Lx, unity=Ly, unitz=Lz)
+        domain = pym.VoxelDomain(1, 1, unitx=Lx, unity=Ly, unitz=Lz)
         nodidx_left = domain.get_nodenumber(0, np.arange(domain.nely + 1))
         # Fixed at bottom, roller at the top in y-direction
         nodidx_right = domain.get_nodenumber(domain.nelx, np.arange(domain.nely + 1))
@@ -158,7 +158,7 @@ class TestAssembleStiffness:
 
     def test_FEA_pure_tensile_3d_one_element(self):
         Lx, Ly, Lz = 0.1, 0.2, 0.3
-        domain = pym.DomainDefinition(1, 1, 1, unitx=Lx, unity=Ly, unitz=Lz)
+        domain = pym.VoxelDomain(1, 1, 1, unitx=Lx, unity=Ly, unitz=Lz)
         nodidx_left = domain.get_nodenumber(*np.meshgrid(0, range(domain.nely + 1), range(domain.nelz + 1))).flatten()
         # Fixed at (0,0,0), roller in z-direction at (0, 1, 0), roller in y-direction at (0, 0, 1)
         nod_00 = domain.get_nodenumber(0, 0, 0)
@@ -215,7 +215,7 @@ class TestAssembleMass:
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz
-        domain = pym.DomainDefinition(N, N, unitx=lx, unity=ly, unitz=lz)
+        domain = pym.VoxelDomain(N, N, unitx=lx, unity=ly, unitz=lz)
         rho = 1.0
 
         # Hard coded mass element matrix, taken from Cook (eq 11.3-6)
@@ -241,7 +241,7 @@ class TestAssembleMass:
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz
-        domain = pym.DomainDefinition(N, N, unitx=lx, unity=ly, unitz=lz)
+        domain = pym.VoxelDomain(N, N, unitx=lx, unity=ly, unitz=lz)
         rho = 1.0
         cp = 1.0
 
@@ -264,7 +264,7 @@ class TestAssembleMass:
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz/N
-        domain = pym.DomainDefinition(N, N, N, unitx=lx, unity=ly, unitz=lz)
+        domain = pym.VoxelDomain(N, N, N, unitx=lx, unity=ly, unitz=lz)
         rho = 1.0
         mel = rho * np.prod(domain.element_size)
 
@@ -291,7 +291,7 @@ class TestAssemblePoisson:
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx/N, Ly/N, Lz
-        domain = pym.DomainDefinition(N, N, unitx=lx, unity=ly, unitz=lz)
+        domain = pym.VoxelDomain(N, N, unitx=lx, unity=ly, unitz=lz)
         nodidx_left = domain.get_nodenumber(0, np.arange(domain.nely + 1))
         nodidx_right = domain.get_nodenumber(domain.nelx, np.arange(domain.nely + 1))
         kt = 1.0
@@ -318,7 +318,7 @@ class TestAssemblePoisson:
         N = 1
         Lx, Ly, Lz = 2, 3, 4
         lx, ly, lz = Lx / N, Ly / N, Lz / N
-        domain = pym.DomainDefinition(N, N, N, unitx=lx, unity=ly, unitz=lz)
+        domain = pym.VoxelDomain(N, N, N, unitx=lx, unity=ly, unitz=lz)
         nodidx_left = domain.get_nodenumber(*np.meshgrid(0, range(domain.nely + 1), range(domain.nelz + 1))).flatten()
         nodidx_right = domain.nodes[-1, :, :].flatten()
         kt = 1.0

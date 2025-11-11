@@ -42,8 +42,8 @@ def get_path(x, y):
 IndexType = Union[int, Iterable[int], NDArray[np.integer]]
 
 
-class DomainDefinition:
-    r""" Definition for a structured domain
+class VoxelDomain:
+    r""" Definition for a structured voxel domain
     Nodal numbering used in the domain is given below.
 
     Quadrangle in 2D

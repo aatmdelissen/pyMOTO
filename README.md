@@ -41,7 +41,7 @@ Due to the modularity of the framework, existing modules can be reused without h
 ## Dependencies
 * [**numpy**](https://numpy.org/doc/stable/) - Dense linear algebra and solvers
 * [**scipy**](https://docs.scipy.org/doc/scipy/) - Sparse linear algebra and solvers
-* [**sympy**](https://docs.sympy.org/latest/index.html) - Symbolic differentiation for `MathGeneral` module
+* [**sympy**](https://docs.sympy.org/latest/index.html) - Symbolic differentiation for `MathExpression` module
 * [**Matplotlib**](https://matplotlib.org/stable/) - Plotting and visualisation
 * (optional) [**opt_einsum**](https://optimized-einsum.readthedocs.io/en/stable/install.html) - Optimized function for `EinSum` module
 

@@ -54,9 +54,9 @@ def test_constrained(optimizer):
     # Rosenbrock constrained in a circle (https://en.wikipedia.org/wiki/File:Rosenbrock_circle_constraint.svg)
     x = pym.Signal('x', -0.5)
     y = pym.Signal('y', -0.5)
-    f0 = pym.MathGeneral('(1-x)^2 + (y - x^2)^2')(x, y)  # We cheated here by not multiplying second term with 100
+    f0 = pym.MathExpression('(1-x)^2 + (y - x^2)^2')(x, y)  # We cheated here by not multiplying second term with 100
     f0.tag = 'f0'
-    f1 = pym.MathGeneral('x^2 + y^2 - 2')(x, y)
+    f1 = pym.MathExpression('x^2 + y^2 - 2')(x, y)
     f1.tag = 'f1'
     optimizer([x, y], [f0, f1], verbosity=4, tolx=1e-4, tolf=1e-4, maxit=100, xmin=-1.5, xmax=1.5)
     npt.assert_allclose(x.state, 1.0, rtol=1e-2)
@@ -71,11 +71,11 @@ def test_cantilever(optimizer):
     xref = np.array([6.016, 5.309, 4.494, 3.502, 2.153])
     x = pym.Signal('x', 5*np.ones(n))
     xsum = pym.EinSum('i->')(x)
-    f0 = pym.MathGeneral(f'{c1}*inp0')(xsum)
+    f0 = pym.MathExpression(f'{c1}*inp0')(xsum)
     f0.tag = 'f0'
-    xi3 = pym.MathGeneral('1/inp0^3')(x)
+    xi3 = pym.MathExpression('1/inp0^3')(x)
     xi3sum = pym.EinSum('i,i->')(np.array([61, 37, 19, 7, 1]), xi3)
-    f1 = pym.MathGeneral(f'inp0 - {c2}')(xi3sum)
+    f1 = pym.MathExpression(f'inp0 - {c2}')(xi3sum)
     f1.tag = 'f1'
 
     optimizer(x, [f0, f1], verbosity=4, tolx=1e-4, tolf=1e-4, maxit=300, xmin=0, xmax=10)

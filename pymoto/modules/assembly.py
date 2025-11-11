@@ -6,7 +6,7 @@ import warnings
 
 import numpy as np
 import scipy.sparse as sps
-from pymoto import Module, DyadCarrier, DomainDefinition
+from pymoto import Module, DyadicMatrix, VoxelDomain
 from pymoto.utils import _parse_to_list
 
 try:
@@ -21,7 +21,7 @@ class AssembleGeneral(Module):
     Each element matrix is scaled and with the scaling parameter of that element
     :math:`\mathbf{A} = \sum_e \sum_i x_{i,e} \mathbf{A}_{i,e}`.
     The number of degrees of freedom per node is deduced from the size of the element matrix passed into the module.
-    For instance, in case an element matrix of shape ``(3*4, 2*4)`` gets passed with a 2D :class:`DomainDefinition`, the
+    For instance, in case an element matrix of shape ``(3*4, 2*4)`` gets passed with a 2D :class:`VoxelDomain`, the
     number of dofs per node equals ``3`` in the row-direction and ``2`` in the column direction.
 
     Non-square matrices and complex values are supported. Dirichlet boundary conditions are possible to set, which are
@@ -37,7 +37,7 @@ class AssembleGeneral(Module):
 
     def __init__(
         self,
-        domain: DomainDefinition,
+        domain: VoxelDomain,
         element_matrix: Union[np.ndarray, Iterable[np.ndarray]],
         bc=None,
         bcdiagval=None,
@@ -48,7 +48,7 @@ class AssembleGeneral(Module):
         r"""Initialize assembly module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The domain for which should be assembled
+            domain (:py:class:`pymoto.VoxelDomain`): The domain for which should be assembled
             element_matrix (np.ndarray or List of np.ndarray): The element matrix :math:`\mathbf{K}_e` of size
               `(#dofs_per_element, #dofs_per_element)`. Multiple element matrices can also be provied
             bc (optional): Indices of any dofs that are constrained to zero (Dirichlet boundary condition).
@@ -295,7 +295,7 @@ class AssembleGeneral(Module):
             mat += self.add_constant
         return mat
 
-    def _sensitivity(self, dgdmat: Union[DyadCarrier, np.ndarray]):
+    def _sensitivity(self, dgdmat: Union[DyadicMatrix, np.ndarray]):
         if dgdmat.size <= 0:
             return [None]
         if self.bc is not None:
@@ -308,7 +308,7 @@ class AssembleGeneral(Module):
                 for j in range(self.nmat):
                     dxi = einsum("ij,ij->", self.elmat[j], dgdmat[indu, indv])
                     dx[j][i] = np.real(dxi) if np.isrealobj(dx[j]) else dxi
-        elif isinstance(dgdmat, DyadCarrier):
+        elif isinstance(dgdmat, DyadicMatrix):
             for j in range(self.nmat):
                 dxi = dgdmat.contract(self.elmat[j], self.dofconn_row, self.dofconn_col)
                 dx[j][:] = np.real(dxi) if np.isrealobj(dx[j]) else dxi
@@ -417,7 +417,7 @@ class AssembleStiffness(AssembleGeneral):
 
     def __init__(
         self,
-        domain: DomainDefinition,
+        domain: VoxelDomain,
         *args,
         e_modulus: float = 1.0,
         poisson_ratio: float = 0.3,
@@ -427,7 +427,7 @@ class AssembleStiffness(AssembleGeneral):
         """Initialize stiffness assembly module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size
+            domain (:py:class:`pymoto.VoxelDomain`): The domain to assemble for; this determines the element size
               and dimensionality
             *args: Other arguments are passed to :py:class:`pymoto.AssembleGeneral`
             e_modulus (float, optional): Young's modulus. Defaults to 1.0.
@@ -476,7 +476,7 @@ class AssembleMass(AssembleGeneral):
 
     def __init__(
         self,
-        domain: DomainDefinition,
+        domain: VoxelDomain,
         *args,
         material_property: float = 1.0,
         ndof: int = 1,
@@ -486,7 +486,7 @@ class AssembleMass(AssembleGeneral):
         """Initialize mass assembly module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size
+            domain (:py:class:`pymoto.VoxelDomain`): The domain to assemble for; this determines the element size
               and dimensionality
             *args: Other arguments are passed to :py:class:`pymoto.AssembleGeneral`
             material_property (float, optional): Material property to use in the element matrix (for mass matrix the
@@ -531,11 +531,11 @@ class AssemblePoisson(AssembleGeneral):
         - ``P``: Poisson matrix of size ``(n, n)``
     """
 
-    def __init__(self, domain: DomainDefinition, *args, material_property: float = 1.0, **kwargs):
+    def __init__(self, domain: VoxelDomain, *args, material_property: float = 1.0, **kwargs):
         """Initialize Poisson matrix assembly module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The domain to assemble for; this determines the element size
+            domain (:py:class:`pymoto.VoxelDomain`): The domain to assemble for; this determines the element size
               and dimensionality
             *args: Other arguments are passed to :py:class:`pymoto.AssembleGeneral`
             material_property (float, optional): Material property (*e.g.* thermal conductivity, electric permittivity).
@@ -574,11 +574,11 @@ class ElementOperation(Module):
         - ``y``: Elemental output data of size ``(..., #elements)`` or ``(#dofs, ..., #elements)``
     """
 
-    def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
+    def __init__(self, domain: VoxelDomain, element_matrix: np.ndarray):
         r"""Initialize element operation module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+            domain (:py:class:`pymoto.VoxelDomain`): The finite element domain
             element_matrix (np.ndarray): The element operator matrix :math:`\mathbf{B}` of size
               ``(..., #dofs_per_element)`` or ``(..., #nodes_per_element)``
         """
@@ -644,11 +644,11 @@ class Strain(ElementOperation):
        - ``e``: Strain matrix of size ``(#strains_per_element, #elements)``
     """
 
-    def __init__(self, domain: DomainDefinition, voigt: bool = True):
+    def __init__(self, domain: VoxelDomain, voigt: bool = True):
         """Initialize strain evaluation module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+            domain (:py:class:`pymoto.VoxelDomain`): The finite element domain
             voigt (bool, optional): Use Voigt strain notation (2x off-diagonal strain contribution). Defaults to True.
         """
         # Numerical integration
@@ -682,7 +682,7 @@ class Stress(Strain):
     """
 
     def __init__(
-        self, domain: DomainDefinition, e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane: str = "strain"
+        self, domain: VoxelDomain, e_modulus: float = 1.0, poisson_ratio: float = 0.3, plane: str = "strain"
     ):
         """Initialize stress evaluation module
 
@@ -709,11 +709,11 @@ class ElementAverage(ElementOperation):
        - ``v_el``: Elemental vector of size ``(#elements)`` or ``(#dofs, #elements)`` if ``#dofs_per_node>1``
     """
 
-    def __init__(self, domain: DomainDefinition):
+    def __init__(self, domain: VoxelDomain):
         """Initialize element average module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+            domain (:py:class:`pymoto.VoxelDomain`): The finite element domain
         """
         shapefuns = domain.eval_shape_fun(pos=np.array([0, 0, 0]))
         super().__init__(domain, shapefuns)
@@ -733,11 +733,11 @@ class NodalOperation(Module):
         - ``u``: nodal output data of size ``(..., #dofs_per_node * #nodes)``
     """
 
-    def __init__(self, domain: DomainDefinition, element_matrix: np.ndarray):
+    def __init__(self, domain: VoxelDomain, element_matrix: np.ndarray):
         r"""Initialize nodal operation module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+            domain (:py:class:`pymoto.VoxelDomain`): The finite element domain
             element_matrix (np.ndarray): The element operator matrix :math:`\mathbf{A}` of size
               ``(..., #dofs_per_element)``
         """
@@ -778,7 +778,7 @@ class ThermoMechanical(NodalOperation):
 
     def __init__(
         self,
-        domain: DomainDefinition,
+        domain: VoxelDomain,
         e_modulus: float = 1.0,
         poisson_ratio: float = 0.3,
         alpha: float = 1e-6,
@@ -787,7 +787,7 @@ class ThermoMechanical(NodalOperation):
         """Initalize thermo-mechanical load module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+            domain (:py:class:`pymoto.VoxelDomain`): The finite element domain
             e_modulus (float, optional): Young's modulus. Defaults to 1.0.
             poisson_ratio (float, optional): Poisson ratio. Defaults to 0.3.
             alpha (float, optional): Coefficient of thermal expansion. Defaults to 1e-6.

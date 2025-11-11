@@ -7,7 +7,7 @@ import pymoto as pym
 
 
 def test_interpolation_2d():
-    domain = pym.DomainDefinition(10, 10)
+    domain = pym.VoxelDomain(10, 10)
     mg1 = pym.solvers.GeometricMultigrid(domain)
     bc_nodes = domain.nodes[:, 0].flatten()
     bc = np.concatenate([bc_nodes*2, bc_nodes*2+1])
@@ -41,7 +41,7 @@ def test_interpolation_2d():
 
 
 def test_interpolation_3d():
-    domain = pym.DomainDefinition(10, 10, 10)
+    domain = pym.VoxelDomain(10, 10, 10)
     mg1 = pym.solvers.GeometricMultigrid(domain)
     bc_nodes = domain.nodes[:, :, 0].flatten()
     bc = np.concatenate([bc_nodes * 3, bc_nodes * 3 + 1, bc_nodes * 3 + 2])

@@ -1,13 +1,13 @@
-r"""MathGeneral: General math expressions
+r"""MathExpression: General math expressions
 ========================================
 
 Evaluating general mathematical expressions with automatic symbolic differentiated sensitivities
 
 This example is identical in behavior to :ref:`sphx_glr_auto_examples_ex_network_simple.py`, but uses the 
-:py:class:`pymoto.MathGeneral` module instead of custom modules. The :py:class:`pymoto.MathGeneral` module allows the
+:py:class:`pymoto.MathExpression` module instead of custom modules. The :py:class:`pymoto.MathExpression` module allows the
 user to enter a string with a mathematical formula, which is symbolically differentiated using :py:mod:`sympy`. 
 
-Side note: :py:class:`pymoto.MathGeneral` is able to operate on both scalar data or :py:mod:`numpy`-array data (vectors 
+Side note: :py:class:`pymoto.MathExpression` is able to operate on both scalar data or :py:mod:`numpy`-array data (vectors 
 and matrices) in an element-wise fashion. This is very useful, for instance for evaluation of SIMP equation 
 :math:`\rho = x_0 + (1-x_0)x^3` used in :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliance.py`, or the 
 Heaviside projection functions used in :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliance_robust.py`.
@@ -40,16 +40,16 @@ if __name__ == '__main__':
     with pym.Network() as func:
         ordering = 0
         if ordering == 0:
-            a = pym.MathGeneral("inp0 * sin(inp1)")(x, y)
+            a = pym.MathExpression("inp0 * sin(inp1)")(x, y)
             # Instead of  'inp0' and 'inp1', also the tags ('y', 'z') can be used (if they are defined!)
-            b = pym.MathGeneral("cos(y) * cos(z)")(y, z) 
+            b = pym.MathExpression("cos(y) * cos(z)")(y, z) 
             # Signals a and b do not have a tag, so inp0 and inp1 are used
-            g = pym.MathGeneral("inp0^2 * (1 + inp1)")(a, b)  
+            g = pym.MathExpression("inp0^2 * (1 + inp1)")(a, b)  
         elif ordering == 1:
             print("Using an alternative module order")
-            a = pym.MathGeneral("cos(inp0) * cos(inp1)")(x, y)
-            b = pym.MathGeneral("inp0^2 * (1 + inp1)")(y, z) 
-            g = pym.MathGeneral("inp1 * sin(inp0)")(a, b)
+            a = pym.MathExpression("cos(inp0) * cos(inp1)")(x, y)
+            b = pym.MathExpression("inp0^2 * (1 + inp1)")(y, z) 
+            g = pym.MathExpression("inp1 * sin(inp0)")(a, b)
         else:
             raise RuntimeError("Unknown ordering")
 

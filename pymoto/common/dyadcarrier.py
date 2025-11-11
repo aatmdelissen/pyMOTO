@@ -12,8 +12,8 @@ except ModuleNotFoundError:
 
 
 def isdyad(x):
-    """Checks if argument is a ``DyadCarrier``"""
-    return isinstance(x, DyadCarrier)
+    """Checks if argument is a ``DyadicMatrix``"""
+    return isinstance(x, DyadicMatrix)
 
 
 def isdense(x):
@@ -31,7 +31,7 @@ def isnullslice(x):
     return isinstance(x, slice) and x == slice(None, None, None)
 
 
-class DyadCarrier(object):
+class DyadicMatrix(object):
     r"""Efficient storage for dyadic or rank-N matrix
 
     Stores only the vectors instead of creating a full rank-N matrix
@@ -43,7 +43,7 @@ class DyadCarrier(object):
     ndim = 2  # Number of dimensions
 
     def __init__(self, u: Iterable = None, v: Iterable = None, shape: Tuple[int, int] = (-1, -1)):
-        """Initialize a DyadCarrier
+        """Initialize a DyadicMatrix
 
         Args:
             u (optional): List of vectors.
@@ -86,7 +86,7 @@ class DyadCarrier(object):
         adding the matrices :math:`\mathbf{U}=[\mathbf{u}_1, \mathbf{u}_2, \mathbf{u}_3]`
         and :math:`\mathbf{V}=[\mathbf{v}_1, \mathbf{v}_2, \mathbf{v}_3]`
         results in :math:`(\mathbf{u}_1+\mathbf{u}_2+\mathbf{u}_3)\otimes(\mathbf{v}_1+\mathbf{v}_2+\mathbf{v}_3)`
-        being added to the DyadCarrier.
+        being added to the DyadicMatrix.
 
         Args:
             u: List of vectors
@@ -150,7 +150,7 @@ class DyadCarrier(object):
     def __getitem__(self, subscript):
         assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
         if self.shape[0] < 0 and self.shape[1] < 0:
-            return DyadCarrier()
+            return DyadicMatrix()
 
         usample = np.zeros(self.shape[0])[subscript[0]]
         vsample = np.zeros(self.shape[1])[subscript[1]]
@@ -174,7 +174,7 @@ class DyadCarrier(object):
 
             return res
         else:
-            return DyadCarrier(usub, vsub, shape=(np.size(usample), np.size(vsample)))
+            return DyadicMatrix(usub, vsub, shape=(np.size(usample), np.size(vsample)))
 
     def __setitem__(self, subscript, value):
         assert len(subscript) == self.ndim, "Invalid number of slices, must be 2"
@@ -192,7 +192,7 @@ class DyadCarrier(object):
         return self.copy()
 
     def __neg__(self):
-        return DyadCarrier([-uu for uu in self.u], self.v, shape=self.shape)
+        return DyadicMatrix([-uu for uu in self.u], self.v, shape=self.shape)
 
     def __iadd__(self, other):
         self.add_dyad(other.u, other.v)
@@ -235,23 +235,23 @@ class DyadCarrier(object):
             return NotImplemented
 
     def __rmul__(self, other):  # other * self
-        return DyadCarrier([other * ui for ui in self.u], self.v, shape=self.shape)
+        return DyadicMatrix([other * ui for ui in self.u], self.v, shape=self.shape)
 
     def __mul__(self, other):  # self * other
-        return DyadCarrier(self.u, [vi * other for vi in self.v], shape=self.shape)
+        return DyadicMatrix(self.u, [vi * other for vi in self.v], shape=self.shape)
 
     def copy(self):
-        """Returns a deep copy of the DyadCarrier"""
-        return DyadCarrier(self.u, self.v, shape=self.shape)
+        """Returns a deep copy of the DyadicMatrix"""
+        return DyadicMatrix(self.u, self.v, shape=self.shape)
 
     def conj(self):
-        """Returns (a deep copied) complex conjugate of the DyadCarrier"""
-        return DyadCarrier([u.conj() for u in self.u], [v.conj() for v in self.v], shape=self.shape)
+        """Returns (a deep copied) complex conjugate of the DyadicMatrix"""
+        return DyadicMatrix([u.conj() for u in self.u], [v.conj() for v in self.v], shape=self.shape)
 
     @property
     def real(self):
-        """Returns a deep copy of the real part of the DyadCarrier"""
-        return DyadCarrier(
+        """Returns a deep copy of the real part of the DyadicMatrix"""
+        return DyadicMatrix(
             [*[u.real for u in self.u], *[-u.imag for u in self.u]],
             [*[v.real for v in self.v], *[v.imag for v in self.v]],
             shape=self.shape,
@@ -259,8 +259,8 @@ class DyadCarrier(object):
 
     @property
     def imag(self):
-        """Returns a deep copy of the imaginary part of the DyadCarrier"""
-        return DyadCarrier(
+        """Returns a deep copy of the imaginary part of the DyadicMatrix"""
+        return DyadicMatrix(
             [*[u.real for u in self.u], *[u.imag for u in self.u]],
             [*[v.imag for v in self.v], *[v.real for v in self.v]],
             shape=self.shape,
@@ -284,7 +284,7 @@ class DyadCarrier(object):
 
     # flake8: noqa: C901
     def contract(self, mat: Union[NDArray, spmatrix] = None, rows: NDArray[int] = None, cols: NDArray[int] = None):
-        r"""Performs a number of contraction operations using the DyadCarrier
+        r"""Performs a number of contraction operations using the DyadicMatrix
 
         Calculates the result(s) of the quadratic form:
         :math:`y = \sum_k \mathbf{u}_k^{\text{T}} \mathbf{B} \mathbf{v}_k`
@@ -439,7 +439,7 @@ class DyadCarrier(object):
         return val
 
     def todense(self):
-        """Returns a full (dense) matrix from the DyadCarrier matrix"""
+        """Returns a full (dense) matrix from the DyadicMatrix matrix"""
         warning_size = 100e6  # Bytes
         if (self.shape[0] * self.shape[1] * self.dtype.itemsize) > warning_size:
             warnings.warn(
@@ -460,11 +460,11 @@ class DyadCarrier(object):
         return self.todense()
 
     def iscomplex(self):
-        """Check if the DyadCarrier is of complex type"""
+        """Check if the DyadicMatrix is of complex type"""
         return np.iscomplexobj(np.array([], dtype=self.dtype))
 
     def diagonal(self, k: int = 0):
-        """Returns the diagonal of the DyadCarrier matrix"""
+        """Returns the diagonal of the DyadicMatrix matrix"""
         if (self.shape[0] == 0) or (self.shape[1] == 0):
             return np.zeros(0, dtype=self.dtype)
 
@@ -488,8 +488,8 @@ class DyadCarrier(object):
         return self.transpose()
 
     def transpose(self):
-        """Returns a deep copy of the transposed DyadCarrier matrix"""
-        return DyadCarrier(self.v, self.u, shape=(self.shape[1], self.shape[0]))
+        """Returns a deep copy of the transposed DyadicMatrix matrix"""
+        return DyadicMatrix(self.v, self.u, shape=(self.shape[1], self.shape[0]))
 
     def dot(self, other):
         """Inner product"""
@@ -517,9 +517,9 @@ class DyadCarrier(object):
         if other.ndim == 1:
             return self.__dot__(other)
 
-        return DyadCarrier(self.u, [vi @ other for vi in self.v], shape=(self.shape[0], other.shape[1]))
+        return DyadicMatrix(self.u, [vi @ other for vi in self.v], shape=(self.shape[0], other.shape[1]))
 
     def __rmatmul__(self, other):  # other @ self
         if other.ndim == 1:
             return self.__rdot__(other)
-        return DyadCarrier([other @ ui for ui in self.u], self.v, shape=(other.shape[0], self.shape[1]))
+        return DyadicMatrix([other @ ui for ui in self.u], self.v, shape=(other.shape[0], self.shape[1]))

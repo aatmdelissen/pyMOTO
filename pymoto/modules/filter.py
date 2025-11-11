@@ -1,4 +1,4 @@
-from pymoto import Module, DomainDefinition
+from pymoto import Module, VoxelDomain
 import numpy as np
 from scipy.sparse import coo_matrix
 from scipy.signal import convolve, correlate
@@ -22,7 +22,7 @@ class FilterConv(Module):
 
     def __init__(
         self,
-        domain: DomainDefinition,
+        domain: VoxelDomain,
         radius: float = None,
         relative_units: bool = True,
         weights: np.ndarray = None,
@@ -56,7 +56,7 @@ class FilterConv(Module):
             end values are used to pad the beginning.
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The (finite-element) domain
+            domain (:py:class:`pymoto.VoxelDomain`): The (finite-element) domain
             radius (float, optional): Filter radius. If this is not provided, the filtering kernel `weights` must be
               defined
             relative_units (bool, optional): Indicate if the filter radius is in relative units with respect to the
@@ -164,7 +164,7 @@ class FilterConv(Module):
         domain_sizes = [self.domain.nelx, self.domain.nely, self.domain.nelz]
         nx, ny, nz = [n + 2 * p for n, p in zip(domain_sizes, self.pad_sizes)]
         lx, ly, lz = self.domain.element_size
-        return DomainDefinition(nx, ny, nz, unitx=lx, unity=ly, unitz=lz)
+        return VoxelDomain(nx, ny, nz, unitx=lx, unity=ly, unitz=lz)
 
     def override_padded_values(self, index, value):
         if all([np.asarray(i).size == 0 for i in index]):
@@ -288,7 +288,7 @@ class DensityFilter(Filter):
         - ``y``: Filtered field :math:`\mathbf{y}`
 
     Args:
-        domain (:py:class:`pymoto.DomainDefinition`): The finite element domain
+        domain (:py:class:`pymoto.VoxelDomain`): The finite element domain
 
     Keyword Args:
         radius (float or int): The filtering radius (in absolute units of elements)
@@ -305,7 +305,7 @@ class DensityFilter(Filter):
     """
 
     @staticmethod
-    def _calculate_h(domain: DomainDefinition, radius=2.0):
+    def _calculate_h(domain: VoxelDomain, radius=2.0):
         """Density filter: Build (and assemble) the index+data vectors for the coo matrix format
         Total number of filter entries - for every element, a number of entries wrt other elements are needed (not
         including boundaries)
@@ -404,7 +404,7 @@ class OverhangFilter(Module):
 
     def __init__(
         self,
-        domain: DomainDefinition,
+        domain: VoxelDomain,
         direction=(0.0, 1.0, 0.0),
         xi_0: float = 0.5,
         p: float = 40.0,
@@ -414,7 +414,7 @@ class OverhangFilter(Module):
         """Initialize overhang filter modulue
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The (finite-element) domain
+            domain (:py:class:`pymoto.VoxelDomain`): The (finite-element) domain
             direction (tuple, optional): Print direction as array or string, e.g. ``[0, -1]`` (in 2D) or ``"y-"`` for
               negative y direction. Currently, only directions aligned with one of the Cartesian axes are supported.
               Default is ``[0, 1, 0]``

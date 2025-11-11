@@ -50,7 +50,7 @@ use_volume_constraint = True
 
 if __name__ == "__main__":
     # Set up the domain
-    domain = pym.DomainDefinition(nx, ny)
+    domain = pym.VoxelDomain(nx, ny)
 
     # Node and dof groups
     nodes_left = domain.nodes[0, :].flatten()
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         input_domain = domain.elements[:nondesigndomain_size, :nondesigndomain_size]
         output_domain = domain.elements[:nondesigndomain_size, -nondesigndomain_size:]
         non_design_domain = np.union1d(input_domain, output_domain)
-        s_xnondes = pym.VecSet(indices=non_design_domain, value=1.0)(s_x)
+        s_xnondes = pym.SetValue(indices=non_design_domain, value=1.0)(s_x)
 
         # Density filtering
         s_xfilt = pym.DensityFilter(domain, radius=filter_radius)(s_xnondes)
@@ -86,7 +86,7 @@ if __name__ == "__main__":
         pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
         # SIMP penalization
-        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
+        s_xsimp = pym.MathExpression(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
         # Assembly (with added constant stiffness for springs)
         istiff = np.array([dof_input, dof_output])

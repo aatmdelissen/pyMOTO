@@ -13,7 +13,7 @@ class MatrixGenerator(pym.Module):
         self.mat.data = values.copy()
         return self.mat
     
-    def _sensitivity(self, dA: pym.DyadCarrier):
+    def _sensitivity(self, dA: pym.DyadicMatrix):
         dA_array = dA.toarray()
         return dA_array[self.mat.row, self.mat.col]
 
@@ -24,7 +24,7 @@ class MatrixSum(pym.Module):
 
     def _sensitivity(self, dAsum):
         A = self.get_input_states()
-        return pym.DyadCarrier(np.ones(A.shape[0]), np.ones(A.shape[1]), shape=A.shape) * dAsum
+        return pym.DyadicMatrix(np.ones(A.shape[0]), np.ones(A.shape[1]), shape=A.shape) * dAsum
     
 
 def fd_testfn(x0, dx, df_an, df_fd):

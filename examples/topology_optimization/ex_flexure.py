@@ -23,7 +23,7 @@ import pymoto as pym
 
 class Symmetry(pym.Module):
     """Enforce symmetry in the x and y direction """
-    def __init__(self, domain: pym.DomainDefinition):
+    def __init__(self, domain: pym.VoxelDomain):
         self.domain = domain
 
     def __call__(self, x):
@@ -71,7 +71,7 @@ def flexure(nx: int = 20,
     
 
     # Set up the domain
-    domain = pym.DomainDefinition(nx, ny)
+    domain = pym.VoxelDomain(nx, ny)
 
     # Node and dof groups
     nodes_top = domain.nodes[:, -1]
@@ -117,7 +117,7 @@ def flexure(nx: int = 20,
         pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
         # SIMP penalization
-        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
+        s_xsimp = pym.MathExpression(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
         # Assembly of stiffness matrix
         s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu)(s_xsimp)
