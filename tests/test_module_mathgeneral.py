@@ -15,7 +15,7 @@ def make_mat(m, n=None):
     return np.random.rand(m, n)
 
 
-class TestMathGeneral:
+class TestMathExpression:
     np.random.seed(0)
 
     @staticmethod
