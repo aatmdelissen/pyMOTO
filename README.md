@@ -1,8 +1,8 @@
+# pyMOTO | Modular Topology Optimization in Python
+
 [![10.5281/zenodo.8138859](https://zenodo.org/badge/DOI/10.5281/zenodo.8138859.svg)](https://doi.org/10.5281/zenodo.8138859) 
 [![anaconda.org/aatmdelissen/pymoto](https://anaconda.org/aatmdelissen/pymoto/badges/version.svg)](https://anaconda.org/aatmdelissen/pymoto)
 [![pypi.org/project/pyMOTO](https://badge.fury.io/py/pyMOTO.svg)](https://pypi.org/project/pyMOTO/)
-
-# pyMOTO | Modular Topology Optimization in Python
 
 - **Documentation** [https://pymoto.readthedocs.io](https://pymoto.readthedocs.io)
 - **Examples gallery** [https://pymoto.readthedocs.io/en/latest/auto_examples/index.html](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html)
