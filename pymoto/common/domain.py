@@ -3,11 +3,14 @@ import sys
 import base64
 import struct
 import warnings
-from typing import Union, Iterable
+from typing import Union, Iterable, Protocol
+
 from numpy.typing import NDArray
 import numpy as np
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
+
+from ..utils import _parse_to_list
 
 
 def plot_deformed_element(ax, x, y, **kwargs):
@@ -41,6 +44,15 @@ def get_path(x, y):
 
 IndexType = Union[int, Iterable[int], NDArray[np.integer]]
 
+class MeshT(Protocol):
+    """General mesh type, modeled after https://github.com/wolph/numpy-stl """
+    min_: np.ndarray
+    max_: np.ndarray
+    v0: np.ndarray
+    v1: np.ndarray
+    v2: np.ndarray
+    name: str
+    
 
 class VoxelDomain:
     r""" Definition for a structured voxel domain
@@ -506,3 +518,155 @@ class VoxelDomain:
             file.write(b"</Piece>\n")
             file.write(b"</ImageData>\n")
             file.write(b"</VTKFile>")
+
+    @staticmethod
+    def create_for_mesh(mesh: MeshT | list[MeshT], h: float, Nmin: int = 1, Npadding: int = 0):
+        """ Make a suitable domain for given (triangle) meshes (see :py:module:`numpy-stl`)
+
+        Args:
+            meshes: List of mesh objects that should fit inside the domain
+            h: The element size
+            Nmin (optional): Minimum common divisor in the shape (#elements) of the domain
+            Npadding (optional): Minimum number of elements to add as padding on all sides
+        """
+        meshes = _parse_to_list(mesh)
+
+        # Determine mesh extents
+        mmin = np.minimum.reduce([m.min_ for m in meshes])
+        mmax = np.maximum.reduce([m.max_ for m in meshes])
+
+        # Determine number of elements
+        n_elem = np.ceil(((mmax - mmin)/h + 2*Npadding)/Nmin).astype(int) * Nmin
+
+        assert np.all(n_elem % Nmin == 0)
+        assert np.all((n_elem - 2*Npadding) * h >= (mmax - mmin))
+
+        # Determine domain extents
+        dmin = (mmax + mmin - n_elem * h)/2  # == origin
+        dmax = dmin + n_elem * h
+        assert np.all(((dmin + dmax) / 2) == ((mmax + mmin) / 2))  # midpoints must align
+
+        fmt = '% .2f'
+        print(f"Mesh extents:   x = {fmt%mmin[0]} ... {fmt%mmax[0]}; y = {fmt%mmin[1]} ... {fmt%mmax[1]}; z = {fmt%mmin[2]} ... {fmt%mmax[2]}")
+        print(f"Domain extents: x = {fmt%dmin[0]} ... {fmt%dmax[0]}; y = {fmt%dmin[1]} ... {fmt%dmax[1]}; z = {fmt%dmin[2]} ... {fmt%dmax[2]}")
+        print(f"Domain size: {n_elem}")
+
+        # Create domain
+        domain = VoxelDomain(n_elem[0], n_elem[1], n_elem[2], unitx=h, unity=h, unitz=h)
+        domain.origin = dmin
+
+        return domain
+    
+    def voxelize(self, mesh: MeshT):
+        
+        dmin = self.origin
+        dmax = self.origin + self.element_size * self.size
+
+        # Check if mesh extents fit in domain
+        if not np.all(mesh.min_ >= dmin) or not np.all(mesh.max_ <= dmax):
+            warnings.warn(f"Mesh {mesh.name} does not fit in domain!")
+
+        n_hits = np.zeros(self.size, dtype=int)
+        for i0 in range(3):
+            i1 = (i0 + 1) % 3
+            i2 = (i0 + 2) % 3
+
+            # Do ray-trace
+            # Based on Moller-Trumbore algorithm https://doi.org/10.1080/10867651.1997.10487468
+            direc = np.zeros(3)
+            direc[i0] = 1.0
+
+            v0v1 = mesh.v1 - mesh.v0
+            v0v2 = mesh.v2 - mesh.v0
+            pvec = np.cross(direc, v0v2)
+            det = np.sum(v0v1 * pvec, axis=1)
+
+            # Don't calculate for parallel facets
+            parallel = np.abs(det)**2 < (1e-8**2) * np.sum(v0v1 * v0v1, axis=1) * np.sum(v0v2 * v0v2, axis=1)
+
+            aligned = np.ones_like(det)
+            aligned[det > 0] = -1.0
+
+            # Calculate ray origins
+            t1_range = self.element_size[i1]/2 + np.linspace(dmin[i1], dmax[i1], self.size[i1]+1)[:-1]
+            t2_range = self.element_size[i2]/2 + np.linspace(dmin[i2], dmax[i2], self.size[i2]+1)[:-1]
+
+            ray_origin = np.zeros((t1_range.size, t2_range.size, 3))
+            ray_origin[..., i0] = dmin[i0]
+            ray_origin[..., i1] = t1_range[:, None]
+            ray_origin[..., i2] = t2_range[None, :]
+
+            # Find ray intersections by calculating barycentric coordinates on the triangles
+            # Shape is (#facets, #t1, #t2, #dim)
+            # First coordinate
+            tvec = ray_origin[None, ...] - mesh.v0[~parallel, None, None, :]
+            uvw = np.zeros_like(tvec)
+            uvw[..., 1] = np.sum(tvec * pvec[~parallel, None, None, :], axis=-1) / det[~parallel, None, None]
+
+            # Second coordinate
+            qvec = np.cross(tvec, v0v1[~parallel, None, None, :])
+            uvw[..., 2] = (qvec @ direc) / det[~parallel, None, None]
+
+            # Third coordinate
+            uvw[..., 0] = 1.0 - uvw[..., 1] - uvw[..., 2]
+
+            # Distance from origin to facet
+            t = np.sum(v0v2[~parallel, None, None, :] * qvec, axis=-1) / det[~parallel, None, None]
+
+            # Find intersected instances
+            intersected = np.logical_and(np.all(uvw >= 0, axis=-1), np.all(uvw <= 1, axis=-1))
+
+            n_intersections = np.sum(intersected, axis=0)  # Number of intersections per ray
+            if not np.all((n_intersections % 2) == 0):
+                warnings.warn("Inersections found with unequal number of entries and exits")
+
+            # Sort hits based on distance
+            distances = t[intersected]
+            indices = np.argwhere(intersected)
+
+            order = np.lexsort((distances, indices[:, 1], indices[:, 2]))
+            aligned[~parallel][indices[order, 0]]
+
+            idx_facet = indices[order, 0]
+            idx_ray_t1 = indices[order, 1]
+            idx_ray_t2 = indices[order, 2]
+            hit_dist = distances[order]
+            hit_direc = aligned[~parallel][idx_facet]
+
+            # np.hstack([indices[order], distances[order, None], aligned[~parallel][indices[order, 0], None]])
+
+            # Find lines from hit entry to hit exit
+            i_lines = np.argwhere((np.diff(hit_direc) == 2) *
+                                (np.diff(idx_ray_t1) == 0) *
+                                (np.diff(idx_ray_t2) == 0)).flatten()
+
+            assert np.all(idx_ray_t1[i_lines] == idx_ray_t1[i_lines + 1])
+            assert np.all(idx_ray_t2[i_lines] == idx_ray_t2[i_lines + 1])
+            assert np.all(hit_direc[i_lines] == -1)
+            assert np.all(hit_direc[i_lines+1] == 1)
+            assert np.all(hit_dist[i_lines] <= hit_dist[i_lines+1])
+
+            idx0_line_start = np.floor(hit_dist[i_lines] / self.element_size[i0]).astype(int)
+            idx0_line_end = np.ceil(hit_dist[i_lines+1] / self.element_size[i0]).astype(int)
+            idx1_line = idx_ray_t1[i_lines]
+            idx2_line = idx_ray_t2[i_lines]
+
+            # if intersected.sum() / 2 > i_lines.size:
+            #     warnings.warn(f"Found {intersected.sum()} intersections but only {i_lines.size} lines")
+
+            is_hit = np.zeros(self.size, dtype=int)
+            if i0 == 0:
+                idx_line = np.arange(self.size[i0])[:, None]
+                idx_intersect = (idx_line >= idx0_line_start[None, :]) * (idx_line <= idx0_line_end[None, :])
+                np.add.at(is_hit, (slice(None), idx1_line, idx2_line), idx_intersect)
+            elif i0 == 1:
+                idx_line = np.arange(self.size[i0])[None, :]
+                idx_intersect = (idx_line >= idx0_line_start[:, None]) * (idx_line <= idx0_line_end[:, None])
+                np.add.at(is_hit, (idx2_line, slice(None), idx1_line), idx_intersect)
+            elif i0 == 2:
+                idx_line = np.arange(self.size[i0])[None, :]
+                idx_intersect = (idx_line >= idx0_line_start[:, None]) * (idx_line <= idx0_line_end[:, None])
+                np.add.at(is_hit, (idx1_line, idx2_line, slice(None)), idx_intersect)
+            n_hits += np.clip(is_hit, 0, 1)
+
+        return self.elements[n_hits >= 2]
