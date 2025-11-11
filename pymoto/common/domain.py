@@ -520,7 +520,7 @@ class VoxelDomain:
             file.write(b"</VTKFile>")
 
     @staticmethod
-    def create_for_mesh(mesh: MeshT | list[MeshT], h: float, Nmin: int = 1, Npadding: int = 0):
+    def create_for_mesh(mesh: Union[MeshT, list[MeshT]], h: float, Nmin: int = 1, Npadding: int = 0):
         """ Make a suitable domain for given (triangle) meshes (see :py:module:`numpy-stl`)
 
         Args:
