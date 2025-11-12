@@ -12,21 +12,31 @@ class TransientSolve(Module):
     timestepping.
 
     Input Signals:
+      - ``b`` (`dense matrix or vector`): Right-hand-side matrix of size ``(n, Ntimesteps)`` or vector of size ``(n)``
       - ``K`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{K}` of size ``(n, n)``
       - ``C`` (`dense or sparse matrix`): The damping matrix :math:`\mathbf{C}` of size ``(n, n)``
-      - ``Q`` (`dense matrix`): Right-hand-side matrix of size ``(n, Ntimesteps)``
+
 
     Output Signals:
-      - ``T`` (`matrix`): Solution matrix of size ``(n, Ntimesteps)``
+      - ``state`` (`matrix`): Solution matrix of size ``(n, Ntimesteps)``
 
-    Keyword Args:
-        T_0: Initial temperature vector of size (n)
-        end: End time of transient simulation
-        dt: Size of time step
-        theta: Time-stepping algorithm, 0.0 for forward Euler, 0.5 for Crank-Nicolson, 1.0 for backward Euler
-        solver: Manually override the LinearSolver used, instead of the solver from :func:`auto_determine_solver`
+
         """
-    def _prepare(self, dt, end = None, x0 = None, theta = 1.0, solver = None):
+    def __init__(self,
+                 dt,
+                 end = None,
+                 x0 = None,
+                 theta = 1.0,
+                 solver = None):
+        """Initialize the transient solver module
+
+        Args:
+        dt (float, required): Size of time step in seconds
+        x0 (vector, optional): Initial state of size ``(n)``
+        theta (float, optional): Time-stepping algorithm, 0.0 for forward Euler, 0.5 for Crank-Nicolson, 1.0 for backward Euler
+        solver (:py:class:`pymoto.solvers.LinearSolver`, optional): Manually override the linear solver used,
+              instead of the solver from :func:`pymoto.solvers.auto_determine_solver`
+        """
         self.x0 = x0
         self.end = end
         self.dt = dt
@@ -34,9 +44,9 @@ class TransientSolve(Module):
         assert 0.0 <= self.theta <= 1.0, "theta must be between 0.0 and 1.0"
         self.solver = solver
 
-    def _response(self, b, K, C, *args):
+    def __call__(self, b, K, C, *args):
         # initial checks
-        M = args[0] if len(args) > 0 else None
+        M = args[0] if len(args) > 0 else None #Not implemented yet
         assert K.shape == C.shape, "K and C must have same shape"
         assert self.end is not None or b.ndim is not 1, "Insufficient information to determine time steps"
 
