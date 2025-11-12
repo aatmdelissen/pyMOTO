@@ -422,7 +422,7 @@ class Print(Module):
             print(f"{tag} = {x}")
 
 
-class TransientToVTI(Module):
+class SeriesToVTI(Module):
     """ Writes transient response vectors to a Paraview VTI file
 
     This module utilizes a series file to properly associate the correct time with each timestep:
@@ -437,52 +437,62 @@ class TransientToVTI(Module):
 
     Input Signals:
       - ``*args`` (`numpy.ndarray`): Vectors to write to VTI. The signal tags are used as name.
+      """
 
-    Args:
-        domain: The domain layout
-        transient_tags (list): Tag name of Signal(s) that vary over time
-        saveto (str): Location to save folders with transient responses for specific iterations
-        delta_t (float): Length of timestep
-        interval (int): Iteration interval for saving data
-        scale (float): Scaling factor for the domain
+    def __init__(self, domain: DomainDefinition, saveto: str, delta_t: float, interval: int=10, scale=1.):
+        """ Initialize Series VTI writer module
+        Args:
+            domain: The domain layout
+            saveto (str): Location to save folders with transient responses for specific iterations
+            delta_t (float): Length of timestep
+            interval (int, optional): Iteration interval for saving data
+            scale (float, optional): Scaling factor for the domain
     """
 
-    def _prepare(self, domain: DomainDefinition, transient_tags: list, saveto: str, delta_t: float, interval: int=10, scale=1.):
         self.domain = domain
         self.path = os.path.split(saveto)
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
         self.scale = scale
-        self.transient_tags = transient_tags
-        self.it = 0
+        self.iter = 0
         self.interval = interval
         self.dt = delta_t
 
-    def _response(self, *args):
-        if self.it % self.interval == 0:
-            #prepare folder of transient responses for specific optimization iteration
-            saveto = self.path[0] + '/transient_it{0:03d}/'.format(self.it) + self.path[1]
+    def __call__(self, *args):
+        if self.iter % self.interval != 0:
+            self.iter += 1
+            return
 
-            #prepare time series file
-            Path(saveto).parent.mkdir(parents=True, exist_ok=True)
-            f = open(saveto + '.series', 'a')
+        #prepare folder of transient responses for specific optimization iteration
+        saveto = self.path[0] + '/transient_it{0:03d}/'.format(self.iter) + self.path[1]
+
+        #prepare time series file
+        Path(saveto).parent.mkdir(parents=True, exist_ok=True)
+        with open(saveto + '.series', 'a') as f:
             f.write("{\n")
             f.write("\t\"file-series-version\" : \"1.0\",\n")
             f.write("\t\"files\" : [\n")
 
-            #prepare data from signals
-            data = {}
-            for s in self.sig_in:
-                data[s.tag] = s.state
-            pth = os.path.splitext(saveto)
-            datavtk = data.copy()
+        #prepare data from signals
+        data = {}
+        time_steps = 0
+        for s in self.sig_in:
+            data[s.tag] = s.state
+            if len(s.state.shape) > 1:
+                time_steps = max(s.state.shape[-1], time_steps)
 
-            #loop over time steps, then generate new vtk file and add reference to series file for each time step
-            for t in range(data[self.transient_tags[0]].shape[1]):
-                for r in self.transient_tags:
-                    datavtk[r] = data[r][:, t]
-                filename = pth[0] + pth[1] + '.{0:04d}'.format(t)
-                self.domain.write_to_vti(datavtk, filename=filename, scale=self.scale)
-                f.write('\t\t{{ "name" : "{0}", "time": {1} }},\n'.format(self.path[1]+'.{0:04d}'.format(t) + '.vti', t*self.dt))
+        pth = os.path.splitext(saveto)
+        datavtk = data.copy()
+
+        #loop over time steps, then generate new vtk file and add reference to series file for each time step
+        for t in range(time_steps):
+            for r in data:
+                if len(data[r].shape) < 2: continue # skip only saving single timestep if the signal r is not transient
+                datavtk[r] = data[r][:, t]
+            filename = pth[0] + '.{0:04d}'.format(t) + pth[1]
+            self.domain.write_to_vti(datavtk, filename=filename, scale=self.scale)
+            with open(saveto + '.series', 'a') as f:
+                f.write('\t\t{{ "name" : "{0}", "time": {1} }},\n'.format(os.path.splitext(self.path[1])[0] +'.{0:04d}'.format(t) + pth[1], t*self.dt))
+
+        with open(saveto + '.series', 'a') as f:
             f.write("\t]\n}")
-
-        self.it += 1
+        self.iter += 1
