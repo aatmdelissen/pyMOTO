@@ -314,6 +314,7 @@ class WriteToVTI(Module):
 
     def __call__(self, *args):
         if self.iter % self.interval != 0:
+            self.iter += 1
             return
 
         # Parse data to write
