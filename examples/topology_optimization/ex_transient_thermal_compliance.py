@@ -7,8 +7,8 @@ nx, ny, nz = 60, 60, 0  # Set nz to zero for the 2D problem, nz > 0 runs a 3D pr
 xmin = 1e-6
 filter_radius = 3.0
 volfrac = 0.4
-end_time = 200 # End time [s], as this value increases the optimizer starts to connect to the boundaries
-dt = 2.0
+end_time = 2000 # End time [s], as this value increases the optimizer starts to connect to the boundaries
+dt = 20.0
 end_step = int(end_time/dt)
 theta = 0.5  # time-stepping algorithm, 0.0 for forward Euler, 0.5 for Crank-Nicolson, 1.0 for backward Euler
 
@@ -59,63 +59,64 @@ if __name__ == "__main__":
     sx = pym.Signal('x', state=np.ones(domain.nel) * volfrac)
 
     # Start building the modular network
-    func = pym.Network(print_timing=False)
 
     # Filter
-    sxfilt = func.append(pym.DensityFilter(sx, domain=domain, radius=filter_radius))
+    sxfilt = pym.DensityFilter(domain, radius=filter_radius)(sx)
+    sxfilt.tag = "Filtered design"
     sx_analysis = sxfilt
 
     # Show the design on the screen as it optimizes
-    func.append(pym.PlotDomain(sx_analysis, domain=domain, saveto="out/design", clim=[0, 1]))
+    if domain.dim == 2:
+        pym.PlotDomain(domain, saveto="out/design", clim=[0, 1])(sx_analysis)
 
     # SIMP material interpolation
-    sSIMP = func.append(pym.MathGeneral(sx_analysis, expression=f"{xmin} + {1.0 - xmin}*inp0^3"))
+    sSIMP = pym.MathGeneral(f"{xmin} + {1.0 - xmin}*inp0^3")(sx_analysis)
 
     # System matrix assembly module
-    sK = func.append(pym.AssemblePoisson(sSIMP, domain=domain, bc=boundary_dofs))
-    sC = func.append(pym.AssembleMass(sSIMP, domain=domain, bc=boundary_dofs, ndof=ndof))
+    sK = pym.AssemblePoisson(domain, bc=boundary_dofs)(sSIMP)
+    sC = pym.AssembleMass(domain, bc=boundary_dofs, ndof=ndof)(sSIMP)
 
     # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
     solver = None  # Default (solver is automatically chosen based on matrix properties)
     # solver = pym.solvers.SolverSparsePardiso()  # Requires Intel MKL installed
     # solver = pym.solvers.SolverSparseCholeskyCVXOPT()  # Requires cvxopt installed
     # solver = pym.solvers.SolverSparseCholeskyScikit()  # Requires scikit installed
-    sT = func.append(pym.TransientSolve([sq, sK, sC], end=end_time, dt=dt, x0=T_0, solver=solver))
+    sT = pym.TransientSolve(dt=dt, end=end_time, x0=T_0, solver=solver)(sq, sK, sC)
     sT.tag = "temperatures"
 
     # Output the design, temperature, and heat field to a Paraview file
-    func.append(pym.WriteToVTI([sx_analysis, sT[:, -1], sq[:, -1]], domain=domain, saveto='out/dat.vti'))
-    func.append(pym.TransientToVTI([sx_analysis, sT, sq], domain=domain, transient_tags=["temperatures", "q"], saveto='out/dat.vti', delta_t=2.0, interval=2))
+    pym.WriteToVTI(domain, saveto='out/dat.vti')(sx_analysis, sT[:, -1], sq[:, -1])
+    pym.SeriesToVTI(domain, saveto='out/dat.vti', delta_t=2.0, interval=2)(sx_analysis, sT, sq)
 
-    # Compliance calculation c = q^T T on final time step
-    scompl = func.append(pym.EinSum([sq[:, -1], sT[:, -1]], expression='i,i->'))
+    # Compliance calculation c = sum(q^T T) for all time steps
+    scompl = pym.EinSum('ij,ij->')(sq, sT)
     scompl.tag = 'compliance'
 
     # MMA needs correct scaling of the objective
-    sg0 = func.append(pym.Scaling(scompl, scaling=100.0))
+    sg0 = pym.Scaling(scaling=100.0)(scompl)
     sg0.tag = "objective"
 
     # Calculate the volume of the domain by adding all design densities together
-    svol = func.append(pym.EinSum(sx_analysis, expression='i->'))
+    svol = pym.EinSum('i->')(sx_analysis)
     svol.tag = 'volume'
 
     # Volume constraint
-    sg1 = func.append(pym.MathGeneral(svol, expression=f'10*(inp0/{domain.nel} - {volfrac})'))
+    sg1 = pym.MathGeneral(f'10*(inp0/{domain.nel} - {volfrac})')(svol)
     sg1.tag = "volume constraint"
 
     # Maybe you want to check the design-sensitivities?
     do_finite_difference = False
     if do_finite_difference:
-        pym.finite_difference(func, sx, [sg0, sg1], dx=1e-4)
+        pym.finite_difference(sx, [sg0, sg1], dx=1e-4)
         exit()
 
-    func.append(pym.PlotIter([sg0, sg1]))  # Plot iteration history
+    pym.PlotIter()(sg0, sg1)  # Plot iteration history
 
     # Do the optimization with MMA
     # pym.minimize_mma(func, [sx], [sg0, sg1])
 
     # Do the optimization with OC
-    pym.minimize_oc(func, sx, sg0)
+    pym.minimize_oc(sx, sg0)
 
     # Here you can do some post processing
     print("The optimization has finished!")
