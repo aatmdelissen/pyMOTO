@@ -19,7 +19,7 @@ Already many ingredients and variations of topology optimization are implemented
 - Thermal and thermo-mechanic coupling
 - Stress constraints
 - Multigrid preconditioning with conjugate-gradient solver
-- Various optimizers suited for topology optimziation (OC, MMA, GCMMA, ...)
+- Various optimizers suited for topology optimization, such as Optimality Criteria (OC), Method of Moving Asymptotes (MMA), and its Globally Convergent version (GCMMA)
 - [And more... ](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html)
 
 ![3D Mechanical MBB beam topology optimization](https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExcXMwMnl4Z3lzODF1bGp0ejY0M3lvYnNsY2FxOTVtc3ZxdGF6dWpvNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/WB1xOQOQvT5zUqRlq5/giphy.gif)
