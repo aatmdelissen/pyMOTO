@@ -295,14 +295,14 @@ class AddMatrix(Module):
     `[scalar, matrix, scalar, matrix, ...]`.
 
     Input signals:
-        a_1: Scalar
-        A_1: Sparse matrix
-        a_2 (optional): Second scalar
-        A_2 (optional): Second matrix
+      - `a_1`: Scalar
+      - `A_1`: Sparse matrix
+      - `a_2` (optional): Second scalar
+      - `A_2` (optional): Second matrix
         ... pairs of further scalar and matrices
 
     Output signal:
-        Linear combination of matrices
+        `Y`: Linear combination of matrices
     """
 
     def __call__(self, *args):

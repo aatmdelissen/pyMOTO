@@ -43,7 +43,7 @@ After installation, `pymoto` can be used.
 - Run the example by typing `python ex_name_of_the_example.py` in the console (prepend with `uv run` when using `uv`)
 
 # Citing pyMOTO
-When your research uses `pymoto`, please consider citing out Zenodo entry in any publications: 
+When your research uses `pymoto`, please consider citing our Zenodo entry in any publications: 
 [DOI:10.5281/zenodo.8138859](https://doi.org/10.5281/zenodo.8138859).
 
 ## Dependencies
