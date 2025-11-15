@@ -400,16 +400,20 @@ class OverhangFilter(Module):
       - Langelaar, M. (2016). *Topology optimization of 3D self-supporting structures for additive manufacturing*.
         Additive Manufacturing, 12, 60-70.
         `doi: 10.1016/j.addma.2016.06.010 <https://doi.org/10.1016/j.addma.2016.06.010>`_
+      - Delissen, A., et al. (2022). *Realization and assessment of metal additive manufacturing and topology
+        optimization for high-precision motion systems*. Additive Manufacturing, 58, 103012.
+        `doi: 10.1016/j.addma.2022.103012 <https://doi.org/10.1016/j.addma.2022.103012>`_
     """
 
     def __init__(
         self,
         domain: DomainDefinition,
         direction=(0.0, 1.0, 0.0),
+        overhang_angle: float = 45.0,
         xi_0: float = 0.5,
         p: float = 40.0,
         eps: float = 1e-4,
-        nsampling: int = None,
+        nsampling: int = 8,
     ):
         """Initialize overhang filter modulue
 
@@ -418,35 +422,29 @@ class OverhangFilter(Module):
             direction (tuple, optional): Print direction as array or string, e.g. ``[0, -1]`` (in 2D) or ``"y-"`` for
               negative y direction. Currently, only directions aligned with one of the Cartesian axes are supported.
               Default is ``[0, 1, 0]``
+            overhang_angle (float, optional): Overhang angle in degrees (measured from print direction vector)
             xi_0 (float, optional): Density value for which zero overshoot is required ( ``0 <= xi_0 <= 1`` ).
               Default is ``0.5``
             p (float, optional): Exponent of the smooth maximum function ( ``p > 0`` ). Higher p increases accuracy, but
               reduces smoothness. Default is ``40.0``
             eps (float, optional): Smooth minimum regularization parameter ( ``eps >= 0`` ). Lower eps increases
               accuracy, but reduces smoothness. Default is ``1e-4``
-            nsampling (int, optional): ``3`` for 2D overhang, ``5`` or ``9`` for 3D overhang. Default is ``3`` in 2D and
-              ``5`` in 3D
+            nsampling (int, optional): Number of sampling points on the perimeter of the cone. In 2D the value is
+              clipped to 2.
         """
-        # Set print direction
+        # Set print properties
         self.direction = direction
+        self.overhang_angle = overhang_angle
 
         self.domain = domain
         if self.domain.dim == 2 and self.direction[2] != 0:
             raise ValueError("Z-direction must be zero for 2-dimensional domain")
 
-        # Determine sampling pattern
-        if nsampling is None:
-            nsampling = 3 if self.domain.dim == 2 else 5
-        if self.domain.dim == 2 and nsampling != 3:
-            raise ValueError(f"For 2D domains, nsampling should be 3, not {nsampling}")
-        if self.domain.dim == 3 and nsampling not in [5, 9]:
-            raise ValueError(f"For 3D domains, nsampling should be 5 or 9, not {nsampling}")
-
         # Parameters
         self.xi_0 = xi_0
         self.p = p
         self.eps = eps
-        self.nsampling = nsampling
+        self.nsampling = min(nsampling, 2) if self.domain.dim == 2 else nsampling
         self.q, self.shift, self.backshift = None, None, None
         self.smax = None
         self.el3d = None
@@ -510,33 +508,81 @@ class OverhangFilter(Module):
             return tuple(ix)
 
     def setup_cone(self) -> np.ndarray:
+        # Determine directions
         dir_layer = int(np.argmax(abs(self.direction)))  # The axis of the print direction
         dir_orth1 = (dir_layer + 1) % 3
         dir_orth2 = (dir_layer + 2) % 3
         if dir_orth1 == 2 and self.domain.dim == 2:
             dir_orth1, dir_orth2 = dir_orth2, dir_orth1  # Make sure the z-direction is last for 2D
+        dx_layer = int(np.sign(self.direction[dir_layer]))  # Print direction
+        etol = 1e-5
 
-        dx_layer = int(np.sign(self.direction[dir_layer]))
-        self.origin = np.array([1, 1, 1])
+        # Determine window size
+        wsizes = np.array([1, 1, 1])
+        elsize = self.domain.element_size
+        ta = np.tan(np.deg2rad(self.overhang_angle))
+        cone_radius1 = (ta - etol) * elsize[dir_layer] / elsize[dir_orth1]
+        wsizes[dir_orth1] = int(1 + 2 * np.ceil(cone_radius1))
+        if self.domain.dim == 3:
+            wsizes[dir_orth2] = int(1 + 2 * np.ceil((ta - etol) * elsize[dir_layer] / elsize[dir_orth2]))
+        origin = (wsizes - 1) // 2
+        origin[dir_layer] += dx_layer
 
-        # Select layer offsets from:
-        layer_offsets = np.zeros((9, 3, 3, 3), dtype=int)
-        ix = self.Indexer(ndim=3, base_val=0, offset=self.origin)
+        # Coordinates of the elements
+        x = (np.arange(wsizes[0]) - origin[0])[:, None, None] * elsize[0]
+        y = (np.arange(wsizes[1]) - origin[1])[None, :, None] * elsize[1]
+        z = (np.arange(wsizes[2]) - origin[2])[None, None, :] * elsize[2]
+
+        assert np.allclose(np.linalg.norm(self.direction), 1.0)
+
+        # Determine direct supports by calculating angle between print direction and element coordinates
+        with np.errstate(divide="ignore", invalid="ignore"):
+            # To prevent division by 0 warning
+            ca = (self.direction[0] * x + self.direction[1] * y + self.direction[2] * z) / np.sqrt(x**2 + y**2 + z**2)
+        ca_max = -np.cos(np.deg2rad(self.overhang_angle)) + etol  # To include elements just on the edge
+        supp = ca <= ca_max
+
+        # Determine perimeter supports
+        p_coords = np.zeros((0, 3))
+        cone_radius = elsize[dir_layer] * ta
+        if self.domain.dim == 2 and abs(np.round(cone_radius1) - cone_radius1) > 1e-2 and self.nsampling >= 2:
+            # 2D, More than 1% from an element center, and sampling activated
+            p_coords = np.zeros((2, 3))  # Always 2 sampling points
+            p_coords[:, dir_layer] = -origin[dir_layer]
+            p_coords[0, dir_orth1] = cone_radius
+            p_coords[1, dir_orth1] = -cone_radius
+            p_coords[:, dir_orth2] = origin[dir_orth2]
+        elif self.nsampling > 0:
+            # Add sampling points around the perimeter of the cone
+            p_coords = np.zeros((self.nsampling, 3))
+            ang = np.linspace(0, 2 * np.pi, self.nsampling, endpoint=False)
+            p_coords[:, dir_layer] = -origin[dir_layer]
+            p_coords[:, dir_orth1] = np.sin(ang) * cone_radius
+            p_coords[:, dir_orth2] = np.cos(ang) * cone_radius
+
+        # Construct layer offsets
+        layer_offsets = np.zeros((supp.sum() + p_coords.shape[0], *wsizes))
         ksup = 0
-        for i in range(3):  # 3-point 2D supports
-            layer_offsets[(ksup,) + ix({dir_layer: dx_layer, dir_orth1: i - 1})] = 1
-            ksup += 1
-        for i in range(2):  # 5-point 3D supports
-            layer_offsets[(ksup,) + ix({dir_layer: dx_layer, dir_orth2: -1 + 2 * i})] = 1
-            ksup += 1
-        for i in range(2):  # 9-point 3D supports
-            for j in range(2):
-                layer_offsets[(ksup,) + ix({dir_layer: dx_layer, dir_orth1: -1 + 2 * i, dir_orth2: -1 + 2 * i})] = 1
+
+        # Direct supports
+        fl = supp.flat
+        for _ in range(supp.size):
+            if fl.base[fl.coords]:
+                layer_offsets[(ksup,) + fl.coords] = 1.0
                 ksup += 1
-        self.layer_offsets = layer_offsets[: self.nsampling]
-        if self.domain.dim == 2:
-            self.layer_offsets = layer_offsets[:, :, :, [self.origin[2]]]
-            self.origin[2] = 0
+                print(fl.coords)
+            next(fl)
+
+        # Interpolated supports
+        for c in p_coords:
+            dx = np.maximum(1 - abs(x - c[0]) / elsize[0], 0)
+            dy = np.maximum(1 - abs(y - c[1]) / elsize[1], 0)
+            dz = np.maximum(1 - abs(z - c[2]) / elsize[2], 0)
+            layer_offsets[ksup, ...] = dx * dy * dz
+            ksup += 1
+
+        self.origin = origin
+        self.layer_offsets = layer_offsets
 
     def __call__(self, x0):
         if self.q is None:  # Set parameters according to data type of x
@@ -561,21 +607,23 @@ class OverhangFilter(Module):
         ind0_layer = 0 if dx_layer >= 0 else x.shape[dir_layer] - 1  # Starting index
 
         # Pad the printable array
-        pvals = tuple(zip(self.origin, self.layer_offsets.shape[1:] - self.origin - 1))
+        pvals0 = tuple(zip(self.origin, self.layer_offsets.shape[1:] - self.origin - 1))
+        pvals = tuple((max(p0, 0), max(p1, 0)) for (p0, p1) in pvals0)
         cvals = [((0, 1) if (dx_layer < 0) else (1, 0)) if (dir_layer == i) else (0, 0) for i in range(3)]
         xprint_padded = np.pad(x, pvals, constant_values=tuple(cvals))
 
-        # Support layer size
-        nneg = -pvals[dir_layer][0] + self.origin[dir_layer]
-        npos = 1 + pvals[dir_layer][1] + self.origin[dir_layer]
+        # Support layer size, in print direction (in padded coordinates)
+        h0 = pvals[dir_layer][0] - self.origin[dir_layer]
+        h1 = h0 + self.layer_offsets.shape[1 + dir_layer]
 
+        # Index helper to unpad the padded array
         ix_unpad = tuple([slice(p[0] if p[0] != 0 else None, -p[1] if p[1] != 0 else None) for p in pvals])
 
         # Loop over all the other layers
         ix = self.Indexer(ndim=3, base_val=slice(None))
         for _ in range(x.shape[dir_layer]):
             # 1) Get support layer
-            xsupp = xprint_padded[ix({dir_layer: slice(ind0_layer + nneg, ind0_layer + npos)})]
+            xsupp = xprint_padded[ix({dir_layer: slice(ind0_layer + h0, ind0_layer + h1)})]
             ix_cur = ix({dir_layer: [ind0_layer]})
             xsum = np.zeros_like(x[ix_cur])
             for offset in self.layer_offsets:
@@ -617,21 +665,24 @@ class OverhangFilter(Module):
         ind0_layer = x.shape[dir_layer] - 1 if dx_layer >= 0 else 0  # Starting index (="ending" in response)
 
         # Pad the printable array
-        pvals = tuple(zip(self.origin, self.layer_offsets.shape[1:] - self.origin - 1))
+        pvals0 = tuple(zip(self.origin, self.layer_offsets.shape[1:] - self.origin - 1))
+        pvals = tuple((np.maximum(p0, 0), np.maximum(p1, 0)) for (p0, p1) in pvals0)
         cvals = [((0, 1) if (dx_layer < 0) else (1, 0)) if (dir_layer == i) else (0, 0) for i in range(3)]
         xprint_padded = np.pad(xprint0[self.el3d], pvals, constant_values=tuple(cvals))
         dxprint_padded = np.pad(dxprint0[self.el3d], pvals, constant_values=tuple(cvals))
 
-        # Support layer size
-        nneg = -pvals[dir_layer][0] + self.origin[dir_layer]
-        npos = 1 + pvals[dir_layer][1] + self.origin[dir_layer]
+        # Support layer size, in print direction (in padded coordinates)
+        h0 = pvals[dir_layer][0] - self.origin[dir_layer]
+        h1 = h0 + self.layer_offsets.shape[1 + dir_layer]
 
+        # Index helper to unpad the padded array
         ix_unpad = tuple([slice(p[0] if p[0] != 0 else None, -p[1] if p[1] != 0 else None) for p in pvals])
 
         # Loop over all the layers
         ix = self.Indexer(ndim=3, base_val=slice(None))
         for _ in range(x.shape[dir_layer]):
             ix_cur = ix({dir_layer: [ind0_layer]})
+            ix_cur_pad = ix({dir_layer: slice(ind0_layer + h0, ind0_layer + h1)})
 
             # 3) Take smooth minimum
             # FW: xprint[ix_cur] = (x[ix_cur] + max_supp - np.sqrt(r1*r1+self.eps) + np.sqrt(self.eps))/2
@@ -646,7 +697,6 @@ class OverhangFilter(Module):
             dfdxsum = dfdsmax * np.power(xsum, (1 / self.q) - 1) / self.q
 
             # 1) Get all support values
-            ix_cur_pad = ix({dir_layer: slice(ind0_layer + nneg, ind0_layer + npos)})
             xsupp = xprint_padded[ix_cur_pad]
             # dxsupp = np.zeros_like(x[ix_cur])
             for offset in self.layer_offsets:

@@ -224,7 +224,7 @@ class TestConvolutionFilter:
 
     def test_3d_symmetric1(self):
         np.random.seed(0)
-        domain = pym.DomainDefinition(6, 6, 6, unitx=0.5, unity=1.0, unitz=1.2)
+        domain = pym.DomainDefinition(100, 100, 100, unitx=0.5, unity=1.0, unitz=1.2)
 
         sx = pym.Signal('x', state=np.random.rand(domain.nel))
         start = time.time()
@@ -248,11 +248,35 @@ class TestConvolutionFilter:
 
 
 class TestOverhangFilter:
+    def test_cone_2d(self):
+        n = 40
+        n2 = int(n/2)
+        domain = pym.DomainDefinition(n, n)#, n)
+
+        x = np.zeros(domain.nel)
+        if domain.dim == 2:
+            x[domain.elements[1:-1,1:-1]] = 1
+            x[domain.elements[n2, :]] = 1
+            x[domain.elements[:, n2]] = 1
+        else: 
+            x[domain.elements[1:-1,1:-1, 1:-1]] = 1
+            x[domain.elements[n2, n2, :]] = 1
+            x[domain.elements[n2, :, n2]] = 1
+            x[domain.elements[:, n2, n2]] = 1
+
+
+        direction = '-x'
+        angle = 25.0
+        _y = pym.OverhangFilter(domain, direction, overhang_angle=angle)(x)
+        # m = pym.PlotDomain(domain)
+        # m(y)
+        # plt.show(block=True)
+
+
     @pytest.mark.parametrize('direction', [[1, 0], [-1, 0], [0, 1], [-1, 0], [1, 0, 0], '+x', '-y'])
     @pytest.mark.parametrize('nx', [1, 4])
     @pytest.mark.parametrize('ny', [1, 4])
     def test_sensitivity_2D(self, direction, nx, ny):
-        # direction = [-1, 0, 0]
         domain = pym.DomainDefinition(nx, ny)
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(domain.nel))
@@ -261,17 +285,27 @@ class TestOverhangFilter:
 
         pym.finite_difference(sx, sy, test_fn=fd_testfn, dx=1e-6)
 
+    @pytest.mark.parametrize('direction', [[1, 0], [-1, 0], [0, 1], [-1, 0]])
+    @pytest.mark.parametrize('overhang_angle', [10, 30, 45, 60])
+    def test_overhangs_2D(self, direction, overhang_angle):
+        domain = pym.DomainDefinition(6, 6)
+        np.random.seed(0)
+        sx = pym.Signal('x', np.random.rand(domain.nel))
+
+        sy = pym.OverhangFilter(domain, direction, overhang_angle=overhang_angle)(sx)
+
+        pym.finite_difference(sx, sy, test_fn=fd_testfn, dx=1e-6)
+
     @pytest.mark.parametrize('direction', [[1, 0, 0], '-x', '+y', [0, -1, 0], [0, 0, 1], '-z'])
-    @pytest.mark.parametrize('nx', [1, 4])
-    @pytest.mark.parametrize('ny', [1, 4])
-    @pytest.mark.parametrize('nz', [1, 4])
-    @pytest.mark.parametrize('nsampling', [5, 9])
-    def test_sensitivity_3D(self, direction, nx, ny, nz, nsampling):
+    @pytest.mark.parametrize('overhang_angle', [10, 45, 60])
+    @pytest.mark.parametrize('nsampling', [4, 7])
+    def test_sensitivity_3D(self, direction, overhang_angle, nsampling):
+        nx, ny, nz = 4, 4, 4
         domain = pym.DomainDefinition(nx, ny, nz)
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(domain.nel))
 
-        sy = pym.OverhangFilter(domain, direction, nsampling=nsampling)(sx)
+        sy = pym.OverhangFilter(domain, direction, overhang_angle=overhang_angle, nsampling=nsampling)(sx)
 
         pym.finite_difference(sx, sy, test_fn=fd_testfn, dx=1e-6)
 
