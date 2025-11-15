@@ -5,7 +5,7 @@ Minimal example for an eigenfrequency topology optimization
 
 This example contains some specific modules used in dynamic problems
 
-- :py:class:`pymoto.VecSet` To set a non-design domain which is a mass that needs to be supported in this case
+- :py:class:`pymoto.SetValue` To set a non-design domain which is a mass that needs to be supported in this case
 - :py:class:`pymoto.AssembleMass` For mass matrix assembly
 - :py:class:`pymoto.EigenSolve` Calculates the (generalized) eigenvalue problem yielding the eigenfrequencies and modes
 - :py:class:`pymoto.WriteToVTI` Used here to export the design and eigenmodes to a Paraview VTI file
@@ -59,13 +59,13 @@ if __name__ == "__main__":
 
     if nz == 0:  # 2D structural eigenfrequency analysis
         # Generate a grid
-        domain = pym.DomainDefinition(nx, ny)
+        domain = pym.VoxelDomain(nx, ny)
 
         # Generate a non-design area that has mass
         nondesign_area = domain.elements[3*nx//4:, ny//4:ny*3//4].flatten()
     else:  # 3D
         # Generate a grid
-        domain = pym.DomainDefinition(nx, ny, nz)
+        domain = pym.VoxelDomain(nx, ny, nz)
 
         # Generate a non-design area that has mass
         nondesign_area = domain.elements[3*nx//4:, ny//4:ny*3//4, nz//4:nz*3//4].flatten()
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         sxfilt = pym.DensityFilter(domain, radius=filter_radius)(sx)
 
         # Set the non-design domain
-        sxndd = pym.VecSet(indices=nondesign_area, value=1.0)(sxfilt)
+        sxndd = pym.SetValue(indices=nondesign_area, value=1.0)(sxfilt)
 
         sx_analysis = sxndd  # Alias for the design to perform the analysis on
 
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         # SIMP material interpolation
         # Note: Material properties can either be set in the scaling variables (sSIMP and sDENS; as is done here), or in
         # the assembly modules AssembleStiffness and AssembleMass by providing the relevant keyword arguments.
-        sSIMP = pym.MathGeneral(f"{E}*({xmin} + {1.0 - xmin}*inp0^3)")(sx_analysis)
+        sSIMP = pym.MathExpression(f"{E}*({xmin} + {1.0 - xmin}*inp0^3)")(sx_analysis)
         sDENS = MassInterpolation(rhoval=rho)(sx_analysis)
 
         # Assemble mass and stiffness matrix
@@ -114,7 +114,7 @@ if __name__ == "__main__":
         pym.WriteToVTI(domain, saveto='out/dat.vti')(sx_analysis, seigvec)
 
         # Get harmonic mean of three lowest eigenvalues
-        sharm = pym.MathGeneral('1/inp0 + 1/inp1 + 1/inp2')(slams[0], slams[1], slams[2])
+        sharm = pym.MathExpression('1/inp0 + 1/inp1 + 1/inp2')(slams[0], slams[1], slams[2])
         sharm.tag = "harmonic mean"
 
         # MMA needs correct scaling of the objective
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         svol.tag = 'volume'
 
         # Volume constraint; note that also pym.Scaling(scaling=10.0, maxval=domain.nel*volfrac)(svol) could be used
-        sg1 = pym.MathGeneral(f'10*(inp0/{domain.nel} - {volfrac})')(svol)
+        sg1 = pym.MathExpression(f'10*(inp0/{domain.nel} - {volfrac})')(svol)
         sg1.tag = "volume constraint"
 
         # Maybe you want to check the design-sensitivities with finite difference?

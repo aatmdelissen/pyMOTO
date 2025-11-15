@@ -1,8 +1,8 @@
 """Generic modules, valid for general mathematical operations"""
-
 import numpy as np
+
 from pymoto.core_objects import Module
-from pymoto import DyadCarrier
+from pymoto import DyadicMatrix
 from pymoto.utils import _concatenate_to_array, _split_from_array
 
 try:
@@ -11,7 +11,7 @@ except ModuleNotFoundError:
     from numpy import einsum
 
 
-class MathGeneral(Module):
+class MathExpression(Module):
     """General mathematical expression module
 
     This block can evaluate symbolic mathematical expressions. The derivatives are automatically calculated using
@@ -22,10 +22,10 @@ class MathGeneral(Module):
     Example:
         Two scalars::
 
-            from pymoto import Signal, MathGeneral
+            from pymoto import Signal, MathExpression
             s1 = Signal("x", 1.3)
             s2 = Signal("y", 4.8)
-            m = MathGeneral([s1, s2], Signal("output"), "inp0*inp1")  # or "x * y" as expression
+            m = MathExpression([s1, s2], Signal("output"), "inp0*inp1")  # or "x * y" as expression
             m.response()
             assert (m.sig_out[0].state == 1.3*4.8)
 
@@ -33,7 +33,7 @@ class MathGeneral(Module):
 
             s1 = Signal("x", np.array([1.3, 2.5, 9.4]))
             s2 = Signal("y", 4.8)
-            m = MathGeneral([s1, s2], Signal("output"), "sin(x)*y").response()
+            m = MathExpression([s1, s2], Signal("output"), "sin(x)*y").response()
             assert (m.sig_out[0].state.shape == (3,))
             from math import sin
             assert (abs(m.sig_out[0].state[0] - sin(1.3)*4.8) < 1e-10)
@@ -51,7 +51,7 @@ class MathGeneral(Module):
     """
 
     def __init__(self, expression: str):
-        """Initialize the MathGeneral module
+        """Initialize the MathExpression module
 
         Args:
             expression (str): The mathematical expression to be evaluated
@@ -254,21 +254,21 @@ class ConcatSignal(Module):
         return dsens
 
 
-class VecSet(Module):
-    """Sets the values of a vector at specified indices to a given value
+class SetValue(Module):
+    """Sets the values of a numpy array at specified indices to a given value
     
     Input signal:
-        ``x`` (`np.ndarray`): Input vector to modify
+        ``x`` (`np.ndarray`): Input numpy array to modify
 
     Output signal:
         ``y`` (`np.ndarray`): Modified vector with specified indices set to a given value
     """
 
     def __init__(self, indices, value):
-        """Initialize the VecSet module
+        """Initialize the SetValue module
 
         Args:
-            indices (`slice` or `Iterable[int]` or `np.ndarray[int]`): Indices in the input vector to set to the 
+            indices (any valid `slice` type): Indices in the input vector to set to the 
               specified value
             value (`float` or `np.ndarray`): Value(s) to set at the specified indices
         """
@@ -312,7 +312,7 @@ class AddMatrix(Module):
             Y = Y + ai * Ai
         return Y
 
-    def _sensitivity(self, dY: DyadCarrier):
+    def _sensitivity(self, dY: DyadicMatrix):
         args = self.get_input_states()
         out = []
         for ai, Ai in zip(args[0::2], args[1::2]):

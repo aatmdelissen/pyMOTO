@@ -32,7 +32,7 @@ nu, E = 0.3, 1.0  # Material properties
 
 if __name__ == "__main__":
     # Set up the domain
-    domain = pym.DomainDefinition(nx, ny)
+    domain = pym.VoxelDomain(nx, ny)
 
     # Node and dof groups
     nodes_left = domain.nodes[0, :].flatten()
@@ -62,7 +62,7 @@ if __name__ == "__main__":
         s_xfilt.tag = 'xfiltered'
 
         # SIMP penalization
-        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
+        s_xsimp = pym.MathExpression(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
         # Matrix assembly
         s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu)(s_xsimp)

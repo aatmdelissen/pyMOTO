@@ -32,7 +32,7 @@ class TestLinSolveModuleSparse:
     def test_symmetric_real_compliance2d(self):
         """ Test symmetric real sparse matrix (compliance in 2D)"""
         N = 10  # Number of elements
-        dom = pym.DomainDefinition(N, N)
+        dom = pym.VoxelDomain(N, N)
         np.random.seed(0)
         xmin = 1e-4
         sx = pym.Signal('x', xmin + (1-xmin)*np.random.rand(dom.nel))
@@ -73,7 +73,7 @@ class TestLinSolveModuleSparse:
     def test_symmetric_real_compliance3d(self):
         """ Test symmetric real sparse matrix (compliance in 3D)"""
         N = 3  # Number of elements
-        dom = pym.DomainDefinition(N, N, N)
+        dom = pym.VoxelDomain(N, N, N)
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(dom.nel))
         jfix, kfix = np.meshgrid(np.arange(0, N+1), np.arange(0, N+1), indexing='ij')
@@ -93,7 +93,7 @@ class TestLinSolveModuleSparse:
     def test_symmetric_complex_dyncompliance2d(self):
         """ Test symmetric complex sparse matrix (dynamic compliance in 2D)"""
         N = 5  # Number of elements
-        dom = pym.DomainDefinition(N, N)
+        dom = pym.VoxelDomain(N, N)
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(dom.nel))
         fixed_nodes = dom.get_nodenumber(0, np.arange(0, N+1))
@@ -125,7 +125,7 @@ class TestAssemblyAddValues:
         np.random.seed(0)
         N = 2
         # Set up the domain
-        domain = pym.DomainDefinition(N, N)
+        domain = pym.VoxelDomain(N, N)
         nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
         nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
 
@@ -161,7 +161,7 @@ class TestAssemblyAddValues:
         np.random.seed(0)
         N = 2
         # Set up the domain
-        domain = pym.DomainDefinition(N, N)
+        domain = pym.VoxelDomain(N, N)
         nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
         nodes_right = domain.get_nodenumber(N, np.arange(N + 1))
 
@@ -213,7 +213,7 @@ class TestSystemOfEquations:
         np.random.seed(0)
         N = 10
         # Set up the domain
-        domain = pym.DomainDefinition(N, N)
+        domain = pym.VoxelDomain(N, N)
 
         # node groups
         nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
@@ -253,7 +253,7 @@ class TestSystemOfEquations:
         np.random.seed(0)
         N = 10
         # Set up the domain
-        domain = pym.DomainDefinition(N, N)
+        domain = pym.VoxelDomain(N, N)
 
         # node groups
         nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
@@ -293,7 +293,7 @@ class TestSystemOfEquations:
         np.random.seed(0)
         N = 10
         # Set up the domain
-        domain = pym.DomainDefinition(N, N)
+        domain = pym.VoxelDomain(N, N)
 
         # node groups
         nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
@@ -333,7 +333,7 @@ class TestSystemOfEquations:
         np.random.seed(0)
         N = 10
         # Set up the domain
-        domain = pym.DomainDefinition(N, N)
+        domain = pym.VoxelDomain(N, N)
 
         # node groups
         nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
@@ -367,7 +367,7 @@ class TestSystemOfEquations:
         su, sf = pym.SystemOfEquations(free=free_dofs, prescribed=prescribed_dofs)(sK, sff, sup)
         sc1 = pym.EinSum('i,i->')(su[:, 0], sf[:, 0])
         sc2 = pym.EinSum('i,i->')(su[:, 1], sf[:, 1])
-        sc = pym.MathGeneral('inp0 + inp1')(sc1, sc2)
+        sc = pym.MathExpression('inp0 + inp1')(sc1, sc2)
 
         pym.finite_difference([sx, sff, sup], sc, test_fn=self.fd_testfn, dx=1e-5, tol=1e-4, verbose=False)
 
@@ -376,7 +376,7 @@ class TestSystemOfEquations:
         np.random.seed(0)
         N = 10
         # Set up the domain
-        domain = pym.DomainDefinition(N, N)
+        domain = pym.VoxelDomain(N, N)
 
         # node groups
         nodes_left = domain.get_nodenumber(0, np.arange(N + 1))
@@ -417,7 +417,7 @@ class TestSystemOfEquations:
         np.random.seed(0)
         N = 10
         # Set up the domain
-        domain = pym.DomainDefinition(N, N)
+        domain = pym.VoxelDomain(N, N)
 
         # node groups
         nodes_left = domain.get_nodenumber(0, np.arange(N + 1))

@@ -5,14 +5,14 @@ import time
 
 
 def setup_2d_domain(n):
-    domain = pym.DomainDefinition(n, n)
+    domain = pym.VoxelDomain(n, n)
     idx_bc = domain.get_dofnumber(domain.nodes[:, 0], ndof=2)
     idx_f = domain.get_dofnumber(domain.nodes[0, -1], 1, ndof=1)
     return domain, idx_bc, idx_f
 
 
 def setup_3d_domain(n):
-    domain = pym.DomainDefinition(n, n, n)
+    domain = pym.VoxelDomain(n, n, n)
     idx_bc = domain.get_dofnumber(domain.nodes[:, 0, :], ndof=2)
     idx_f = domain.get_dofnumber(domain.nodes[0, -1, 0], 1, ndof=1)
     return domain, idx_bc, idx_f
@@ -23,7 +23,7 @@ def setup_matrix_solver(x, domain, idx_bc, idx_f, w=0.0, eta=0.0, xmin=1e-9, **k
     f[idx_f] = 1.0
 
     xfilt = pym.FilterConv(domain, radius=3)(x)
-    xsimp = pym.MathGeneral(f'{xmin} + {1-xmin}*inp0^3')(xfilt)
+    xsimp = pym.MathExpression(f'{xmin} + {1-xmin}*inp0^3')(xfilt)
     K = pym.AssembleStiffness(domain=domain, bc=idx_bc)(xsimp)
     mats = [1, K]
 

@@ -8,7 +8,7 @@ matplotlib.use("TkAgg")  # Change default backend -- TkAgg does not freeze durin
 import matplotlib.pyplot as plt
 
 from pymoto import Module, Signal
-from .assembly import DomainDefinition
+from .assembly import VoxelDomain
 
 
 class FigModule(Module):
@@ -66,11 +66,11 @@ class PlotDomain(FigModule):
       - ``x`` (`np.ndarray`): The field to be shown of size ``(domain.nel)``
     """
 
-    def __init__(self, domain: DomainDefinition, *args, clim=None, cmap="gray_r", **kwargs):
+    def __init__(self, domain: VoxelDomain, *args, clim=None, cmap="gray_r", **kwargs):
         """Initialize domain plot module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The domain layout
+            domain (:py:class:`pymoto.VoxelDomain`): The domain layout
             *args: Additional arguments for :py:class:`pymoto.FigModule`
             clim (`[float, float]` or `float`, optional): In 2D ``[cmin, cmax]``: the values of minimum and maximum
               color. In 3D ``clipval``: the value below which elements are clipped.
@@ -282,7 +282,7 @@ class PlotIter(FigModule):
 class WriteToVTI(Module):
     """Writes vectors to a Paraview VTI file
 
-    See also: :attr:`DomainDefinition.write_to_vti()`
+    See also: :attr:`VoxelDomain.write_to_vti()`
 
     The size of the vectors should be a multiple of ``nel`` or ``nnodes``. Based on their size they are marked as
     cell-data or point-data in the VTI file. For 2D data (size is equal to ``2*nnodes``), the z-dimension is padded
@@ -293,11 +293,11 @@ class WriteToVTI(Module):
       - ``*args`` (`numpy.ndarray`): Vectors to write to VTI. The signal tags are used as name.
     """
 
-    def __init__(self, domain: DomainDefinition, saveto: str, overwrite: bool = False, scale=1.0, interval=1):
+    def __init__(self, domain: VoxelDomain, saveto: str, overwrite: bool = False, scale=1.0, interval=1):
         """Initialize VTI writer module
 
         Args:
-            domain (:py:class:`pymoto.DomainDefinition`): The finite element domain layout
+            domain (:py:class:`pymoto.VoxelDomain`): The finite element domain layout
             saveto (str): Location to save the VTI file
             overwrite (bool, optional): Overwrite the VTI file for each iteration. Defaults to False.
             scale (float, optional): Scaling factor for the domain. Defaults to 1.0.

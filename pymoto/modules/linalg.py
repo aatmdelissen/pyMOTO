@@ -8,7 +8,7 @@ import scipy.linalg as spla  # Dense matrix solvers
 import scipy.sparse as sps
 import scipy.sparse.linalg as spsla
 
-from pymoto import Signal, Module, DyadCarrier
+from pymoto import Signal, Module, DyadicMatrix
 from pymoto.solvers import auto_determine_solver, LinearSolver
 from pymoto.solvers import matrix_is_sparse, matrix_is_complex, matrix_is_hermitian, LDAWrapper
 
@@ -94,7 +94,7 @@ class StaticCondensation(Module):
         C[self.m, ...] = np.eye(len(self.m))
         C[self.f, ...] = -self.X
         return (
-            C @ dfdB @ C.T if isinstance(dfdB, DyadCarrier) else DyadCarrier(list(C.T), list(np.asarray(dfdB @ C.T)))
+            C @ dfdB @ C.T if isinstance(dfdB, DyadicMatrix) else DyadicMatrix(list(C.T), list(np.asarray(dfdB @ C.T)))
         )  # FIXME probably can do without the check
 
 
@@ -203,9 +203,9 @@ class LinSolve(Module):
 
         if self.issparse:
             if self.u.ndim > 1:
-                dmat = DyadCarrier(list(-lam.T), list(self.u.T))
+                dmat = DyadicMatrix(list(-lam.T), list(self.u.T))
             else:
-                dmat = DyadCarrier(-lam, self.u)
+                dmat = DyadicMatrix(-lam, self.u)
         else:
             if self.u.ndim > 1:
                 dmat = np.einsum("iB,jB->ij", -lam, self.u, optimize=True)
@@ -329,9 +329,9 @@ class SystemOfEquations(Module):
 
         # sensitivities to system matrix
         if self.x.ndim > 1:
-            dgdA = DyadCarrier(list(lam.T), list(self.x.T))
+            dgdA = DyadicMatrix(list(lam.T), list(self.x.T))
         else:
-            dgdA = DyadCarrier(lam, self.x)
+            dgdA = DyadicMatrix(lam, self.x)
 
         # sensitivities to applied load and prescribed state
         dgdbf = np.zeros_like(adjoint_load)
@@ -529,7 +529,7 @@ class EigenSolve(Module):
         if dW is None:
             return None, None
         W, Q = [s.state for s in self.sig_out]
-        dA, dB = DyadCarrier(), None if B is None else DyadCarrier()
+        dA, dB = DyadicMatrix(), None if B is None else DyadicMatrix()
         for i in range(W.size):
             wi, dwi = W[i], dW[i]
             if dwi == 0:
@@ -537,12 +537,12 @@ class EigenSolve(Module):
             qi = Q[:, i]
             qmq = qi @ qi if B is None else qi @ (B @ qi)
             dA_u = (dwi / qmq) * qi
-            dAi = DyadCarrier(dA_u, qi)
+            dAi = DyadicMatrix(dA_u, qi)
             dA += np.real(dAi) if np.isrealobj(A) else dAi
 
             if dB is not None:
                 dB_u = (wi * dwi / qmq) * qi
-                dBi = DyadCarrier(dB_u, qi)
+                dBi = DyadicMatrix(dB_u, qi)
                 dB -= np.real(dBi) if np.isrealobj(B) else dBi
 
         return dA, dB
@@ -569,7 +569,7 @@ class EigenSolve(Module):
         if dW is not None:
             dA, dB = self._sparse_eigval_sens(A, B, dW)
         else:
-            dA, dB = DyadCarrier(), None if B is None else DyadCarrier()
+            dA, dB = DyadicMatrix(), None if B is None else DyadicMatrix()
         for i in range(W.size):
             phi = Q[:, i]
             dphi = dQ[:, i]
@@ -597,9 +597,9 @@ class EigenSolve(Module):
             v = vp + c * phi
 
             # Add to mass and stiffness matrix
-            dAi = -DyadCarrier(v, phi)
+            dAi = -DyadicMatrix(v, phi)
             dA += np.real(dAi) if np.isrealobj(A) else dAi
             if B is not None:
-                dBi = DyadCarrier(alpha / 2 * phi + lam * v, phi)
+                dBi = DyadicMatrix(alpha / 2 * phi + lam * v, phi)
                 dB += np.real(dBi) if np.isrealobj(B) else dBi
         return dA, dB

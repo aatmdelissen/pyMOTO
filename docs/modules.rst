@@ -18,7 +18,7 @@ Mathematical Modules
    :nosignatures:
 
    pymoto.EinSum
-   pymoto.MathGeneral
+   pymoto.MathExpression
    pymoto.AutoMod
    pymoto.Inverse
    pymoto.LinSolve
@@ -27,7 +27,7 @@ Mathematical Modules
    pymoto.EigenSolve
    pymoto.Scaling
    pymoto.ConcatSignal
-   pymoto.VecSet
+   pymoto.SetValue
    pymoto.AddMatrix
 
 Constraint Aggregation
@@ -110,8 +110,8 @@ Common Utilities and Routines
    :toctree: stubs
    :nosignatures:
 
-   pymoto.DomainDefinition
-   pymoto.DyadCarrier
+   pymoto.VoxelDomain
+   pymoto.DyadicMatrix
    pymoto.finite_difference
 
 Optimizers

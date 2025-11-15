@@ -50,10 +50,10 @@ if __name__ == '__main__':
         """
         # Heaviside projection
         heaviside = "(tanh(inp1 * {0}) + tanh(inp1 * (inp0 - {0}))) / (tanh(inp1 * {0}) + tanh(inp1 * (1 - {0})))"
-        sx_projected = pym.MathGeneral(heaviside.format(eta))(sx_in, s_beta)
+        sx_projected = pym.MathExpression(heaviside.format(eta))(sx_in, s_beta)
 
         # SIMP material interpolation
-        sx_SIMP = pym.MathGeneral(f"{xmin} + {1-xmin}*inp0^3")(sx_projected)
+        sx_SIMP = pym.MathExpression(f"{xmin} + {1-xmin}*inp0^3")(sx_projected)
 
         # Stiffness matrix assembly
         sK = pym.AssembleStiffness(domain, bc=bc)(sx_SIMP)
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     # modules that are requested and return the signal for 'frequency' in this case.
 
     # Setup a domain
-    domain_2d = pym.DomainDefinition(100, 50)
+    domain_2d = pym.VoxelDomain(100, 50)
     bc = domain_2d.get_dofnumber(domain_2d.nodes[0, :], ndof=2)
     f = np.zeros(domain_2d.nnodes*2)
     f[domain_2d.nodes[-1, 10]*2 + 1] = 1
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     pym.PlotDomain(domain_2d)(sx_nom)
 
     # In this example the root mean square value of the compliances is minimized.
-    s_compl_avg = pym.MathGeneral("sqrt(inp0^2 + inp1^2 + inp2^2)")(s_compl_ero, s_compl_nom, s_compl_dil)
+    s_compl_avg = pym.MathExpression("sqrt(inp0^2 + inp1^2 + inp2^2)")(s_compl_ero, s_compl_nom, s_compl_dil)
     s_obj = pym.Scaling(scaling=100.0)(s_compl_avg)
 
     # Perform the optimization

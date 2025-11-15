@@ -9,7 +9,7 @@ allows for different mathematical behavior, while keeping the same implementatio
 to be made to keep the sensitivities consistent. Also basic usage of :py:class:`pymoto.Signal`, response and sensitivity
 calculation, and validation with :py:func:`pymoto.finite_difference` is demonstrated.
 
-This example is identical in behavior to :ref:`sphx_glr_auto_examples_ex_network_simple_mathgeneral.py`, but uses 
+This example is identical in behavior to :ref:`sphx_glr_auto_examples_ex_network_simple_mathexpression.py`, but uses 
 manually implemented sensitivities instead of automatically generated ones.
 """
 import pymoto as pym

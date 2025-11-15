@@ -10,11 +10,11 @@ class TestNetwork:
         x2 = pym.Signal('x2', 3.0)
 
         with pym.Network() as netw:
-            y1 = pym.MathGeneral("x1*2.0")(x1)
+            y1 = pym.MathExpression("x1*2.0")(x1)
             y1.tag = 'y1'
-            y2 = pym.MathGeneral("x2*x2 + 2.0")(x2)
+            y2 = pym.MathExpression("x2*x2 + 2.0")(x2)
             y2.tag = 'y2'
-            z = pym.MathGeneral("y1*y2")(y1, y2)
+            z = pym.MathExpression("y1*y2")(y1, y2)
 
         netw.response()
         assert y1.state == 4.0

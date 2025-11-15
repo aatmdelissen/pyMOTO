@@ -13,7 +13,7 @@ class TestConvolutionFilter:
     def test_2d_dot(self):
         """ Test one element in the middle without boundary effects """
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 12)
+        domain = pym.VoxelDomain(10, 12)
 
         ix, iy = 5, 6
 
@@ -42,7 +42,7 @@ class TestConvolutionFilter:
     def test_2d_edge_xmin_symmetric(self):
         """ Test one element at the edge to test xmin boundary effect """
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 12)
+        domain = pym.VoxelDomain(10, 12)
 
         ix, iy = 0, 6
 
@@ -69,7 +69,7 @@ class TestConvolutionFilter:
     def test_2d_edge_xmin_constval(self):
         """ Test one element at the edge to test xmin boundary effect """
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 12)
+        domain = pym.VoxelDomain(10, 12)
 
         ix, iy = 0, 6
 
@@ -97,7 +97,7 @@ class TestConvolutionFilter:
     def test_2d_edge_xmax_symmetric(self):
         """ Test one element at the edge to test xmin boundary effect """
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 12)
+        domain = pym.VoxelDomain(10, 12)
 
         ix, iy = domain.nelx-1, 6
 
@@ -123,7 +123,7 @@ class TestConvolutionFilter:
 
     def test_2d_fd_symmetric_kernel(self):
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 12, unitx=0.5, unity=1.0)
+        domain = pym.VoxelDomain(10, 12, unitx=0.5, unity=1.0)
 
         sx = pym.Signal('x', state=np.random.rand(domain.nel))
 
@@ -133,7 +133,7 @@ class TestConvolutionFilter:
 
     def test_2d_fd_asymmetric_kernel(self):
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 21)
+        domain = pym.VoxelDomain(10, 21)
 
         x = np.random.rand(domain.nel)
 
@@ -146,7 +146,7 @@ class TestConvolutionFilter:
 
     def test_3d_dot(self):
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 11, 12)
+        domain = pym.VoxelDomain(10, 11, 12)
 
         ix, iy, iz = 5, 6, 7
 
@@ -169,7 +169,7 @@ class TestConvolutionFilter:
 
     def test_3d_dot_symm_at_zmin(self):
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 11, 12)
+        domain = pym.VoxelDomain(10, 11, 12)
 
         ix, iy, iz = 5, 6, 0
 
@@ -214,7 +214,7 @@ class TestConvolutionFilter:
 
     def test_3d_symmetric(self):
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 12, 13, unitx=0.5, unity=1.0, unitz=1.2)
+        domain = pym.VoxelDomain(10, 12, 13, unitx=0.5, unity=1.0, unitz=1.2)
 
         sx = pym.Signal('x', state=np.random.rand(domain.nel))
 
@@ -224,7 +224,7 @@ class TestConvolutionFilter:
 
     def test_3d_symmetric1(self):
         np.random.seed(0)
-        domain = pym.DomainDefinition(100, 100, 100, unitx=0.5, unity=1.0, unitz=1.2)
+        domain = pym.VoxelDomain(6, 6, 6, unitx=0.5, unity=1.0, unitz=1.2)
 
         sx = pym.Signal('x', state=np.random.rand(domain.nel))
         start = time.time()
@@ -251,7 +251,7 @@ class TestOverhangFilter:
     def test_cone_2d(self):
         n = 40
         n2 = int(n/2)
-        domain = pym.DomainDefinition(n, n)#, n)
+        domain = pym.VoxelDomain(n, n)#, n)
 
         x = np.zeros(domain.nel)
         if domain.dim == 2:
@@ -277,7 +277,8 @@ class TestOverhangFilter:
     @pytest.mark.parametrize('nx', [1, 4])
     @pytest.mark.parametrize('ny', [1, 4])
     def test_sensitivity_2D(self, direction, nx, ny):
-        domain = pym.DomainDefinition(nx, ny)
+        # direction = [-1, 0, 0]
+        domain = pym.VoxelDomain(nx, ny)
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(domain.nel))
 
@@ -301,7 +302,7 @@ class TestOverhangFilter:
     @pytest.mark.parametrize('nsampling', [4, 7])
     def test_sensitivity_3D(self, direction, overhang_angle, nsampling):
         nx, ny, nz = 4, 4, 4
-        domain = pym.DomainDefinition(nx, ny, nz)
+        domain = pym.VoxelDomain(nx, ny, nz)
         np.random.seed(0)
         sx = pym.Signal('x', np.random.rand(domain.nel))
 

@@ -11,7 +11,7 @@ class TestStaticCondensation:
         """ Test symmetric real sparse matrix (compliance in 2D)"""
         N = 20
         # Set up the domain
-        domain = pym.DomainDefinition(N, N)
+        domain = pym.VoxelDomain(N, N)
 
         # node groups
         nodes_left = domain.get_nodenumber(0, np.arange(N + 1))

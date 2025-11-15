@@ -9,7 +9,7 @@ class TestThermoMechanical:
         N = 10
         Lx, Ly, Lz = 1, 1, 1
         lx, ly, lz = Lx / N, Ly, Lz
-        domain = pym.DomainDefinition(N, 1, unitx=lx, unity=ly, unitz=lz)
+        domain = pym.VoxelDomain(N, 1, unitx=lx, unity=ly, unitz=lz)
 
         T = pym.Signal("T", state=np.arange(domain.nnodes))
         T_av = pym.ElementAverage(domain)(T)
@@ -20,7 +20,7 @@ class TestThermoMechanical:
         npt.assert_allclose(T_avchk, T_av.state)
 
     def test_elemental_average_2dof(self):
-        domain = pym.DomainDefinition(10, 3)
+        domain = pym.VoxelDomain(10, 3)
 
         T = pym.Signal("T", state=np.arange(2*domain.nnodes))
         T_av = pym.ElementAverage(domain)(T)
@@ -32,7 +32,7 @@ class TestThermoMechanical:
         npt.assert_allclose(T_avchk2, T_av.state[1])
 
     def test_elemental_average_3dof(self):
-        domain = pym.DomainDefinition(10, 11)
+        domain = pym.VoxelDomain(10, 11)
 
         T = pym.Signal("T", state=np.arange(3*domain.nnodes))
         T_av = pym.ElementAverage(domain)(T)
@@ -46,7 +46,7 @@ class TestThermoMechanical:
         npt.assert_allclose(T_avchk3, T_av.state[2])
 
     def test_elemental_average_3D_1dof(self):
-        domain = pym.DomainDefinition(10, 11, 12)
+        domain = pym.VoxelDomain(10, 11, 12)
 
         T = pym.Signal("T", state=np.arange(domain.nnodes))
         T_av = pym.ElementAverage(domain)(T)
@@ -55,7 +55,7 @@ class TestThermoMechanical:
         npt.assert_allclose(T_avchk, T_av.state)
 
     def test_elemental_average_3D_3dof(self):
-        domain = pym.DomainDefinition(10, 11, 12)
+        domain = pym.VoxelDomain(10, 11, 12)
 
         T = pym.Signal("T", state=np.arange(3*domain.nnodes))
         T_av = pym.ElementAverage(domain)(T)
@@ -70,7 +70,7 @@ class TestThermoMechanical:
 
     def test_thermal_expansion(self):
         Lx, Ly, Lz = 2, 1, 1
-        domain = pym.DomainDefinition(10, 10, unitx=Lx/10, unity=Ly/10, unitz=Lz)
+        domain = pym.VoxelDomain(10, 10, unitx=Lx/10, unity=Ly/10, unitz=Lz)
 
         # Fixed in the middle for free expansion
         nodidx_mid = domain.get_nodenumber(domain.nelx//2, np.arange(domain.nely//2, domain.nely//2 + 1))

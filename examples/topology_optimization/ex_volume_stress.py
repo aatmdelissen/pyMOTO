@@ -63,7 +63,7 @@ class ConstraintAggregation(pym.Module):
 
 if __name__ == "__main__":
     # Set up the domain
-    domain = pym.DomainDefinition(nx, ny)
+    domain = pym.VoxelDomain(nx, ny)
 
     # Node and dof groups
     nodes_left = domain.nodes[0, :]
@@ -86,7 +86,7 @@ if __name__ == "__main__":
         pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
         # SIMP penalization
-        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
+        s_xsimp = pym.MathExpression(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
         # Assembly of stiffness matrix
         s_K = pym.AssembleStiffness(domain, e_modulus=1.0, poisson_ratio=0.3, bc=dofs_left)(s_xsimp)
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         # Calculate Von-Mises stress
         V = np.array([[1, -0.5, 0], [-0.5, 1, 0], [0, 0, 3]])  # Vandermonde matrix
         s_stress_vm2 = pym.EinSum('ij,ik,kj->j')(s_stress, V, s_stress)
-        s_stress_vm = pym.MathGeneral('sqrt(inp0)')(s_stress_vm2)
+        s_stress_vm = pym.MathExpression('sqrt(inp0)')(s_stress_vm2)
 
         # Stress constraint
         s_stress_constraints = pym.Scaling(maxval=maximum_vm_stress, scaling=1.0)(s_stress_vm)

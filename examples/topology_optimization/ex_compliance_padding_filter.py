@@ -45,7 +45,7 @@ if __name__ == "__main__":
         ndof = 2
 
         # Generate a grid
-        domain = pym.DomainDefinition(nx, ny)
+        domain = pym.VoxelDomain(nx, ny)
 
         # Get node numbers for the boundary condition
         boundary_nodes = domain.nodes[0, ny//3:-ny//3].flatten()
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         force_dofs = ndof * domain.nodes[nx, ny//2] + 1
     else:
         ndof = 3
-        domain = pym.DomainDefinition(nx, ny, nz)
+        domain = pym.VoxelDomain(nx, ny, nz)
         boundary_nodes = domain.nodes[0, ny//3:-ny//3, nz//3:-nz//3].flatten()
         boundary_dofs = np.repeat(boundary_nodes * ndof, ndof, axis=-1) + np.tile(np.arange(ndof), len(boundary_nodes))
         force_dofs = ndof * domain.nodes[nx, ny // 2, nz // 2] + 2  # Z-direction
@@ -112,9 +112,9 @@ if __name__ == "__main__":
         pym.Print()(sBeta)  # Print the beta value each iteration
 
         heaviside = "(tanh(inp1 * {0}) + tanh(inp1 * (inp0 - {0}))) / (tanh(inp1 * {0}) + tanh(inp1 * (1 - {0})))"
-        sxNom = pym.MathGeneral(heaviside.format(etaNo))(sxfilt, sBeta)
-        sxEr = pym.MathGeneral(heaviside.format(etaEr))(sxfilt, sBeta)
-        sxDi = pym.MathGeneral(heaviside.format(etaDi))(sxfilt, sBeta)
+        sxNom = pym.MathExpression(heaviside.format(etaNo))(sxfilt, sBeta)
+        sxEr = pym.MathExpression(heaviside.format(etaEr))(sxfilt, sBeta)
+        sxDi = pym.MathExpression(heaviside.format(etaDi))(sxfilt, sBeta)
         sxNom.tag = "xnominal"
         sxEr.tag = "xeroded"
         sxDi.tag = "xdilated"
@@ -125,7 +125,7 @@ if __name__ == "__main__":
         pym.PlotDomain(domain, saveto="out/design", clim=[0, 1])(sxNom)
 
         # SIMP material interpolation
-        sSIMP = pym.MathGeneral(f"{xmin} + {1.0 - xmin}*inp0^3")(sx_analysis)
+        sSIMP = pym.MathExpression(f"{xmin} + {1.0 - xmin}*inp0^3")(sx_analysis)
 
         # System matrix assembly module
         sK = pym.AssembleStiffness(domain, bc=boundary_dofs)(sSIMP)
@@ -150,7 +150,7 @@ if __name__ == "__main__":
         svol.tag = 'volume'
 
         # Volume constraint
-        sg1 = pym.MathGeneral(f'10*(inp0/{domain.nel} - {volfrac})')(svol)
+        sg1 = pym.MathExpression(f'10*(inp0/{domain.nel} - {volfrac})')(svol)
         sg1.tag = "volume constraint"
 
     # Maybe you want to check the design-sensitivities?

@@ -36,7 +36,7 @@ volfrac = 0.25
 
 if __name__ == "__main__":
     # Set up the domain
-    domain = pym.DomainDefinition(nx, ny)
+    domain = pym.VoxelDomain(nx, ny)
 
      # Node and dof groups
     nodes_right = domain.nodes[-1, :]
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
         # RAMP with q = 2
-        s_xRAMP = pym.MathGeneral(f"{xmin} + {1 - xmin}*(inp0 / (3 - 2*inp0))")(s_xfilt)
+        s_xRAMP = pym.MathExpression(f"{xmin} + {1 - xmin}*(inp0 / (3 - 2*inp0))")(s_xfilt)
 
         # Assemble stiffness and conductivity matrix
         s_K = pym.AssembleStiffness(domain, bc=fixed_dofs)(s_xRAMP)
@@ -78,11 +78,11 @@ if __name__ == "__main__":
 
         # Determine thermo-mechanical load
         s_Telem = pym.ElementAverage(domain)(s_T)
-        s_xT = pym.MathGeneral("inp0 * inp1")(s_Telem, s_xfilt)
+        s_xT = pym.MathExpression("inp0 * inp1")(s_Telem, s_xfilt)
         s_thermal_load = pym.ThermoMechanical(domain, alpha=1.0)(s_xT)
 
         # Combine thermo-mechanical and purely mechanical loads
-        s_load = pym.MathGeneral("inp0 + inp1")(f, s_thermal_load)
+        s_load = pym.MathExpression("inp0 + inp1")(f, s_thermal_load)
 
         # Solve mechanical system of equations
         s_disp = pym.LinSolve()(s_K, s_load)

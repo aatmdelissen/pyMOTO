@@ -62,7 +62,7 @@ maximum_vm_stress = 0.2e+6  # Maximum stress value (Pa)
 
 if __name__ == "__main__":
     # Set up the domain of size (1, 1*ny/nx, 0.1)m
-    domain = pym.DomainDefinition(nx, ny, unitx=1/nx, unity=1/nx, unitz=0.1)
+    domain = pym.VoxelDomain(nx, ny, unitx=1/nx, unity=1/nx, unitz=0.1)
     
     # Node and dof groups for boundary conditions
     if bc == 1:  # Arch
@@ -110,7 +110,7 @@ if __name__ == "__main__":
         Zhu, J., Zhang, W., & Beckers, P. (2009). Integrated layout design of multi-component system. 
         International Journal for Numerical Methods in Engineering, 78(6), 631-651. https://doi.org/10.1002/nme.2499
         """
-        s_penalized_variables = pym.MathGeneral(f"{xmin} + {1 - xmin}*(0.01*inp0 + 0.99*inp0^3)")(s_filtered_variables)
+        s_penalized_variables = pym.MathExpression(f"{xmin} + {1 - xmin}*(0.01*inp0 + 0.99*inp0^3)")(s_filtered_variables)
 
         # Assemble stiffness matrix
         # Apply boundary conditions by adding relatively stiff springs. This helps reduce edge stress concentrations.
@@ -123,14 +123,14 @@ if __name__ == "__main__":
 
         # Determine gravity load
         mass_el = rho * np.prod(domain.element_size)  # Mass of one element
-        s_mass = pym.MathGeneral(f"{mass_el} * inp0")(s_filtered_variables)  # Scaled element mass
+        s_mass = pym.MathExpression(f"{mass_el} * inp0")(s_filtered_variables)  # Scaled element mass
         s_gravity = pym.NodalOperation(domain, np.repeat(gravity/4, 4))(s_mass)
 
         # Add gravity load and constant load together
-        s_load0 = pym.MathGeneral("inp0 + inp1")(f_const, s_gravity)
+        s_load0 = pym.MathExpression("inp0 + inp1")(f_const, s_gravity)
 
         # Set the load on the boundary condition to zero
-        s_load = pym.VecSet(indices=fixed_dofs, value=0.0)(s_load0)
+        s_load = pym.SetValue(indices=fixed_dofs, value=0.0)(s_load0)
 
         # Solve linear system of equations
         s_u = pym.LinSolve()(s_K, s_load)
@@ -152,7 +152,7 @@ if __name__ == "__main__":
             s_stress = pym.Stress(domain, e_modulus=E, poisson_ratio=nu)(s_u)
             V = np.array([[1, -0.5, 0], [-0.5, 1, 0], [0, 0, 3]])  # Vandermonde matrix
             s_stress_vm2 = pym.EinSum("ij,ik,kj->j")(s_stress, V, s_stress)
-            s_stress_vm = pym.MathGeneral('sqrt(inp0)*inp1')(s_stress_vm2, s_penalized_variables)
+            s_stress_vm = pym.MathExpression('sqrt(inp0)*inp1')(s_stress_vm2, s_penalized_variables)
 
             # Approximate maximum stress with aggregation
             s_stress_agg = pym.PNorm(p=2, 
@@ -163,7 +163,7 @@ if __name__ == "__main__":
             responses.append(s_stress_constraint)
 
             # Plotting
-            s_stress_scaled = pym.MathGeneral("inp0/1e+6")(s_stress_vm)
+            s_stress_scaled = pym.MathExpression("inp0/1e+6")(s_stress_vm)
             s_stress_scaled.tag = "Von-Mises stress (MPa)"
             pym.PlotDomain(domain, cmap='jet')(s_stress_scaled)
 

@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-conda-build"]
+build-backend = "hatchling.build"
 
 [project]
 name = "pyMOTO"
@@ -10,9 +10,9 @@ authors = [
     { name = "Arnoud Delissen", email = "arnouddelissen+pymoto@gmail.com" },
 ]
 readme = "README.md"
-requires-python = ">=3.8" 
+requires-python = ">=3.9" 
 dependencies = [
-    "numpy",
+    "numpy>=2.0",
     "scipy>=1.7",
     "sympy",
     "matplotlib",
@@ -71,22 +71,12 @@ dev = [
     "pre-commit"
 ]
 
-## ----- Setuptools Configuration -----
-[tool.setuptools.packages.find]
-include = ["pymoto*"]
-namespaces = false
+## ----- Hatchling Configuration -----
+[tool.hatch.build.targets.sdist]
+include = ["pymoto/*"]
 
-# Manually add common and modules directories
-[tool.setuptools.package-data]
-pymoto = ["common/*.py", "modules/*.py"]
-
-[tool.setuptools.dynamic]
-version = { attr = "pymoto.__version__" }
-readme = { file = "README.md" }
-
-## ----- Conda Configuration -----
-[tool.setuptools_conda]
-noarch = true
+[tool.hatch.version]
+path = "pymoto/__init__.py"
 
 ## ----- Ruff Configuration -----
 [tool.ruff]

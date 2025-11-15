@@ -37,7 +37,7 @@ def oc_update(x, dfdx):
 
 
 # Setup FE domain
-domain = pym.DomainDefinition(nx, ny)  # Generate a discretization grid
+domain = pym.VoxelDomain(nx, ny)  # Generate a discretization grid
 n_left = domain.nodes[0, :].flatten()  # Get node number of all nodes on the left side (x=0)
 boundary_dofs = np.concatenate([n_left * 2, n_left * 2 + 1])  # Calculate boundary dof indices to fix
 f = np.zeros(domain.nnodes * 2)  # Generate a force vector
@@ -49,7 +49,7 @@ sx = pym.Signal("x", state=np.ones(domain.nel) * volfrac)
 # Start building the modular network; this constructs a function of which we can calculate sensitivities easily
 with pym.Network() as func:
     sxfilt = pym.DensityFilter(domain=domain, radius=filter_radius)(sx)  # Density filter
-    sSIMP = pym.MathGeneral(expression=f"{xmin} + {1 - xmin}*inp0^3")(sxfilt)  # SIMP material interpolation
+    sSIMP = pym.MathExpression(expression=f"{xmin} + {1 - xmin}*inp0^3")(sxfilt)  # SIMP material interpolation
     sK = pym.AssembleGeneral(domain=domain, element_matrix=el, bc=boundary_dofs)(sSIMP)  # Stiffness matrix assembly
     su = pym.LinSolve()(sK, f)  # Solver for linear system of equations
     sg0 = pym.EinSum(expression="i,i->")(su, f)  # Compliance calculation

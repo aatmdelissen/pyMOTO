@@ -14,3 +14,5 @@ out/
 *.log
 *.lock
 sg_execution_times.rst
+*.lprof
+__pycache__/

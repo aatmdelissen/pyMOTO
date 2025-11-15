@@ -11,7 +11,7 @@ compliance minimization problem, the eroded design is always the worst. Hence it
 :ref:`sphx_glr_auto_examples_topology_optimization_ex_compliance_robust_full.py`, which evaluates each of the eroded, 
 nominal, and dilated designs.
 
-In this example, the :py:class:`pymoto.MathGeneral` module is used extensively to automatically generate the 
+In this example, the :py:class:`pymoto.MathExpression` module is used extensively to automatically generate the 
 sensitivities of the Heaviside projection filters.
 
 References:
@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     # --- SETUP ---
     # Generate a grid
-    domain = pym.DomainDefinition(nx, ny)
+    domain = pym.VoxelDomain(nx, ny)
 
     # Chose which physics to solve: structural or thermal
     physics = "structural"  # "strucural" or "thermal" 
@@ -137,16 +137,16 @@ if __name__ == "__main__":
         etaDi, etaNo, etaEr = 0.4, 0.5, 0.6
 
         heaviside = "(tanh(inp1 * {0}) + tanh(inp1 * (inp0 - {0}))) / (tanh(inp1 * {0}) + tanh(inp1 * (1 - {0})))"
-        sxNom = pym.MathGeneral(heaviside.format(etaNo))(sxfilt, sBeta)
-        sxEr = pym.MathGeneral(heaviside.format(etaEr))(sxfilt, sBeta)
-        sxDi = pym.MathGeneral(heaviside.format(etaDi))(sxfilt, sBeta)
+        sxNom = pym.MathExpression(heaviside.format(etaNo))(sxfilt, sBeta)
+        sxEr = pym.MathExpression(heaviside.format(etaEr))(sxfilt, sBeta)
+        sxDi = pym.MathExpression(heaviside.format(etaDi))(sxfilt, sBeta)
 
         sxNom.tag = "nominal"
         sxEr.tag = "eroded"
         sxDi.tag = "dilated"
 
         # SIMP material interpolation
-        sSIMP = pym.MathGeneral(f"{xmin} + {1-xmin}*inp0^3")(sxEr)
+        sSIMP = pym.MathExpression(f"{xmin} + {1-xmin}*inp0^3")(sxEr)
 
         # Add stiffness assembly module
         sK = pym.AssembleGeneral(domain, element_matrix=el, bc=boundary_dofs)(sSIMP)

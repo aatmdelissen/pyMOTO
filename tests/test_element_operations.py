@@ -10,14 +10,14 @@ def fd_testfn(x0, dx, df_an, df_fd):
 
 class TestElementOperations:
 
-    domains = dict(one_element_2D=pym.DomainDefinition(1, 1, unitx=0.7, unity=0.8),
-                   multi_element_2D=pym.DomainDefinition(2, 2, unitx=0.7, unity=0.8),
-                   one_element_3D=pym.DomainDefinition(1, 1, 1, unitx=0.7, unity=0.8, unitz=0.9),
-                   multi_element_3D=pym.DomainDefinition(2, 2, 2, unitx=0.7, unity=0.8, unitz=0.9),
+    domains = dict(one_element_2D=pym.VoxelDomain(1, 1, unitx=0.7, unity=0.8),
+                   multi_element_2D=pym.VoxelDomain(2, 2, unitx=0.7, unity=0.8),
+                   one_element_3D=pym.VoxelDomain(1, 1, 1, unitx=0.7, unity=0.8, unitz=0.9),
+                   multi_element_3D=pym.VoxelDomain(2, 2, 2, unitx=0.7, unity=0.8, unitz=0.9),
                    )
 
     @pytest.mark.parametrize('domain', domains.values(), ids=domains.keys())
-    def test_0d_output(self, domain: pym.DomainDefinition):
+    def test_0d_output(self, domain: pym.VoxelDomain):
         u = 0.1*np.arange(domain.nnodes * domain.dim)
         s_u = pym.Signal('u', state=u)
 
@@ -46,7 +46,7 @@ class TestElementOperations:
         pym.finite_difference(s_u, s_avgy, test_fn=fd_testfn)
 
     @pytest.mark.parametrize('domain', domains.values(), ids=domains.keys())
-    def test_1d_output(self, domain: pym.DomainDefinition):
+    def test_1d_output(self, domain: pym.VoxelDomain):
         u = 0.1*np.arange(domain.nnodes * domain.dim)
         s_u = pym.Signal('u', state=u)
 
@@ -67,7 +67,7 @@ class TestElementOperations:
         pym.finite_difference(s_u, s_avg, test_fn=fd_testfn)
 
     @pytest.mark.parametrize('domain', domains.values(), ids=domains.keys())
-    def test_2d_output(self, domain: pym.DomainDefinition):
+    def test_2d_output(self, domain: pym.VoxelDomain):
         u = 0.1*np.arange(domain.nnodes * domain.dim)
         s_u = pym.Signal('u', state=u)
 
@@ -90,7 +90,7 @@ class TestElementOperations:
         pym.finite_difference(s_u, s_avg, test_fn=fd_testfn)
 
     @pytest.mark.parametrize('domain', domains.values(), ids=domains.keys())
-    def test_3d_output(self, domain: pym.DomainDefinition):
+    def test_3d_output(self, domain: pym.VoxelDomain):
         u = 0.1 * np.arange(domain.nnodes * domain.dim)
         s_u = pym.Signal('u', state=u)
 
@@ -116,7 +116,7 @@ class TestElementOperations:
 
     def test_element_operation_repeat_multidim(self):
         np.random.seed(0)
-        domain = pym.DomainDefinition(10, 11)
+        domain = pym.VoxelDomain(10, 11)
         em = np.array([[0.1, 0.2, 0.3, 0.4],  # EM defined on each node per element, not for each dof
                        [1.1, 1.2, 1.3, 1.4],
                        [2.1, 2.2, 2.3, 2.4]])
@@ -135,7 +135,7 @@ class TestElementOperations:
 
 class TestStressStrain:
     def test_strain_xx(self):
-        domain = pym.DomainDefinition(1, 1, unitx=0.6, unity=0.7)
+        domain = pym.VoxelDomain(1, 1, unitx=0.6, unity=0.7)
 
         u = np.zeros(domain.elemnodes * domain.dim)
         n_right = domain.get_nodenumber(1, np.arange(2))
@@ -158,7 +158,7 @@ class TestStressStrain:
         pym.finite_difference(tosig=s_stress, test_fn=fd_testfn)
 
     def test_pure_shear(self):
-        domain = pym.DomainDefinition(1, 1, unitx=0.6, unity=0.7)
+        domain = pym.VoxelDomain(1, 1, unitx=0.6, unity=0.7)
 
         u = np.zeros(domain.elemnodes * domain.dim)
         n_top = domain.get_nodenumber(np.arange(2), 1)

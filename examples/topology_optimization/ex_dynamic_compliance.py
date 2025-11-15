@@ -43,7 +43,7 @@ alpha, beta = 1e-3, 1e-8
 
 if __name__ == "__main__":
     # Set up the domain
-    domain = pym.DomainDefinition(nx, ny, unitx=unitx, unity=unity, unitz=unitz)
+    domain = pym.VoxelDomain(nx, ny, unitx=unitx, unity=unity, unitz=unitz)
 
     # Node and dof groups
     nodes_left = domain.nodes[0, :]
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         pym.PlotDomain(domain, saveto="out/design")(s_xfilt)
 
         # SIMP penalization
-        s_xsimp = pym.MathGeneral(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
+        s_xsimp = pym.MathExpression(f"{xmin} + {1 - xmin}*inp0^3")(s_xfilt)
 
         # Assembly of stiffness matrix
         s_K = pym.AssembleStiffness(domain, e_modulus=E, poisson_ratio=nu, bc=dofs_left)(s_xsimp)
