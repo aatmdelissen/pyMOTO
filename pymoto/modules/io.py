@@ -92,8 +92,8 @@ class PlotDomain(FigModule):
             raise NotImplementedError("Only 2D and 3D plots are implemented")
         assert len(self.fig.axes) > 0, "Figure must contain axes"
 
-        tag_str = self.sig_in[0].tag if hasattr(self.sig_in[0], "tag") else "Unknown variable"
-        self.fig.axes[0].set_title(f"{tag_str}, Iteration {self.iter}")
+        tag_str = getattr(self.sig_in[0], "tag", None) if self.sig_in is not None else None
+        self.fig.axes[0].set_title(f"{(tag_str + ', ') if tag_str is not None else ''}Iteration {self.iter}")
 
         self._update_fig()
 
