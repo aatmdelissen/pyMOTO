@@ -20,7 +20,7 @@ from .modules.assembly import ElementOperation, Strain, Stress, ElementAverage, 
 from .modules.autodiff import AutoMod
 from .modules.complex import MakeComplex, SplitComplex, RealPart, ImagPart, ComplexNorm, Conjugate
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
-from .modules.generic import MathExpression, EinSum, ConcatSignal, SetValue, AddMatrix
+from .modules.generic import MathExpression, EinSum, Concatenate, SetValue, AddMatrix
 from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, Print
 from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations, StaticCondensation
 from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, SoftMinMax, KSFunction
@@ -52,7 +52,7 @@ __all__ = [
     # Modules
     "MathExpression",
     "EinSum",
-    "ConcatSignal",
+    "Concatenate",
     "SetValue",
     "AddMatrix",
     "Inverse",
@@ -100,6 +100,7 @@ DEPRECATED_NAMES = [('MathGeneral', 'MathExpression', '2.2'),
                     ('VecSet', 'SetValue', '2.2'),
                     ('DomainDefinition', 'VoxelDomain', '2.2'),
                     ('DyadCarrier', 'DyadicMatrix', '2.2'),
+                    ('ConcatSignal', 'Concatenate', '2.2'),
                     ]  # (old-name, new-name, removed-after-version)
 
 

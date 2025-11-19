@@ -5,7 +5,7 @@ import pymoto as pym
 
 
 class TestConcat:
-    def test_concatsignal(self):
+    def test_concatenate(self):
         s1 = pym.Signal('sig1', 0.0)
         s2 = pym.Signal('sig2', np.array([1.0, 2.0, 3.0, 4.0]))
         s3 = pym.Signal('sig3', 5.0)
@@ -13,7 +13,7 @@ class TestConcat:
         s5 = pym.Signal('sig5', np.array(8.0))
 
         s = pym.Signal('out')
-        m = pym.ConcatSignal().connect([s1, s2, s3, s4, s5], s)
+        m = pym.Concatenate().connect([s1, s2, s3, s4, s5], s)
 
         npt.assert_equal(s.state, np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]))
 

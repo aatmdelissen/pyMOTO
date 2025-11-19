@@ -226,7 +226,7 @@ class EinSum(Module):
         return df_out
 
 
-class ConcatSignal(Module):
+class Concatenate(Module):
     """Concatenates data of multiple signals into one big vector
     
     Input signals:

@@ -26,7 +26,7 @@ Mathematical Modules
    pymoto.StaticCondensation
    pymoto.EigenSolve
    pymoto.Scaling
-   pymoto.ConcatSignal
+   pymoto.Concatenate
    pymoto.SetValue
    pymoto.AddMatrix
 
