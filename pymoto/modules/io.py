@@ -479,7 +479,7 @@ class SeriesToVTI(Module):
         for s in self.sig_in:
             data[s.tag] = s.state
             if len(s.state.shape) > 1:
-                time_steps = max(s.state.shape[-1], time_steps)
+                time_steps = max(s.state.shape[-1], time_steps) #determine amount of time steps from signal data
 
         pth = os.path.splitext(saveto)
         datavtk = data.copy()
