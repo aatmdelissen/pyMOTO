@@ -1,36 +1,55 @@
-"""Minimal example for a transient thermal compliance topology optimization"""
-import numpy as np
+"""Transient thermal temperature minimization
+==============================
 
+Minimal example for transient thermal topology optimization
+
+This example contains some specific modules used in transient problems
+
+- :py:class:`pymoto.TransientSolve` To solve the transient thermal problem
+- :py:class:`pymoto.AssembleMass` Used with `ndof=1` for thermal capacity matrix assembly
+- :py:class:`pymoto.SeriesToVTI` Used to export the design and transient simulation of a specific iteration to a Paraview VTI.series file
+
+References (2D case):
+  M.J.B. Theulings, R. Maas, L. Noël, F. van Keulen, M. Langelaar
+  Reducing time and memory requirements in topology optimization of transient problems
+  International Journal for Numerical Methods in Engineering 125(14), 2024.
+  DOI: 10.1002/nme.7461
+"""
+
+import numpy as np
 import pymoto as pym
 
-nx, ny, nz = 60, 60, 0  # Set nz to zero for the 2D problem, nz > 0 runs a 3D problem
+nx, ny, nz = 80, 120, 0  # Set nz to zero for the 2D problem, nz > 0 runs a 3D problem
+Lx, Ly, Lz = 2/30, 0.1, 0
 xmin = 1e-6
 filter_radius = 3.0
-volfrac = 0.4
-end_time = 2000 # End time [s], as this value increases the optimizer starts to connect to the boundaries
-dt = 20.0
+volfrac = 0.5
+end_time = 10 # End time [s], as this value decreases the optimizer will disconnect from the boundary
+dt = 0.05
 end_step = int(end_time/dt)
 theta = 0.5  # time-stepping algorithm, 0.0 for forward Euler, 0.5 for Crank-Nicolson, 1.0 for backward Euler
-
+ndof = 1
 
 if __name__ == "__main__":
     print(__doc__)
 
     if nz == 0:  # 2D analysis
         # Generate a grid
-        domain = pym.DomainDefinition(nx, ny)
+        domain = pym.DomainDefinition(nx, ny, unitx=Lx/nx, unity=Ly/ny)
 
-        ndof = 1  # Number of dofs per node
         # Get dof numbers at the boundary
-        nodes_west = domain.get_nodenumber(0, np.arange(ny+1))
-        nodes_east = domain.get_nodenumber(nx, np.arange(ny+1))
-        nodes_north = domain.get_nodenumber(np.arange(ny+1), ny)
-        nodes_south = domain.get_nodenumber(np.arange(ny+1), 0)
-        boundary_dofs = np.concatenate((nodes_west, nodes_east, nodes_north, nodes_south))
+        boundary_dofs = domain.get_nodenumber(np.arange(nx+1), 0)
 
-        # Make a force vector of a heat load in the middle of the domain
-        xrange, yrange = np.arange(nx//2 - nx//8, nx//2 + nx//8 + 1), np.arange(ny//2 - ny//8, ny//2 + ny//8 + 1)
-        heat_dofs = domain.get_nodenumber(*np.meshgrid(xrange, yrange))
+        # Make a force vector of three areas with a heat load in the middle of the domain
+        h_xs = np.arange(nx//2 - nx//15, nx//2 + nx//15 + 1)
+        h1_dofs = domain.get_nodenumber(*np.meshgrid(h_xs, np.arange(ny//4 - ny//30, ny//4 + ny//30 + 1))).flatten()
+        h2_dofs = domain.get_nodenumber(*np.meshgrid(h_xs, np.arange(ny//2 - ny//30, ny//2 + ny//30 + 1))).flatten()
+        h3_dofs = domain.get_nodenumber(*np.meshgrid(h_xs, np.arange(3*ny//4 - ny//30, 3*ny//4 + ny//30 + 1))).flatten()
+        q = np.zeros((domain.nnodes * ndof, int(end_time / dt + 1)))
+        q[h1_dofs, 2*end_step//3:] = 6e3 * dt / h1_dofs.size
+        q[h2_dofs, end_step//3:] = 7.5e2 * dt / h2_dofs.size
+        q[h3_dofs, :] = 1e3 * dt / h3_dofs.size
+        heat_dofs = np.concatenate((h1_dofs, h2_dofs, h3_dofs))
 
     else:
         domain = pym.DomainDefinition(nx, ny, nz)
@@ -39,18 +58,19 @@ if __name__ == "__main__":
         boundary_dofs = boundary_nodes
         xrange, yrange, zrange = np.arange(nx//2 - nx//8, nx//2 + nx//8 + 1), np.arange(ny//2 - ny//8, ny//2 + ny//8 + 1), np.arange(nz//2 - nz//8, nz//2 + nz//8 + 1),
         heat_dofs = domain.get_nodenumber(*np.meshgrid(xrange, yrange, zrange)).flatten()
-        ndof = 1
+
+        q = np.zeros((domain.nnodes * ndof, int(end_time / dt + 1)))
+        q[heat_dofs, :] = 1.0  # Uniform heat input of 1.0W at all selected dofs
 
     if domain.nnodes > 1e+6:
         print("Too many nodes :(")  # Safety, to prevent overloading the memory in your machine
         exit()
 
     if theta == 0.0:
-        a = 1.0 # thermal diffusivity = k / (rho*c)
+        a = 1/1000 # thermal diffusivity = k / (rho*c)
         assert dt < np.average(domain.element_size)**2/(2*a), "time step too large for forward Euler, numerical solution unstable"
 
-    q = np.zeros((domain.nnodes * ndof, int(end_time/dt + 1)))
-    q[heat_dofs, :] = 1.0  # Uniform heat input of 1.0W at all selected dofs
+
 
     T_0 = np.zeros(domain.nnodes)
 
@@ -74,7 +94,7 @@ if __name__ == "__main__":
 
     # System matrix assembly module
     sK = pym.AssemblePoisson(domain, bc=boundary_dofs)(sSIMP)
-    sC = pym.AssembleMass(domain, bc=boundary_dofs, ndof=ndof)(sSIMP)
+    sC = pym.AssembleMass(domain, bc=boundary_dofs, ndof=ndof, material_property=1000)(sSIMP)
 
     # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
     solver = None  # Default (solver is automatically chosen based on matrix properties)
@@ -86,14 +106,16 @@ if __name__ == "__main__":
 
     # Output the design, temperature, and heat field to a Paraview file
     pym.WriteToVTI(domain, saveto='out/dat.vti')(sx_analysis, sT[:, -1], sq[:, -1])
-    pym.SeriesToVTI(domain, saveto='out/dat.vti', delta_t=2.0, interval=2)(sx_analysis, sT, sq)
 
-    # Compliance calculation c = sum(q^T T) for all time steps
-    scompl = pym.EinSum('ij,ij->')(sq, sT)
-    scompl.tag = 'compliance'
+    # Output the design, temperature over time, and heat field over time to Paraview series
+    pym.SeriesToVTI(domain, saveto='out/dat.vti', delta_t=dt, interval=2)(sx_analysis, sT, sq)
+
+    # Total temperature at heat input Tt = sum(T[heat dofs]) for all time steps
+    stemps = pym.EinSum('ij->')(sT[heat_dofs, :])
+    stemps.tag = 'average temperatures'
 
     # MMA needs correct scaling of the objective
-    sg0 = pym.Scaling(scaling=100.0)(scompl)
+    sg0 = pym.Scaling(scaling=100.0)(stemps)
     sg0.tag = "objective"
 
     # Calculate the volume of the domain by adding all design densities together
@@ -113,12 +135,9 @@ if __name__ == "__main__":
     pym.PlotIter()(sg0, sg1)  # Plot iteration history
 
     # Do the optimization with MMA
-    # pym.minimize_mma(func, [sx], [sg0, sg1])
-
-    # Do the optimization with OC
-    pym.minimize_oc(sx, sg0)
+    pym.minimize_mma(sx, [sg0, sg1])
 
     # Here you can do some post processing
     print("The optimization has finished!")
-    print(f"The final compliance value obtained is {scompl.state}")
+    print(f"The average temperature value obtained is {stemps.state / (end_step * heat_dofs.size)}")
     print(f"The maximum temperature is {np.max(sT.state)}")
