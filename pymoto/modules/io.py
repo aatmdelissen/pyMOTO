@@ -429,7 +429,7 @@ class SeriesToVTI(Module):
     This module utilizes a series file to properly associate the correct time with each timestep:
     https://gitlab.kitware.com/paraview/paraview/blob/v5.5.0/Documentation/release/ParaView-5.5.0.md#json-based-new-meta-file-format-for-series-added
 
-    See also: :attr:`DomainDefinition.write_to_vti()`
+    See also: :attr:`VoxelDomain.write_to_vti()`
 
     The size of the vectors should be a multiple of ``nel`` or ``nnodes``. Based on their size they are marked as
     cell-data or point-data in the VTI file. For 2D data (size is equal to ``2*nnodes``), the z-dimension is padded
@@ -440,7 +440,7 @@ class SeriesToVTI(Module):
       - ``*args`` (`numpy.ndarray`): Vectors to write to VTI. The signal tags are used as name.
       """
 
-    def __init__(self, domain: DomainDefinition, saveto: str, delta_t: float, interval: int=10, scale=1.):
+    def __init__(self, domain: VoxelDomain, saveto: str, delta_t: float, interval: int=10, scale=1.):
         """ Initialize Series VTI writer module
         Args:
             domain: The domain layout

@@ -1,5 +1,5 @@
 import numpy as np
-from pymoto import Module, DyadCarrier
+from pymoto import Module, DyadicMatrix
 from pymoto.solvers import auto_determine_solver, LDAWrapper
 
 class TransientSolve(Module):
@@ -100,8 +100,8 @@ class TransientSolve(Module):
 
         # sensitivities to system matrices
         tempsK = self.theta*self.state[:, 1:] + (1-self.theta)*self.state[:, :-1]
-        dK = DyadCarrier(list(lams[:, 1:].T), list(tempsK.T))
-        dC = DyadCarrier(list(lams[:, 1:].T), list((1/self.dt)*np.diff(self.state).T))
+        dK = DyadicMatrix(list(lams[:, 1:].T), list(tempsK.T))
+        dC = DyadicMatrix(list(lams[:, 1:].T), list((1/self.dt)*np.diff(self.state).T))
 
         # sensitivities to input heat
         db = np.zeros_like(self.sig_in[0].state)
