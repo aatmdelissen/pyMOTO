@@ -21,8 +21,6 @@ from .modules.autodiff import AutoMod
 from .modules.complex import MakeComplex, SplitComplex, RealPart, ImagPart, ComplexNorm, Conjugate
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
 from .modules.generic import MathExpression, EinSum, ConcatSignal, SetValue, AddMatrix
-from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, Print
-from .modules.generic import MathGeneral, EinSum, ConcatSignal, VecSet, AddMatrix
 from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, Print, SeriesToVTI
 from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations, StaticCondensation
 from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, SoftMinMax, KSFunction
