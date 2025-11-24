@@ -56,17 +56,27 @@ jobs:
       - name: Install conda-build (Unix)
         if: runner.os != 'Windows'
         shell: bash -l {0}
-        run: conda install conda-build conda-forge::hatchling
+        run: conda install pip conda-build conda-forge::hatchling
+
+      - name: Install hatch-conda-build (Unix)
+        if: runner.os != 'Windows'
+        shell: bash -l {0}
+        run: pip install hatch-conda-build
 
       - name: Conda package (Unix)
         if: runner.os != 'Windows'
         shell: bash -l {0}
         run: python -m hatchling build -t conda
 
-      - name: Install setuptools-conda (Windows)
+      - name: Install conda-build (Windows)
         if: runner.os == 'Windows'
         shell: cmd /C CALL {0}
-        run: conda install conda-build conda-forge::hatchling
+        run: conda install pip conda-build conda-forge::hatchling
+
+      - name: Install hatch-conda-build (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd /C CALL {0}
+        run: pip install hatch-conda-build
 
       - name: Conda Package (Windows)
         if: runner.os == 'Windows'
