@@ -220,7 +220,7 @@ def test_is_hermitian(Atag, expected, mat_converter):
 
 def run_solver_test(solver_type, A, b, **kwargs):
     """ Run the actual test for given solver, matrix and right-hand-side """
-    if not solver_type.defined:
+    if hasattr(solver_type, 'defined') and not solver_type.defined:
         pytest.skip(f"Solver {solver_type} is not defined")
     solver = solver_type(**kwargs)
 
@@ -261,27 +261,77 @@ def construct_b(b_type: str, b_shape: int, n: int):
 
 # For CVXOPT matrices, these behave wierd and are not tested. With these matrices you are on your own
 
+def PCG(preconditioner):
+    def solver_creator(A=None):
+        return pym.solvers.CG(A, preconditioner=preconditioner, verbosity=1, tol=1e-10)
+    return solver_creator
 
-@pytest.mark.parametrize('b_shape', [None, 1, 3, 4], ids=['singleRHS', 'columnRHS', 'multiRHS', 'multiRHS_lindep'])
-@pytest.mark.parametrize('b_type', ['realRHS', 'complexRHS', 'imaginaryRHS'])
-@pytest.mark.parametrize('Atag', ['mat_real_diagonal', 'mat_real_spdiag', 'mat_complex_diagonal', 'mat_complex_spdiag'])
+solvers = dict(#diagonal=pym.solvers.SolverDiagonal, # Diagonal is already tested in dense solver tests
+               LU=pym.solvers.SolverSparseLU, 
+               Cholesky_scikit=pym.solvers.SolverSparseCholeskyScikit, 
+               Cholesky_CVXOPT=pym.solvers.SolverSparseCholeskyCVXOPT,
+               Pardiso=pym.solvers.SolverSparsePardiso,
+               PCG_SOR=PCG(pym.solvers.SOR(w=1.0)),
+               PCG_ILU=PCG(pym.solvers.ILU()),
+               PCG_Jacobi=PCG(pym.solvers.DampedJacobi()),
+               )
+
+
+@pytest.mark.parametrize('b_shape', [1, 3], ids=['columnRHS', 'multiRHS'])
+@pytest.mark.parametrize('solver', solvers.values(), ids=solvers.keys())
+def test_rhs_shapes(solver, b_shape):
+    A = all_matrices['mat_real_symm_pos_def'].tocsr()
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0], b_shape)
+    run_solver_test(solver, A, b)
+
+
+@pytest.mark.parametrize('solver', solvers.values(), ids=solvers.keys())
+def test_rhs_linear_dependent(solver):
+    A = all_matrices['mat_real_symm_pos_def'].tocsr()
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0], 4)
+    b[:, 1] = 2*b[:, 2]  # Create a linear dependency
+    run_solver_test(solver, A, b)
+
+
+@pytest.mark.parametrize('solver', solvers.values(), ids=solvers.keys())
+def test_rhs_complex(solver):
+    A = all_matrices['mat_complex_hermitian_pos_def'].tocsr()
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0]) + 1j*np.random.rand(A.shape[0])
+    run_solver_test(solver, A, b)
+
+
+@pytest.mark.parametrize('solver', solvers.values(), ids=solvers.keys())
+def test_rhs_imaginary(solver):
+    A = all_matrices['mat_complex_hermitian_pos_def'].tocsr()
+    np.random.seed(0)
+    b = 1j*np.random.rand(A.shape[0])
+    run_solver_test(solver, A, b)
+
+
 @pytest.mark.parametrize('mat_converter', mat_type_converters[:4], ids=mat_type_ids[:4])
-def test_sparse_diagonal(Atag, b_type, b_shape, mat_converter):
-    A = mat_converter(all_matrices[Atag])
-    b = construct_b(b_type, b_shape, A.shape[0])
-    if not np.iscomplexobj(A) and np.iscomplexobj(b):
-        pytest.skip("complex b with real A")  # TODO Allow complex rhs for real matrix
-    if b_shape == 4:  # Create a linear dependency
-        b[:, 1] = 2*b[:, 2]
+@pytest.mark.parametrize('solver', solvers.values(), ids=solvers.keys())
+def test_matrix_types(solver, mat_converter):
+    A = mat_converter(all_matrices['mat_real_symm_pos_def'])
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0])
+    run_solver_test(solver, A, b)
+
+
+@pytest.mark.parametrize('Atag', ['mat_real_diagonal', 'mat_real_spdiag', 'mat_complex_diagonal', 'mat_complex_spdiag'])
+def test_sparse_diagonal(Atag):
+    A = all_matrices[Atag].tocsr()
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0])
     run_solver_test(pym.solvers.SolverDiagonal, A, b)
 
 
-@pytest.mark.parametrize('b_shape', [None, 1, 3, 4], ids=['singleRHS', 'columnRHS', 'multiRHS', 'multiRHS_lindep'])
-@pytest.mark.parametrize('b_type', ['realRHS', 'complexRHS', 'imaginaryRHS'])
 @pytest.mark.parametrize('Atag', [
     'mat_real_diagonal',
     'mat_real_spdiag',
-    'mat_real_symm_pos_def',
+    # 'mat_real_symm_pos_def', # Already tested
     'mat_real_symm_pos_def_dynamic',
     'mat_real_symm_indef',
     'mat_real_symm_indef_dynamic',
@@ -293,97 +343,75 @@ def test_sparse_diagonal(Atag, b_type, b_shape, mat_converter):
     'mat_complex_symm_indef_dynamic',
     'mat_complex_hermitian_1',
     'mat_complex_hermitian_indef',
-    'mat_complex_hermitian_pos_def',
+    # 'mat_complex_hermitian_pos_def', # Already tested
 ])
-@pytest.mark.parametrize('mat_converter', mat_type_converters[:4], ids=mat_type_ids[:4])
-def test_sparse_lu(Atag, b_type, b_shape, mat_converter):
-    A = mat_converter(all_matrices[Atag])
-    b = construct_b(b_type, b_shape, A.shape[0])
-    if not np.iscomplexobj(A) and np.iscomplexobj(b):
-        pytest.skip("complex b with real A")
-    if b_shape == 4:  # Create a linear dependency
-        b[:, 1] = 2*b[:, 2]
+def test_sparse_lu(Atag):
+    A = all_matrices[Atag].tocsr()
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0])
     run_solver_test(pym.solvers.SolverSparseLU, A, b)
 
 
-@pytest.mark.parametrize('b_shape', [None, 1, 3, 4], ids=['singleRHS', 'columnRHS', 'multiRHS', 'multiRHS_lindep'])
-@pytest.mark.parametrize('b_type', ['realRHS', 'complexRHS', 'imaginaryRHS'])
 @pytest.mark.parametrize('Atag', [
     'mat_real_diagonal',
     'mat_real_spdiag',
-    'mat_real_symm_pos_def',
+    # 'mat_real_symm_pos_def',
     'mat_real_symm_pos_def_dynamic',
     'mat_complex_hermitian_indef',
     'mat_complex_hermitian_1',
-    'mat_complex_hermitian_pos_def',
+    # 'mat_complex_hermitian_pos_def',
 ])
-@pytest.mark.parametrize('mat_converter', mat_type_converters[1:4], ids=mat_type_ids[1:4])
-def test_sparse_cholesky_scikit(Atag, b_type, b_shape, mat_converter):
+def test_sparse_cholesky_scikit(Atag):
     # I don't know why, but scikit is able to solve indefinite matrix as well. Maybe they do some LDL inside?
-    A = mat_converter(all_matrices[Atag])
-    b = construct_b(b_type, b_shape, A.shape[0])
-    if not np.iscomplexobj(A) and np.iscomplexobj(b):
-        pytest.skip("complex b with real A")
-    if b_shape == 4:  # Create a linear dependency
-        b[:, 1] = 2*b[:, 2]
+    A = all_matrices[Atag].tocsr()
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0])
     run_solver_test(pym.solvers.SolverSparseCholeskyScikit, A, b)
 
 
-@pytest.mark.parametrize('b_shape', [None, 1, 3, 4], ids=['singleRHS', 'columnRHS', 'multiRHS', 'multiRHS_lindep'])
-@pytest.mark.parametrize('b_type', ['realRHS', 'complexRHS', 'imaginaryRHS'])
 @pytest.mark.parametrize('Atag', [
     'mat_real_diagonal',
     'mat_real_spdiag',
-    'mat_real_symm_pos_def',
+    # 'mat_real_symm_pos_def',
     'mat_real_symm_pos_def_dynamic',
     'mat_complex_hermitian_1',
-    'mat_complex_hermitian_pos_def',
+    # 'mat_complex_hermitian_pos_def',
 ])
-@pytest.mark.parametrize('mat_converter', mat_type_converters[:4], ids=mat_type_ids[:4])
-def test_sparse_cholesky_cvxopt(Atag, b_type, b_shape, mat_converter):
-    A = mat_converter(all_matrices[Atag])
-    b = construct_b(b_type, b_shape, A.shape[0])
-    if not np.iscomplexobj(A) and np.iscomplexobj(b):
-        pytest.skip("complex b with real A")
-    if b_shape == 4:  # Create a linear dependency
-        b[:, 1] = 2*b[:, 2]
+def test_sparse_cholesky_cvxopt(Atag):
+    A = all_matrices[Atag].tocsr()
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0])
     run_solver_test(pym.solvers.SolverSparseCholeskyCVXOPT, A, b)
 
 
-@pytest.mark.parametrize('b_shape', [None, 1, 3, 4], ids=['singleRHS', 'columnRHS', 'multiRHS', 'multiRHS_lindep'])
-@pytest.mark.parametrize('b_type', ['realRHS', 'complexRHS', 'imaginaryRHS'])
+
 @pytest.mark.parametrize('Atag', [
         'mat_real_diagonal',
         'mat_real_spdiag',
-        'mat_real_symm_pos_def',
+        # 'mat_real_symm_pos_def',
         'mat_real_symm_pos_def_dynamic',
         'mat_real_symm_indef',
         'mat_real_symm_indef_dynamic',
         'mat_real_symm_saddle',
         'mat_real_asymm',
-        'mat_complex_diagonal', # PyPardiso does not work for complex matrix yet
+        'mat_complex_diagonal',
         'mat_complex_spdiag',
         'mat_complex_symm_pos_def_dynamic',
         'mat_complex_symm_indef_dynamic',
         'mat_complex_hermitian_1',
+        # 'mat_complex_hermitian_pos_def',
 ])
-@pytest.mark.parametrize('mat_converter', mat_type_converters[:4], ids=mat_type_ids[:4])
-def test_sparse_pardiso(Atag, b_type, b_shape, mat_converter):
-    A = mat_converter(all_matrices[Atag])
-    b = construct_b(b_type, b_shape, A.shape[0])
-    if not np.iscomplexobj(A) and np.iscomplexobj(b):
-        pytest.skip("complex b with real A")
-    if b_shape == 4:  # Create a linear dependency
-        b[:, 1] = 2*b[:, 2]
+def test_sparse_pardiso(Atag):
+    A = all_matrices[Atag].tocsr()
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0])
     run_solver_test(pym.solvers.SolverSparsePardiso, A, b)
 
 
-@pytest.mark.parametrize('b_shape', [None, 1, 3, 4], ids=['singleRHS', 'columnRHS', 'multiRHS', 'multiRHS_lindep'])
-@pytest.mark.parametrize('b_type', ['realRHS', 'complexRHS', 'imaginaryRHS'])
 @pytest.mark.parametrize('Atag', [
         'mat_real_diagonal',
         'mat_real_spdiag',
-        'mat_real_symm_pos_def',
+        # 'mat_real_symm_pos_def',  # Already tested
         'mat_real_symm_pos_def_dynamic',
         # 'mat_real_symm_indef',
         # 'mat_real_symm_indef_dynamic',
@@ -395,16 +423,12 @@ def test_sparse_pardiso(Atag, b_type, b_shape, mat_converter):
         # 'mat_complex_symm_indef_dynamic',
         'mat_complex_hermitian_1',
         # 'mat_complex_hermitian_indef',
-        'mat_complex_hermitian_pos_def',
+        # 'mat_complex_hermitian_pos_def',  # Already tested
 ])
-@pytest.mark.parametrize('mat_converter', mat_type_converters[:4], ids=mat_type_ids[:4])
-def test_sparse_cg(Atag, b_type, b_shape, mat_converter):
-    A = mat_converter(all_matrices[Atag])
-    b = construct_b(b_type, b_shape, A.shape[0])
-    if not np.iscomplexobj(A) and np.iscomplexobj(b):
-        pytest.skip("complex b with real A")
-    if b_shape == 4:  # Create a linear dependency
-        b[:, 1] = 2*b[:, 2]
+def test_sparse_cg(Atag):
+    A = all_matrices[Atag].tocsr()
+    np.random.seed(0)
+    b = np.random.rand(A.shape[0])
     # kwargs = dict(preconditioner=pym.solvers.ILU(), verbosity=1, tol=1e-10)
     kwargs = dict(preconditioner=pym.solvers.SOR(w=1.0), verbosity=1, tol=1e-10)
     # kwargs = dict(preconditioner=pym.solvers.DampedJacobi(), verbosity=1, tol=1e-10)

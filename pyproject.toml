@@ -67,6 +67,7 @@ ext = [
 [dependency-groups]
 dev = [
     "pytest",
+    "pytest-xdist",
     "ruff",
     "pre-commit"
 ]
