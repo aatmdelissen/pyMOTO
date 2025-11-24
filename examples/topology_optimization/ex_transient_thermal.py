@@ -3,17 +3,21 @@
 
 Minimal example for transient thermal topology optimization
 
+Three heaters are placed in the 2D domain, which are turned on at different times. The optimization problem then 
+minimizes the average temperatures of the heated areas throughout the simulated time.
+
 This example contains some specific modules used in transient problems
 
 - :py:class:`pymoto.TransientSolve` To solve the transient thermal problem
 - :py:class:`pymoto.AssembleMass` Used with `ndof=1` for thermal capacity matrix assembly
-- :py:class:`pymoto.SeriesToVTI` Used to export the design and transient simulation of a specific iteration to a Paraview VTI.series file
+- :py:class:`pymoto.SeriesToVTI` Used to export the design and transient simulation of a specific iteration to a 
+  Paraview VTI.series file
 
 References (2D case):
-  M.J.B. Theulings, R. Maas, L. Noël, F. van Keulen, M. Langelaar
+- M.J.B. Theulings, R. Maas, L. Noël, F. van Keulen, M. Langelaar
   Reducing time and memory requirements in topology optimization of transient problems
   International Journal for Numerical Methods in Engineering 125(14), 2024.
-  DOI: 10.1002/nme.7461
+  DOI: https://doi.org/10.1002/nme.7461
 """
 
 import numpy as np
@@ -24,9 +28,12 @@ Lx, Ly, Lz = 2/30, 0.1, 0
 xmin = 1e-6
 filter_radius = 3.0
 volfrac = 0.5
-end_time = 10 # End time [s], as this value decreases the optimizer will disconnect from the boundary
-dt = 0.05
-end_step = int(end_time/dt)
+# End time [s], as this value decreases the optimal design (of the 2D example) will disconnect from the boundary, as the
+# heat has no time to diffuse to the boundary. For 10s, a large connection is formed at the boundary, at 1s a small 
+# connection, and at 0.1s no connection.
+end_time = 0.1
+n_steps = 200
+dt = end_time / n_steps
 theta = 0.5  # time-stepping algorithm, 0.0 for forward Euler, 0.5 for Crank-Nicolson, 1.0 for backward Euler
 ndof = 1
 
@@ -38,26 +45,27 @@ if __name__ == "__main__":
         domain = pym.VoxelDomain(nx, ny, unitx=Lx/nx, unity=Ly/ny)
 
         # Get dof numbers at the boundary
-        boundary_dofs = domain.get_nodenumber(np.arange(nx+1), 0)
+        boundary_dofs = domain.nodes[:, 0].flatten()
 
-        # Make a force vector of three areas with a heat load in the middle of the domain
-        h_xs = np.arange(nx//2 - nx//15, nx//2 + nx//15 + 1)
-        h1_dofs = domain.get_nodenumber(*np.meshgrid(h_xs, np.arange(ny//4 - ny//30, ny//4 + ny//30 + 1))).flatten()
-        h2_dofs = domain.get_nodenumber(*np.meshgrid(h_xs, np.arange(ny//2 - ny//30, ny//2 + ny//30 + 1))).flatten()
-        h3_dofs = domain.get_nodenumber(*np.meshgrid(h_xs, np.arange(3*ny//4 - ny//30, 3*ny//4 + ny//30 + 1))).flatten()
+        # Make a force vector of three heaters in the middle of the domain
+        h_xs = slice(int(nx * (1/2 - 1/15)), int(nx * (1/2 + 1/15)) + 1)
+        h1_dofs = domain.nodes[h_xs, int(ny * (1/4 - 1/30)) : int(ny * (1/4 + 1/30)) + 1].flatten()
+        h2_dofs = domain.nodes[h_xs, int(ny * (1/2 - 1/30)) : int(ny * (1/2 + 1/30)) + 1].flatten()
+        h3_dofs = domain.nodes[h_xs, int(ny * (3/4 - 1/30)) : int(ny * (3/4 + 1/30)) + 1].flatten()
         q = np.zeros((domain.nnodes * ndof, int(end_time / dt + 1)))
-        q[h1_dofs, 2*end_step//3:] = 6e3 * dt / h1_dofs.size
-        q[h2_dofs, end_step//3:] = 7.5e2 * dt / h2_dofs.size
+        q[h1_dofs, int(2*n_steps/3):] = 6e3 * dt / h1_dofs.size
+        q[h2_dofs, int(n_steps/3):] = 7.5e2 * dt / h2_dofs.size
         q[h3_dofs, :] = 1e3 * dt / h3_dofs.size
         heat_dofs = np.concatenate((h1_dofs, h2_dofs, h3_dofs))
 
     else:
         domain = pym.VoxelDomain(nx, ny, nz)
-        boundary_nodes = domain.get_nodenumber(*np.meshgrid(0, range(ny + 1), range(nz + 1))).flatten()
+        boundary_nodes = domain.nodes[0, :, :].flatten()
 
         boundary_dofs = boundary_nodes
-        xrange, yrange, zrange = np.arange(nx//2 - nx//8, nx//2 + nx//8 + 1), np.arange(ny//2 - ny//8, ny//2 + ny//8 + 1), np.arange(nz//2 - nz//8, nz//2 + nz//8 + 1),
-        heat_dofs = domain.get_nodenumber(*np.meshgrid(xrange, yrange, zrange)).flatten()
+        heat_dofs = domain.nodes[nx//2 - nx//8 : nx//2 + nx//8 + 1, 
+                                 ny//2 - ny//8 : ny//2 + ny//8 + 1, 
+                                 nz//2 - nz//8 : nz//2 + nz//8 + 1]
 
         q = np.zeros((domain.nnodes * ndof, int(end_time / dt + 1)))
         q[heat_dofs, :] = 1.0  # Uniform heat input of 1.0W at all selected dofs
@@ -68,8 +76,8 @@ if __name__ == "__main__":
 
     if theta == 0.0:
         a = 1/1000 # thermal diffusivity = k / (rho*c)
-        assert dt < np.average(domain.element_size)**2/(2*a), "time step too large for forward Euler, numerical solution unstable"
-
+        if dt > np.average(domain.element_size)**2 / (2*a):
+            raise RuntimeError("time step too large for forward Euler, numerical solution unstable")
 
 
     T_0 = np.zeros(domain.nnodes)
@@ -96,7 +104,7 @@ if __name__ == "__main__":
     sK = pym.AssemblePoisson(domain, bc=boundary_dofs)(sSIMP)
     sC = pym.AssembleMass(domain, bc=boundary_dofs, ndof=ndof, material_property=1000)(sSIMP)
 
-    # Linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
+    # Transient linear system solver. The linear solver can be chosen by uncommenting any of the following lines.
     solver = None  # Default (solver is automatically chosen based on matrix properties)
     # solver = pym.solvers.SolverSparsePardiso()  # Requires Intel MKL installed
     # solver = pym.solvers.SolverSparseCholeskyCVXOPT()  # Requires cvxopt installed
@@ -112,6 +120,7 @@ if __name__ == "__main__":
 
     # Total temperature at heat input Tt = sum(T[heat dofs]) for all time steps
     stemps = pym.EinSum('ij->')(sT[heat_dofs, :])
+    # stemps = pym.EinSum('ij->')(sT)  # Variation: minimize average temperature of the entire domain
     stemps.tag = 'average temperatures'
 
     # MMA needs correct scaling of the objective
@@ -139,5 +148,5 @@ if __name__ == "__main__":
 
     # Here you can do some post processing
     print("The optimization has finished!")
-    print(f"The average temperature value obtained is {stemps.state / (end_step * heat_dofs.size)}")
+    print(f"The average temperature value obtained is {np.average(sT.state[heat_dofs, :])}")
     print(f"The maximum temperature is {np.max(sT.state)}")

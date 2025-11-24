@@ -2,8 +2,9 @@ import numpy as np
 from pymoto import Module, DyadicMatrix
 from pymoto.solvers import auto_determine_solver, LDAWrapper
 
+
 class TransientSolve(Module):
-    r""" Solves the transient thermal problem :math:`\mathbf{K}\mathbf{T} + \mathbf{C}\dot{\mathbf{T}} = \mathbf{Q}`
+    r"""Solves the transient thermal problem :math:`\mathbf{K}\mathbf{T} + \mathbf{C}\dot{\mathbf{T}} = \mathbf{Q}`
 
     Solves the transient thermal problem :math:`\mathbf{K}\mathbf{T} + \mathbf{C}\dot{\mathbf{T}} = \mathbf{Q}`, which
     becomes :math:`(1-\theta)\mathbf{Q}^{\text{n-1}} + \theta\mathbf{Q}^{\text{n}} =
@@ -16,26 +17,22 @@ class TransientSolve(Module):
       - ``K`` (`dense or sparse matrix`): The system matrix :math:`\mathbf{K}` of size ``(n, n)``
       - ``C`` (`dense or sparse matrix`): The damping matrix :math:`\mathbf{C}` of size ``(n, n)``
 
-
     Output Signals:
       - ``state`` (`matrix`): Solution matrix of size ``(n, Ntimesteps)``
+    """
 
-
-        """
-    def __init__(self,
-                 dt,
-                 end = None,
-                 x0 = None,
-                 theta = 1.0,
-                 solver = None):
+    def __init__(self, dt, end=None, x0=None, theta=1.0, solver=None):
         """Initialize the transient solver module
 
         Args:
-        dt (float, required): Size of time step in seconds
-        x0 (vector, optional): Initial state of size ``(n)``
-        theta (float, optional): Time-stepping algorithm, 0.0 for forward Euler, 0.5 for Crank-Nicolson, 1.0 for backward Euler
-        solver (:py:class:`pymoto.solvers.LinearSolver`, optional): Manually override the linear solver used,
-              instead of the solver from :func:`pymoto.solvers.auto_determine_solver`
+          - `dt` (float, required): Size of time step (in seconds)
+          - `end`(float, optional): End time of simulation (in seconds). If not provided, the number of time steps is
+            deduced from the size of the input matrix ``b``
+          - `x0` (vector, optional): Initial state of size ``(n)``
+          - `theta` (float, optional): Time-stepping algorithm, `0.0` for forward Euler, `0.5` for Crank-Nicolson, `1.0`
+            for backward Euler
+          - `solver` (:py:class:`pymoto.solvers.LinearSolver`, optional): Manually override the linear solver used,
+            instead of the solver from :func:`pymoto.solvers.auto_determine_solver`
         """
         self.x0 = x0
         self.end = end
@@ -44,15 +41,17 @@ class TransientSolve(Module):
         assert 0.0 <= self.theta <= 1.0, "theta must be between 0.0 and 1.0"
         self.solver = solver
 
-    def __call__(self, b, K, C, *args):
+    def __call__(self, b, K, C, M=None):
         # initial checks
-        M = args[0] if len(args) > 0 else None #Not implemented yet
+        if M is not None:
+            raise NotImplementedError("Mass matrix not implemented yet")
         assert K.shape == C.shape, "K and C must have same shape"
-        assert self.end is not None or b.ndim is not 1, "Insufficient information to determine time steps"
+        if self.end is None and b.ndim != 1:
+            raise RuntimeError("Insufficient information to determine time steps. Provide `end` time or a matrix `b`")
 
         # determine time steps
         if b.ndim == 1:
-            self.steps = int(self.end/self.dt)
+            self.steps = int(self.end / self.dt)
             b = np.tile(b, (self.steps + 1, 1)).T
         else:
             self.steps = b.shape[1] - 1
@@ -69,8 +68,8 @@ class TransientSolve(Module):
             self.solver = auto_determine_solver(self.mat_forward)
         if not isinstance(self.solver, LDAWrapper):
             lda_kwargs = dict(hermitian=True, symmetric=True)
-            if hasattr(self.solver, 'tol'):
-                lda_kwargs['tol'] = self.solver.tol * 5
+            if hasattr(self.solver, "tol"):
+                lda_kwargs["tol"] = self.solver.tol * 5
             self.solver = LDAWrapper(self.solver, **lda_kwargs)
 
         # Update solver with new matrix
@@ -99,13 +98,13 @@ class TransientSolve(Module):
             lams[:, i] = self.solver.solve(rhs)
 
         # sensitivities to system matrices
-        tempsK = self.theta*self.state[:, 1:] + (1-self.theta)*self.state[:, :-1]
+        tempsK = self.theta * self.state[:, 1:] + (1 - self.theta) * self.state[:, :-1]
         dK = DyadicMatrix(list(lams[:, 1:].T), list(tempsK.T))
-        dC = DyadicMatrix(list(lams[:, 1:].T), list((1/self.dt)*np.diff(self.state).T))
+        dC = DyadicMatrix(list(lams[:, 1:].T), list((1 / self.dt) * np.diff(self.state).T))
 
         # sensitivities to input heat
         db = np.zeros_like(self.sig_in[0].state)
-        db[:, 1:] -= self.theta*lams[:, 1:]
-        db[:, :-1] -= (1-self.theta)*lams[:, 1:]
+        db[:, 1:] -= self.theta * lams[:, 1:]
+        db[:, :-1] -= (1 - self.theta) * lams[:, 1:]
 
         return db, dK, dC
