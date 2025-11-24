@@ -61,7 +61,7 @@ jobs:
       - name: Conda package (Unix)
         if: runner.os != 'Windows'
         shell: bash -l {0}
-        run: hatch build -t conda
+        run: python -m hatchling build -t conda
 
       - name: Install setuptools-conda (Windows)
         if: runner.os == 'Windows'
@@ -71,7 +71,7 @@ jobs:
       - name: Conda Package (Windows)
         if: runner.os == 'Windows'
         shell: cmd /C CALL {0}
-        run: hatch build -t conda
+        run: python -m hatchling build -t conda
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
