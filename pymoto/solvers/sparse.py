@@ -591,12 +591,18 @@ class SolverSparseCholeskyScikit(LinearSolver):
         The solution of this minimization is
         :math:`\mathbf{x}=(\mathbf{A}^\text{H}\mathbf{A})^{-1}\mathbf{A}^\text{H}\mathbf{b}`.
         """
-        self.A = A
+        if not sps.issparse(A):
+            warnings.warn(f"{type(self).__name__}: Efficiency warning: Matrix should be sparse", 
+                          SparseEfficiencyWarning)
+            self.A = sps.csc_matrix(A)
+        else:
+            self.A = A
+
         if not hasattr(self, "inv"):
-            self.inv = cholmod.analyze(A)
+            self.inv = cholmod.analyze(self.A)
 
         # Do the Cholesky factorization
-        self.inv.cholesky_inplace(A)
+        self.inv.cholesky_inplace(self.A)
 
         return self
 
@@ -651,7 +657,8 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
         if not isinstance(A, cvxopt.spmatrix):
             if not isinstance(A, sps.coo_matrix):
                 Kcoo = sps.coo_matrix(A)
-                warnings.warn(f"{type(self).__name__}: Efficiency warning: CVXOPT spmatrix must be used")
+                warnings.warn(f"{type(self).__name__}: Efficiency warning: CVXOPT spmatrix must be used", 
+                              SparseEfficiencyWarning)
             else:
                 Kcoo = A
             K = cvxopt.spmatrix(Kcoo.data, Kcoo.row.astype(int), Kcoo.col.astype(int))
