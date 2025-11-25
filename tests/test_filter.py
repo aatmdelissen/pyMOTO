@@ -274,7 +274,7 @@ class TestOverhangFilter:
 
     @pytest.mark.parametrize('direction,ref',[
         ('+x', [1, 0, 0]),
-        ('-x', [-1, 0, 0])
+        ('-x', [-1, 0, 0]),
         ([1, 0], [1, 0, 0]),
         ([-1, 0, 0], [-1, 0, 0]),
         ([2, 0, 0], [1, 0, 0]),
