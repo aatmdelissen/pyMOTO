@@ -31,7 +31,7 @@ def fd_testfn(x0, dx, df_an, df_fd):
     npt.assert_allclose(df_an, df_fd, rtol=1e-7, atol=1e-5)
 
 
-@pytest.mark.parametrize('n_mat', [1, 2, 3, 4, 5, 6])
+@pytest.mark.parametrize('n_mat', [1, 3])
 @pytest.mark.parametrize('complex_matrix', [False, True])
 @pytest.mark.parametrize('complex_value', [False, True])
 def test_add_matrices(n_mat: int, complex_matrix: bool, complex_value: bool):

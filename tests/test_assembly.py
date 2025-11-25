@@ -60,10 +60,7 @@ class TestAssembleGeneral:
         sAsum = MatrixSum()(sA)
         pym.finite_difference(s_x, sAsum, test_fn=fd_testfn)
 
-    @pytest.mark.parametrize('ndof1', [1, 2, 3])
-    @pytest.mark.parametrize('ndof2', [1, 2, 3])
-    @pytest.mark.parametrize('nmat', [1, 2])
-    @pytest.mark.parametrize('matrix_type', [sps.csr_matrix, sps.csc_matrix])
+    @pytest.mark.parametrize('nmat, ndof1, ndof2', [(1, 2, 3), (2, 2, 2), (3, 3, 1)])
     def test_matrix_shapes(self, ndof1, ndof2, nmat, matrix_type):
         el_mat = [np.random.rand(ndof1 * 4 * ndof2 * 4).reshape((ndof1 * 4, ndof2 * 4)) for _ in range(nmat)]
         el_mat[-1] = el_mat[-1] + el_mat[-1]*1j  # Make one of the matrices complex

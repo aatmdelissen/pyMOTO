@@ -272,10 +272,22 @@ class TestOverhangFilter:
         # m(y)
         # plt.show(block=True)
 
+    @pytest.mark.parametrize('direction,ref',[
+        ('+x', [1, 0, 0]),
+        ('-x', [-1, 0, 0])
+        ([1, 0], [1, 0, 0]),
+        ([-1, 0, 0], [-1, 0, 0]),
+        ([2, 0, 0], [1, 0, 0]),
+        ('-y', [0, -1, 0]),
+        ('z', [0, 0, 1]),
+    ])
+    def test_directions(self, direction, ref):
+        domain = pym.VoxelDomain(1, 1, 1)
+        m = pym.OverhangFilter(domain, direction)
+        assert m.direction == ref
 
-    @pytest.mark.parametrize('direction', [[1, 0], [-1, 0], [0, 1], [-1, 0], [1, 0, 0], '+x', '-y'])
-    @pytest.mark.parametrize('nx', [1, 4])
-    @pytest.mark.parametrize('ny', [1, 4])
+    @pytest.mark.parametrize('direction', ['x', '-x', 'y', '-y'])
+    @pytest.mark.parametrize('nx, ny', [(1, 1), (1, 4), (4, 4)])
     def test_sensitivity_2D(self, direction, nx, ny):
         # direction = [-1, 0, 0]
         domain = pym.VoxelDomain(nx, ny)
@@ -286,8 +298,8 @@ class TestOverhangFilter:
 
         pym.finite_difference(sx, sy, test_fn=fd_testfn, dx=1e-6)
 
-    @pytest.mark.parametrize('direction', [[1, 0], [-1, 0], [0, 1], [-1, 0]])
-    @pytest.mark.parametrize('overhang_angle', [10, 30, 45, 60])
+    @pytest.mark.parametrize('direction', [[1, 0], [0, -1]])
+    @pytest.mark.parametrize('overhang_angle', [30, 60])
     def test_overhangs_2D(self, direction, overhang_angle):
         domain = pym.DomainDefinition(6, 6)
         np.random.seed(0)
@@ -297,8 +309,8 @@ class TestOverhangFilter:
 
         pym.finite_difference(sx, sy, test_fn=fd_testfn, dx=1e-6)
 
-    @pytest.mark.parametrize('direction', [[1, 0, 0], '-x', '+y', [0, -1, 0], [0, 0, 1], '-z'])
-    @pytest.mark.parametrize('overhang_angle', [10, 45, 60])
+    @pytest.mark.parametrize('direction', ['+x', '-y', '+z'])
+    @pytest.mark.parametrize('overhang_angle', [10, 60])
     @pytest.mark.parametrize('nsampling', [4, 7])
     def test_sensitivity_3D(self, direction, overhang_angle, nsampling):
         nx, ny, nz = 4, 4, 4

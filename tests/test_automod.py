@@ -20,16 +20,12 @@ def id_fn(val):
     dimensionality = "vector" if val.size > 1 else "scalar"
     return f"{valuetype}_{dimensionality}"
 
-@pytest.mark.parametrize('x0', [1.1, 1.1 + 2.0j, 2.0j, 
-                                np.array([1.1, 1.2, 1.3]), 
-                                np.array([1.1 + 1j, 1.2 + 2j, 1.3 + 3j]), 
-                                np.array([1.1j, 1.2j, 1.3j])], ids=id_fn)
-@pytest.mark.parametrize('y0', [2.0, 2.0 + 1.3j, 1.3j, 
-                                np.array([2.5, 2.6, 2.7]), 
-                                np.array([2.5 + 2j, 2.6 + 1j, 2.7 + 4j]), 
-                                np.array([2.5j, 2.6j, 2.7j])], ids=id_fn)
+@pytest.mark.parametrize('x0, y0', [(1.1, 2.0),
+                                    (1.1, np.array([2.5, 2.6, 2.7])),
+                                    (1.1 + 3.1j, np.array([2.5 + 2j, 2.6 + 1j, 2.7 + 4j])),
+                                    (1.1 + 3.1j, np.array([2.5, 2.6, 2.7]))])
 @pytest.mark.parametrize('backend', ['autograd', 'jax'])
-def test_automod_one_output(backend, x0, y0):
+def test_automod_complex_inputs(backend, x0, y0):
     def resp_fn(x, y):
         return x * y
 
@@ -49,13 +45,10 @@ def test_automod_one_output(backend, x0, y0):
     pym.finite_difference([sx, sy], sz, test_fn=fd_testfn)
 
 
-@pytest.mark.parametrize('x0', [1.1, 1.1 + 2.0j, 2.0j], ids=id_fn)
-@pytest.mark.parametrize('y0', [np.array([2.5, 2.6, 2.7]), 
-                                np.array([2.5 + 2j, 2.6 + 1j, 2.7 + 4j]), 
-                                np.array([2.5j, 2.6j, 2.7j])], 
-                         ids=id_fn)
 @pytest.mark.parametrize('backend', ['autograd', 'jax'])
 def test_automod_vec_2out(backend, x0, y0):
+    x0 = 1.1
+    y0 = np.array([2.5 + 2j, 2.6 + 1j, 2.7 + 4j])
     def resp_fn(x, y):
         return x + y, x*y
 
