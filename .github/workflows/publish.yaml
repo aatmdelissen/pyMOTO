@@ -159,7 +159,7 @@ jobs:
 #            upload \
 #            --user $ANACONDA_USER \
 #            --label test \
-#            dist_conda/*/*.{tar.bz2,conda}
+#            dist_conda/*/*.conda
 
       - name: Publish to Anaconda main label
         run: |
