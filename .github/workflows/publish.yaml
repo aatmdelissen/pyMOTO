@@ -115,7 +115,7 @@ jobs:
         run: conda install pip conda-build conda-forge::grayskull
 
       - name: Generate meta.yaml with grayskull
-        run: grayskull pypi ./dist/pymoto-*.tar.gz
+        run: python -m grayskull pypi ./dist/pymoto-*.tar.gz
 
       - name: Conda package
         run: conda build pymoto --output-folder dist/conda --output
