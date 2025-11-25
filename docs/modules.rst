@@ -25,6 +25,7 @@ Mathematical Modules
    pymoto.SystemOfEquations
    pymoto.StaticCondensation
    pymoto.EigenSolve
+   pymoto.TransientSolve
    pymoto.Scaling
    pymoto.Concatenate
    pymoto.SetValue
@@ -89,6 +90,7 @@ Output Modules
    pymoto.PlotGraph
    pymoto.PlotIter
    pymoto.WriteToVTI
+   pymoto.SeriesToVTI
    pymoto.ScalarToFile
    pymoto.Print
 
