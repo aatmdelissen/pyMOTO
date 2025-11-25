@@ -46,7 +46,7 @@ def test_automod_complex_inputs(backend, x0, y0):
 
 
 @pytest.mark.parametrize('backend', ['autograd', 'jax'])
-def test_automod_vec_2out(backend, x0, y0):
+def test_automod_vec_2out(backend):
     x0 = 1.1
     y0 = np.array([2.5 + 2j, 2.6 + 1j, 2.7 + 4j])
     def resp_fn(x, y):

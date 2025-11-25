@@ -69,7 +69,7 @@ class TestAssembleGeneral:
         with pym.Network() as fn:
             sx = [pym.Signal('x{i}', np.ones(domain.nel)*3.14*(i+1)) for i in range(nmat)]
             sx[0].state = sx[0].state + 1j*2.0  # Make first one complex
-            sA = pym.AssembleGeneral(domain, el_mat, matrix_type=matrix_type)(*sx)
+            sA = pym.AssembleGeneral(domain, el_mat)(*sx)
             sAsum = MatrixSum()(sA)
 
         A = sA.state.toarray()
