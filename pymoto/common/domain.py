@@ -167,6 +167,25 @@ class VoxelDomain:
     def element_size(self):
         """Element size in each direction"""
         return np.array([self.unitx, self.unity, self.unitz])
+    
+    @element_size.setter
+    def element_size(self, size: Union[float, Iterable[float], NDArray[np.floating]]):
+        """Set element size in each direction
+
+        Args:
+            size: Element size in each direction; can be float (uniform size) or array-like of size 2 or 3
+        """
+        if isinstance(size, (float, int)):
+            self.unitx = float(size)
+            self.unity = float(size)
+            self.unitz = float(size)
+        else:
+            size_arr = np.asarray(size)
+            assert size_arr.size >= self.dim, f"Size array needs to have at least {self.dim} entries"
+            self.unitx = float(size_arr[0])
+            self.unity = float(size_arr[1])
+            if self.dim == 3 and size_arr.size >= 3:
+                self.unitz = float(size_arr[2])
 
     @property
     def domain_size(self):
@@ -251,7 +270,29 @@ class VoxelDomain:
 
     def get_node_position(self, nod_idx: IndexType = None):
         ijk = self.get_node_indices(nod_idx)
-        return (self.element_size[: self.dim] * ijk.T).T
+        return (self.origin[: self.dim] + self.element_size[: self.dim] * ijk.T).T
+    
+    def get_element_indices(self, el_idx: IndexType = None):
+        """Gets the Cartesian index (i, j, k) for given element number(s)
+
+        Args:
+            el_idx: element index; can be integer or array
+
+        Returns:
+            i, j, k for requested element(s); k is only returned in 3D
+        """
+        if el_idx is None:
+            el_idx = np.arange(self.nel)
+        eli = el_idx % self.nelx
+        elj = (el_idx // self.nelx) % self.nely
+        if self.dim == 2:
+            return np.stack([eli, elj], axis=0)
+        elk = el_idx // (self.nelx * self.nely)
+        return np.stack([eli, elj, elk], axis=0)
+    
+    def get_element_position(self, el_idx: IndexType = None):
+        ijk = self.get_element_indices(el_idx)
+        return ((self.origin + self.element_size/2)[: self.dim] + self.element_size[: self.dim] * ijk.T).T
 
     def get_elemconnectivity(self, i: IndexType, j: IndexType, k: IndexType = 0):
         """Get the connectivity for element identified with Cartesian indices (i, j, k)
@@ -528,6 +569,9 @@ class VoxelDomain:
             h: The element size
             Nmin (optional): Minimum common divisor in the shape (#elements) of the domain
             Npadding (optional): Minimum number of elements to add as padding on all sides
+
+        Returns:
+            VoxelDomain: The created voxel domain
         """
         meshes = _parse_to_list(mesh)
 
@@ -557,7 +601,16 @@ class VoxelDomain:
 
         return domain
     
-    def voxelize(self, mesh: MeshT):
+    def voxelize(self, mesh: MeshT, surface: bool = False) -> np.ndarray:
+        """Convert a mesh body or surface to a voxel grid
+
+        Args:
+            mesh (MeshT): The input mesh
+            surface (bool, optional): Treat as a surface mesh (only voxels intersected by the surface are marked)
+
+        Returns:
+            np.ndarray: Indices of selected voxels
+        """
         
         dmin = self.origin
         dmax = self.origin + self.element_size * self.size
@@ -583,6 +636,8 @@ class VoxelDomain:
 
             # Don't calculate for parallel facets
             parallel = np.abs(det)**2 < (1e-8**2) * np.sum(v0v1 * v0v1, axis=1) * np.sum(v0v2 * v0v2, axis=1)
+            if np.all(parallel):
+                continue
 
             aligned = np.ones_like(det)
             aligned[det > 0] = -1.0
@@ -592,7 +647,7 @@ class VoxelDomain:
             t2_range = self.element_size[i2]/2 + np.linspace(dmin[i2], dmax[i2], self.size[i2]+1)[:-1]
 
             ray_origin = np.zeros((t1_range.size, t2_range.size, 3))
-            ray_origin[..., i0] = dmin[i0]
+            ray_origin[..., i0] = self.element_size[i0]/2 + dmin[i0]
             ray_origin[..., i1] = t1_range[:, None]
             ray_origin[..., i2] = t2_range[None, :]
 
@@ -615,58 +670,67 @@ class VoxelDomain:
 
             # Find intersected instances
             intersected = np.logical_and(np.all(uvw >= 0, axis=-1), np.all(uvw <= 1, axis=-1))
+            if not np.any(intersected):
+                continue
 
-            n_intersections = np.sum(intersected, axis=0)  # Number of intersections per ray
-            if not np.all((n_intersections % 2) == 0):
-                warnings.warn("Inersections found with unequal number of entries and exits")
-
-            # Sort hits based on distance
             distances = t[intersected]
             indices = np.argwhere(intersected)
+            
+            if surface:
+                select = [None, None, None]
+                select[i0] = np.round(distances / self.element_size[i0]).astype(int)
+                select[i1] = indices[:, 1]
+                select[i2] = indices[:, 2]
+                np.add.at(n_hits, tuple(select), 3)
+            else:  # Solid body
+                n_intersections = np.sum(intersected, axis=0)  # Number of intersections per ray
+                if not np.all((n_intersections % 2) == 0):
+                    warnings.warn("Inersections found with unequal number of entries and exits")
 
-            order = np.lexsort((distances, indices[:, 1], indices[:, 2]))
-            aligned[~parallel][indices[order, 0]]
+                # Sort hits based on distance
+                order = np.lexsort((distances, indices[:, 1], indices[:, 2]))
+                aligned[~parallel][indices[order, 0]]
 
-            idx_facet = indices[order, 0]
-            idx_ray_t1 = indices[order, 1]
-            idx_ray_t2 = indices[order, 2]
-            hit_dist = distances[order]
-            hit_direc = aligned[~parallel][idx_facet]
+                idx_facet = indices[order, 0]
+                idx_ray_t1 = indices[order, 1]
+                idx_ray_t2 = indices[order, 2]
+                hit_dist = distances[order]
+                hit_direc = aligned[~parallel][idx_facet]
 
-            # np.hstack([indices[order], distances[order, None], aligned[~parallel][indices[order, 0], None]])
+                # np.hstack([indices[order], distances[order, None], aligned[~parallel][indices[order, 0], None]])
 
-            # Find lines from hit entry to hit exit
-            i_lines = np.argwhere((np.diff(hit_direc) == 2) *
-                                (np.diff(idx_ray_t1) == 0) *
-                                (np.diff(idx_ray_t2) == 0)).flatten()
+                # Find lines from hit entry to hit exit
+                i_lines = np.argwhere((np.diff(hit_direc) == 2) *
+                                    (np.diff(idx_ray_t1) == 0) *
+                                    (np.diff(idx_ray_t2) == 0)).flatten()
 
-            assert np.all(idx_ray_t1[i_lines] == idx_ray_t1[i_lines + 1])
-            assert np.all(idx_ray_t2[i_lines] == idx_ray_t2[i_lines + 1])
-            assert np.all(hit_direc[i_lines] == -1)
-            assert np.all(hit_direc[i_lines+1] == 1)
-            assert np.all(hit_dist[i_lines] <= hit_dist[i_lines+1])
+                assert np.all(idx_ray_t1[i_lines] == idx_ray_t1[i_lines + 1])
+                assert np.all(idx_ray_t2[i_lines] == idx_ray_t2[i_lines + 1])
+                assert np.all(hit_direc[i_lines] == -1)
+                assert np.all(hit_direc[i_lines+1] == 1)
+                assert np.all(hit_dist[i_lines] <= hit_dist[i_lines+1])
 
-            idx0_line_start = np.floor(hit_dist[i_lines] / self.element_size[i0]).astype(int)
-            idx0_line_end = np.ceil(hit_dist[i_lines+1] / self.element_size[i0]).astype(int)
-            idx1_line = idx_ray_t1[i_lines]
-            idx2_line = idx_ray_t2[i_lines]
+                idx0_line_start = np.floor(hit_dist[i_lines] / self.element_size[i0]).astype(int)
+                idx0_line_end = np.ceil(hit_dist[i_lines+1] / self.element_size[i0]).astype(int)
+                idx1_line = idx_ray_t1[i_lines]
+                idx2_line = idx_ray_t2[i_lines]
 
-            # if intersected.sum() / 2 > i_lines.size:
-            #     warnings.warn(f"Found {intersected.sum()} intersections but only {i_lines.size} lines")
+                # if intersected.sum() / 2 > i_lines.size:
+                #     warnings.warn(f"Found {intersected.sum()} intersections but only {i_lines.size} lines")
 
-            is_hit = np.zeros(self.size, dtype=int)
-            if i0 == 0:
-                idx_line = np.arange(self.size[i0])[:, None]
-                idx_intersect = (idx_line >= idx0_line_start[None, :]) * (idx_line <= idx0_line_end[None, :])
-                np.add.at(is_hit, (slice(None), idx1_line, idx2_line), idx_intersect)
-            elif i0 == 1:
-                idx_line = np.arange(self.size[i0])[None, :]
-                idx_intersect = (idx_line >= idx0_line_start[:, None]) * (idx_line <= idx0_line_end[:, None])
-                np.add.at(is_hit, (idx2_line, slice(None), idx1_line), idx_intersect)
-            elif i0 == 2:
-                idx_line = np.arange(self.size[i0])[None, :]
-                idx_intersect = (idx_line >= idx0_line_start[:, None]) * (idx_line <= idx0_line_end[:, None])
-                np.add.at(is_hit, (idx1_line, idx2_line, slice(None)), idx_intersect)
-            n_hits += np.clip(is_hit, 0, 1)
+                is_hit = np.zeros(self.size, dtype=int)
+                if i0 == 0:
+                    idx_line = np.arange(self.size[i0])[:, None]
+                    idx_intersect = (idx_line >= idx0_line_start[None, :]) * (idx_line <= idx0_line_end[None, :])
+                    np.add.at(is_hit, (slice(None), idx1_line, idx2_line), idx_intersect)
+                elif i0 == 1:
+                    idx_line = np.arange(self.size[i0])[None, :]
+                    idx_intersect = (idx_line >= idx0_line_start[:, None]) * (idx_line <= idx0_line_end[:, None])
+                    np.add.at(is_hit, (idx2_line, slice(None), idx1_line), idx_intersect)
+                elif i0 == 2:
+                    idx_line = np.arange(self.size[i0])[None, :]
+                    idx_intersect = (idx_line >= idx0_line_start[:, None]) * (idx_line <= idx0_line_end[:, None])
+                    np.add.at(is_hit, (idx1_line, idx2_line, slice(None)), idx_intersect)
+                n_hits += np.clip(is_hit, 0, 1)
 
         return self.elements[n_hits >= 2]
