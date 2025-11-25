@@ -121,7 +121,7 @@ jobs:
         run: python -m grayskull pypi ./dist/pymoto-*.tar.gz
 
       - name: Conda package
-        run: conda build pymoto --output-folder dist/conda --output
+        run: conda build pymoto --output-folder dist/conda
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
