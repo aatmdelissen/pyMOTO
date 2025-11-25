@@ -21,10 +21,11 @@ from .modules.autodiff import AutoMod
 from .modules.complex import MakeComplex, SplitComplex, RealPart, ImagPart, ComplexNorm, Conjugate
 from .modules.filter import FilterConv, Filter, DensityFilter, OverhangFilter
 from .modules.generic import MathExpression, EinSum, Concatenate, SetValue, AddMatrix
-from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, Print
+from .modules.io import FigModule, PlotDomain, PlotGraph, PlotIter, WriteToVTI, ScalarToFile, Print, SeriesToVTI
 from .modules.linalg import Inverse, LinSolve, EigenSolve, SystemOfEquations, StaticCondensation
 from .modules.aggregation import AggScaling, AggActiveSet, Aggregation, PNorm, SoftMinMax, KSFunction
 from .modules.scaling import Scaling
+from .modules.transient import TransientSolve
 
 # Further helper routines
 from .routines import finite_difference, minimize_oc, minimize_mma, minimize_slp
@@ -81,6 +82,7 @@ __all__ = [
     "WriteToVTI",
     "ScalarToFile",
     "Print",
+    "SeriesToVTI",
     "MakeComplex",
     "SplitComplex",
     "RealPart",
@@ -93,6 +95,7 @@ __all__ = [
     "SoftMinMax",
     "KSFunction",
     "Scaling",
+    "TransientSolve",
 ]
 
 ## Deprecations (https://stackoverflow.com/a/55139609/11702471)

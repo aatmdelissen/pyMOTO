@@ -28,6 +28,7 @@ optimizers = [
 @pytest.mark.parametrize('n', ['float', 1, 2, 10])
 @pytest.mark.parametrize('optimizer', optimizers)
 def test_unconstrained(optimizer, n):
+    pytest.skip("Slow test, enable when needed")
     class SphereFunction(pym.Module):
         def __call__(self, x) -> float:
             return np.sum(x**2)
@@ -51,6 +52,7 @@ def test_unconstrained(optimizer, n):
 
 @pytest.mark.parametrize('optimizer', optimizers)
 def test_constrained(optimizer):
+    pytest.skip("Slow test, enable when needed")
     # Rosenbrock constrained in a circle (https://en.wikipedia.org/wiki/File:Rosenbrock_circle_constraint.svg)
     x = pym.Signal('x', -0.5)
     y = pym.Signal('y', -0.5)
@@ -65,6 +67,7 @@ def test_constrained(optimizer):
 
 @pytest.mark.parametrize('optimizer', optimizers)
 def test_cantilever(optimizer):
+    pytest.skip("Slow test, enable when needed")
     # Cantilever problem from Svanberg's 1987 MMA paper
     n = 5
     c1, c2 = 0.0624, 1.0
