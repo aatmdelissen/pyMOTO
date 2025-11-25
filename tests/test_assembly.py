@@ -61,7 +61,7 @@ class TestAssembleGeneral:
         pym.finite_difference(s_x, sAsum, test_fn=fd_testfn)
 
     @pytest.mark.parametrize('nmat, ndof1, ndof2', [(1, 2, 3), (2, 2, 2), (3, 3, 1)])
-    def test_matrix_shapes(self, ndof1, ndof2, nmat, matrix_type):
+    def test_matrix_shapes(self, ndof1, ndof2, nmat):
         el_mat = [np.random.rand(ndof1 * 4 * ndof2 * 4).reshape((ndof1 * 4, ndof2 * 4)) for _ in range(nmat)]
         el_mat[-1] = el_mat[-1] + el_mat[-1]*1j  # Make one of the matrices complex
         domain = pym.VoxelDomain(3, 3)
