@@ -159,7 +159,7 @@ jobs:
 #            upload \
 #            --user $ANACONDA_USER \
 #            --label test \
-#            dist_conda/*/*
+#            dist_conda/*/*.{tar.bz2,conda}
 
       - name: Publish to Anaconda main label
         run: |
@@ -167,4 +167,4 @@ jobs:
             --token ${{ secrets.ANACONDA_TOKEN }} \
             upload \
             --user $ANACONDA_USER \
-            dist_conda/*/*
+            dist_conda/*/*.{tar.bz2,conda}
