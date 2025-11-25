@@ -284,7 +284,7 @@ class TestOverhangFilter:
     def test_directions(self, direction, ref):
         domain = pym.VoxelDomain(1, 1, 1)
         m = pym.OverhangFilter(domain, direction)
-        assert m.direction == ref
+        assert all(m.direction == ref)
 
     @pytest.mark.parametrize('direction', ['x', '-x', 'y', '-y'])
     @pytest.mark.parametrize('nx, ny', [(1, 1), (1, 4), (4, 4)])

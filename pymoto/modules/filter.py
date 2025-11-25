@@ -473,11 +473,11 @@ class OverhangFilter(Module):
             direction = np.pad(direction, (0, 3 - direction.size), "constant", constant_values=0.0)
         elif direction.size > 3:
             direction = direction[:3]
-
-        if np.abs(direction).astype(int).sum() != 1:
-            raise ValueError("The print direction must be aligned with either x, y or z directions")
-
+        
         self._direction = direction / np.linalg.norm(direction)
+
+        if np.abs(self._direction).astype(int).sum() != 1:
+            raise ValueError("The print direction must be aligned with either x, y or z directions")
 
     def set_parameters(self, typ: np.dtype):
         """Set the internal smooth-maximum and smooth-minimum parameters according to the values in Langelaar, 2017
