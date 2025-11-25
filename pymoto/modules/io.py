@@ -415,8 +415,7 @@ class Print(Module):
 
     def __call__(self, *args):
         for i, x in enumerate(args):
-            if self.sig_in is None or not isinstance(self.sig_in[i], Signal):
-                tag = "inp{i:d}"  # Give some default name
-            else:
-                tag = self.sig_in[i].tag
+            tag = f"inp{i:d}"  # Give some default name
+            if self.sig_in is not None:
+                tag = getattr(self.sig_in[i], 'tag', tag)
             print(f"{tag} = {x}")
