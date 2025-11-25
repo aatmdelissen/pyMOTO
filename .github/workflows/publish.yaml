@@ -1,0 +1,164 @@
+name: Publish on PyPI and Conda
+
+on:
+  workflow_run:
+    workflows: [ "New release" ]
+    types:
+      - completed
+  workflow_dispatch:
+
+env:
+  ANACONDA_USER: aatmdelissen
+
+jobs:
+  build-sdist:
+    name: Build wheel and source distribution
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+  
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.7.13"
+
+      - name: "Set up Python"
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Build
+        run: uv build
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: ./dist
+
+  publish_test_pypi:
+    name: Publish to TestPyPI
+    runs-on: ubuntu-latest
+    needs: build-sdist
+    permissions:
+      id-token: write
+    if: ${{ needs.build-sdist.result == 'success' }}
+    environment:
+      name: pypi
+      url: https://test.pypi.org/p/pymoto
+    
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: ./dist
+
+      - name: Upload to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          verbose: true
+      
+  publish_pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: publish_test_pypi
+    permissions:
+      id-token: write
+    if: ${{ needs.publish_test_pypi.result == 'success' && github.event_name != 'workflow_dispatch'}}
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pymoto
+    
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: ./dist
+      
+      - name: Upload to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+    
+  build-conda-package:
+    name: Build for Conda
+    runs-on: ubuntu-latest
+    needs: build-sdist
+    if: ${{ needs.build-sdist.result == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: ./dist
+
+      - name: Install Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: false
+          python-version: 3.10
+          architecture: x64
+          miniconda-version: "latest"
+          
+      - name: Install conda-build
+        run: conda install pip conda-build conda-forge::grayskull
+
+      - name: Generate meta.yaml with grayskull
+        run: grayskull pypi ./dist/pymoto-*.tar.gz
+
+      - name: Conda package
+        run: conda build pymoto --output-folder dist/conda --output
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist_conda
+          path: ./dist/conda
+
+  publish-conda:
+    name: Publish to Anaconda
+    runs-on: ubuntu-latest
+    needs: build-conda-package
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist_conda
+          path: ./dist_conda
+
+      - name: Install Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+
+      - name: Install Anaconda cloud client
+        run: conda install anaconda-client
+
+#      - name: Publish to Anaconda test label
+#        run: |
+#          anaconda \
+#            --token ${{ secrets.ANACONDA_TOKEN }} \
+#            upload \
+#            --user $ANACONDA_USER \
+#            --label test \
+#            dist_conda/*/*
+
+      - name: Publish to Anaconda main label
+        shell: bash -l {0}
+        run: |
+          anaconda \
+            --token ${{ secrets.ANACONDA_TOKEN }} \
+            upload \
+            --user $ANACONDA_USER \
+            dist_conda/*/*

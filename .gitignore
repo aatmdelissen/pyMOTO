@@ -16,3 +16,4 @@ out/
 sg_execution_times.rst
 *.lprof
 __pycache__/
+meta.yaml
