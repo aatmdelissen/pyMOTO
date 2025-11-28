@@ -448,7 +448,7 @@ class EigenSolve(Module):
         return W, Q
 
     def _sensitivity(self, dW, dQ):
-        inp = self.get_input_states()
+        inp = self.get_input_states(as_list=True)
         A = inp[0]
         B = inp[1] if len(inp) > 1 else np.eye(*A.shape)
         dA, dB = None, None
