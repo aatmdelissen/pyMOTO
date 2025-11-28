@@ -170,6 +170,35 @@ def test_dense_generalized_eigensolver(A, B, Amodifier, Bmodifier):
     #     self.use_solver(A, Q@D@Q.T.conj(), hermitian=True)
 
 
+def test_dense_generalized_eigensolver_constant_B():
+    A = make_random(10)
+    B = make_random(10)
+
+    sA = pym.Signal("A", A)
+    sB = B
+
+    slambda, sU = pym.EigenSolve()(sA, sB)
+    slambda.tag = 'lambda'
+    sU.tag = 'eigvec'
+
+    sLamsum = pym.EinSum('i->')(slambda)
+    sLamsum.tag = "lambdasum"
+    sVecsum = pym.EinSum('ij->')(sU)
+    sVecsum.tag = "vecsum"
+    sSumsum = pym.MathExpression('inp0 + inp1')(sLamsum, sVecsum)
+    sSumsum.tag = "allsum"
+
+    print(f"lambdas = {slambda.state}")
+
+    # Test residual and normalization
+    npt.assert_allclose(sA.state @ sU.state, sB @ sU.state @ np.diag(slambda.state))
+    npt.assert_allclose(np.diag(sU.state.T @ sB @ sU.state), 1.0)
+
+    # Check finite difference (test_fn with quite loose tolerances because of numerical precision)
+    def tfn(x0, dx, df_an, df_fd): npt.assert_allclose(df_an, df_fd, rtol=1e-3, atol=1e-5)
+    pym.finite_difference(sA, [sLamsum, sVecsum, sSumsum], test_fn=tfn, verbose=True)
+
+
 @pytest.mark.parametrize("generalized",
                          [pytest.param(True, id='generalized'),
                           pytest.param(False, id='normal')])

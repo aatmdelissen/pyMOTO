@@ -448,8 +448,9 @@ class EigenSolve(Module):
         return W, Q
 
     def _sensitivity(self, dW, dQ):
-        A = self.sig_in[0].state
-        B = self.sig_in[1].state if len(self.sig_in) > 1 else np.eye(*A.shape)
+        inp = self.get_input_states()
+        A = inp[0]
+        B = inp[1] if len(inp) > 1 else np.eye(*A.shape)
         dA, dB = None, None
         if not self.is_sparse:
             dA, dB = self._dense_sens(A, B, dW, dQ)
