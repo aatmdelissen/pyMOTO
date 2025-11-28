@@ -685,7 +685,7 @@ class VoxelDomain:
             else:  # Solid body
                 n_intersections = np.sum(intersected, axis=0)  # Number of intersections per ray
                 if not np.all((n_intersections % 2) == 0):
-                    warnings.warn("Inersections found with unequal number of entries and exits")
+                    warnings.warn("Intersections found with unequal number of entries and exits")
 
                 # Sort hits based on distance
                 order = np.lexsort((distances, indices[:, 1], indices[:, 2]))
