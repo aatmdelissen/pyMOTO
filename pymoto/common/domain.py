@@ -254,7 +254,7 @@ class VoxelDomain:
         """Gets the Cartesian index (i, j, k) for given node number(s)
 
         Args:
-            nod_idx: Node index; can be integer or array
+            nod_idx (optional): Node index; can be integer or array. Defaults to `None`, which returns all nodes.
 
         Returns:
             i, j, k for requested node(s); k is only returned in 3D
@@ -269,9 +269,50 @@ class VoxelDomain:
         return np.stack([nodi, nodj, nodk], axis=0)
 
     def get_node_position(self, nod_idx: IndexType = None):
+        """Calculate the nodal coordinates of given node number(s)
+
+        Args:
+            nod_idx (optional): Selected node indices. Defaults to `None`, which returns all nodes.
+
+        Returns:
+            Coordinates numpy array of size `(dim, #nodes)`
+        """
         ijk = self.get_node_indices(nod_idx)
         return (self.origin[: self.dim] + self.element_size[: self.dim] * ijk.T).T
     
+    def get_rigid_body_modes(self):
+        """Construct rigid body modes for given spatial domain
+
+        - For dim==2, there are 3 rigid body modes: x-translation, y-translation, and z-rotation.
+        - For dim==3, there are 6: x-, y-, z-translations, and x-, y-, z-rotations.
+        
+        The translations are in the same units as the coordinates (e.g. in [m]), and the rotations are around the 
+        origin (e.g. in [rad]).
+
+        Returns:
+            Numpy array with rigid body modes of size `(#dim * #nodes, #rbm)`
+        """
+
+        nrbm = int(self.dim * (self.dim + 1) / 2)  
+        # Calculate nullspace
+        rbm = np.zeros((self.nnodes*self.dim, nrbm))
+        # Translations
+        for i in range(self.dim):
+            rbm[i::self.dim, i] = 1.0
+        # Rotations
+        coords = self.get_node_position()
+        if self.dim == 3:
+            # Rx
+            rbm[1::self.dim, -3] = coords[2]
+            rbm[2::self.dim, -3] = -coords[1]
+            # Ry
+            rbm[0::self.dim, -2] = coords[2]
+            rbm[2::self.dim, -2] = -coords[0]
+        # Rz
+        rbm[0::self.dim, -1] = -coords[1]
+        rbm[1::self.dim, -1] = coords[0]
+        return rbm
+
     def get_element_indices(self, el_idx: IndexType = None):
         """Gets the Cartesian index (i, j, k) for given element number(s)
 
