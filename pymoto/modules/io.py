@@ -108,7 +108,7 @@ class PlotDomain(FigModule):
             self.im = ax.imshow(data, cmap=self.cmap, origin="lower", extent=(0.0, Lx, 0.0, Ly))
             self.cbar = self.fig.colorbar(self.im, orientation="horizontal")
             ax.set(xlabel="x", ylabel="y")
-        vmin, vmax = np.min(data), np.max(data)
+        vmin, vmax = np.nanmin(data), np.nanmax(data)
         if vmin < 0:
             vabs = max(abs(vmin), abs(vmax))
             vmin, vmax = -vabs, vabs
@@ -178,16 +178,20 @@ class PlotGraph(FigModule):
         self._init_fig()
         if not hasattr(self, "ax"):
             self.ax = self.fig.add_subplot(111)
-            self.ax.set_xlabel(self.sig_in[0].tag)
-            self.ax.set_ylabel(self.sig_in[1].tag)
+            if self.sig_in is not None:
+                self.ax.set_xlabel(getattr(self.sig_in[0], 'tag', 'x'))
+                self.ax.set_ylabel(getattr(self.sig_in[1], 'tag', 'y'))
 
         if not hasattr(self, "line"):
             self.line = []
-            for i, s in enumerate(self.sig_in[1:]):
+            for i, y in enumerate(ys):
+                tag = f'inp{i}'
+                if self.sig_in is not None:
+                    tag = getattr(self.sig_in[i+1], 'tag', tag)
                 if self.style is None:
-                    self.line.append(self.ax.plot([], [], label=s.tag)[0])
+                    self.line.append(self.ax.plot([], [], label=tag)[0])
                 else:
-                    self.line.append(self.ax.plot([], [], self.style, label=s.tag)[0])
+                    self.line.append(self.ax.plot([], [], self.style, label=tag)[0])
             self.ax.legend()
 
         ymin, ymax = np.inf, -np.inf
