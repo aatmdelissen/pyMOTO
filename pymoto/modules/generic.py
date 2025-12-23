@@ -241,17 +241,24 @@ class Concatenate(Module):
         return state
 
     def _sensitivity(self, dy):
-        dsens = [np.zeros_like(s.state) for s in self.sig_in]
+        args = self.get_input_states()
+        
         dx = _split_from_array(dy, self.cumlens)
-        for i, s in enumerate(self.sig_in):
-            if not isinstance(dsens[i], type(s.state)):
-                dsens[i] = type(s.state)(dx[i])
+        for i, v in enumerate(args):
+            if np.all(dx[i] == 0):
+                dx[i] = None
                 continue
-            try:
-                dsens[i][...] = dx[i]
-            except TypeError:
-                dsens[i] = type(s.state)(dx[i])
-        return dsens
+            
+            # Make correct shape
+            vshape = getattr(v, 'shape', ())
+            if dx[i].shape != vshape:
+                dx[i] = np.reshape(dx[i], vshape)
+
+            # Make correct type
+            if not isinstance(dx[i], type(v)):
+                dx[i] = type(v)(dx[i])
+   
+        return dx
 
 
 class SetValue(Module):
