@@ -324,10 +324,10 @@ class WriteToVTI(Module):
         # Parse data to write
         data = {}
         for i, x in enumerate(args):
-            if self.sig_in is None or not isinstance(self.sig_in[i], Signal):
-                data[f"inp{i:d}"] = x  # Give some default name
-            else:
-                data[self.sig_in[i].tag] = x
+            nam = f"inp{i:d}"
+            if self.sig_in is not None:
+                nam = getattr(self.sig_in[i], 'tag', nam)
+            data[nam] = x
 
         # Determine filename
         pth = os.path.splitext(self.saveto)
