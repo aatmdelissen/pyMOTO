@@ -61,10 +61,13 @@ class AggScaling:
 
         Args:
             which: Scale to true `min` or `max`
-            damping(optional): Damping factor between [0, 1), for a value of 0.0 the aggregation approximation is
-              corrected to the exact maximum or minimum of the input set. Defaults to 0.0.
+            damping (optional): Damping factor between [0, 1], for a value of 0.0 the aggregation approximation is
+              corrected to the exact maximum or minimum of the input set. A value of 1.0 disables scaling updates.
+              Defaults to 0.0.
         """
         self.damping = damping
+        if self.damping < 0 or self.damping > 1:
+            raise ValueError("Damping must be between 0 and 1")
         if which.lower() == "min":
             self.f = np.min
         elif which.lower() == "max":
