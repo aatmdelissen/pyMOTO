@@ -57,7 +57,7 @@ fast = [
 
 ext = [
     "cvxopt",
-    "scikit-sparse",
+    "scikit-sparse<0.5",  # After v0.5 the structure has changed (sksparse.cholmod.analyze)
     "mkl",
     "opt-einsum",
     "jax[cpu]",    
