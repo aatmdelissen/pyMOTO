@@ -97,18 +97,22 @@ class Optimizer(ABC):
 
     def _parse_bound(self, xbnd, which="bounds"):
         """Helper function to get upper and lower bound vector"""
-        xbnd = np.asarray(xbnd)
-        if xbnd.size == 1:  # Just one value is given
-            bvec = xbnd * np.ones(self.n)  # TODO: Check if this can be replaced with one value
-        elif xbnd.size == len(self.variables):  # One value for each signal
+        try:
+            nbnd = np.size(xbnd)  # Number of bounds provided
+        except ValueError: # inhomogeneous data, e.g. [[1, 2, 3], 4]
+            nbnd = len(xbnd)
+
+        if nbnd == 1:  # Just one value is given
+            bvec = (xbnd * np.ones(self.n)).flatten()   # Flatten in case [[1, 2, 3]] is provided
+        elif nbnd == len(self.variables):  # One value for each signal
             bvec = np.zeros(self.n)
-            for i in range(len(xbnd)):
+            for i in range(nbnd):
                 bvec[self._cumlens[i] : self._cumlens[i + 1]] = xbnd[i]
-        elif xbnd.size == self.n:
-            bvec = xbnd
+        elif nbnd == self.n:
+            bvec = np.asarray(xbnd)
         else:
             raise RuntimeError(
-                f"""Size of {which} ({xbnd.size}) should be either: 
+                f"""Size of {which} ({nbnd}) should be either: 
                     - scalar
                     - equal to the number of variable signals ({len(self.variables)})
                     - equal to number of design variables ({self.n})
@@ -260,7 +264,7 @@ class Optimizer(ABC):
 
             print(f"  | Changes: {', '.join(change_msgs)}")
 
-    def optimize(self, maxiter: int = 100, tolx: float = 1e-4, tolf: float = 1e-4):
+    def optimize(self, maxiter: int = 100, tolx: float = 1e-4, tolf: float = 1e-4, evaluate_last: bool = False):
         """Perform a gradient-based optimization
 
         Args:
@@ -301,6 +305,9 @@ class Optimizer(ABC):
             if rel_stepsize < tolx:
                 if self.verbosity >= 1:
                     print(f"{nom} converged: Relative stepsize |Δx|/|x| ({rel_stepsize}) below tolerance ({tolx})")
+                if evaluate_last:
+                    self.x = xnew
+                    self.calculate_g()
                 break
 
             xval = xnew
