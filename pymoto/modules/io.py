@@ -311,6 +311,10 @@ class WriteToVTI(Module):
         self.domain = domain
         self.saveto = saveto
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
+        ext = os.path.splitext(saveto)[-1].lower()
+        supported_ext = ('.vti', )
+        if ext not in supported_ext:
+            raise ValueError(f"Extension `{ext}` is not supported. Supported extensions are {supported_ext} ")
         self.iter = 0
         self.scale = scale
         self.overwrite = overwrite
@@ -320,6 +324,9 @@ class WriteToVTI(Module):
         if self.iter % self.interval != 0:
             self.iter += 1
             return
+
+        if len(args) == 0:
+            raise ValueError("Nothing to write to VTI file")
 
         # Parse data to write
         data = {}
@@ -427,17 +434,18 @@ class Print(Module):
 
 
 class SeriesToVTI(Module):
-    """Writes transient response vectors to a Paraview VTI file
+    r"""Writes transient response vectors to a Paraview VTI file
 
     This module utilizes a series file to properly associate the correct time with each timestep:
     https://gitlab.kitware.com/paraview/paraview/blob/v5.5.0/Documentation/release/ParaView-5.5.0.md#json-based-new-meta-file-format-for-series-added
 
     See also: :attr:`VoxelDomain.write_to_vti()`
 
-    The size of the vectors should be a multiple of ``nel`` or ``nnodes``. Based on their size they are marked as
-    cell-data or point-data in the VTI file. For 2D data (size is equal to ``2*nnodes``), the z-dimension is padded
-    with zeros to have 3-dimensional data. Also, non-transient block-vectors of multiple dimensions
-    (*e.g.* ``(2, 3*nnodes)``) are accepted, which get the suffixed as ``_00``.
+    The size of the vectors should be a multiple of ``nel`` or ``nnodes`` on its first dimension. Based on their size
+    they are marked as cell-data or point-data in the VTI file. For 2D data (size is equal to ``2*nnodes``), the
+    z-dimension is padded with zeros to have 3-dimensional data. Also, non-transient block-vectors of multiple
+    dimensions (*e.g.* ``(2, 3*nnodes)``) are accepted, which get the suffixed as ``_00``. The time dimension is the
+    last dimension of the vector.
 
     Input Signals:
       - ``*args`` (`numpy.ndarray`): Vectors to write to VTI. The signal tags are used as name.
@@ -456,6 +464,10 @@ class SeriesToVTI(Module):
         self.domain = domain
         self.path = os.path.split(saveto)
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
+        ext = os.path.splitext(saveto)[-1].lower()
+        supported_ext = ('.vti',)
+        if ext not in supported_ext:
+            raise ValueError(f"Extension `{ext}` is not supported. Supported extensions are {supported_ext} ")
         self.scale = scale
         self.iter = 0
         self.interval = interval
@@ -466,8 +478,11 @@ class SeriesToVTI(Module):
             self.iter += 1
             return
 
+        if len(args) == 0:
+            raise ValueError("Nothing to write to VTI time series file")
+
         # prepare folder of transient responses for specific optimization iteration
-        saveto = self.path[0] + "/transient_it{0:03d}/".format(self.iter) + self.path[1]
+        saveto = self.path[0] + "/"+ os.path.splitext(self.path[1])[0] + "_it{0:03d}/".format(self.iter) + self.path[1]
 
         # prepare time series file
         Path(saveto).parent.mkdir(parents=True, exist_ok=True)
@@ -479,10 +494,13 @@ class SeriesToVTI(Module):
         # prepare data from signals
         data = {}
         time_steps = 0
-        for s in self.sig_in:
-            data[s.tag] = s.state
-            if len(s.state.shape) > 1:
-                time_steps = max(s.state.shape[-1], time_steps)  # determine amount of time steps from signal data
+        for i, x in enumerate(args):
+            nam = f"inp{i:d}"
+            if self.sig_in is not None:
+                nam = getattr(self.sig_in[i], 'tag', nam)
+            data[nam] = x
+            if len(x.shape) > 1:
+                time_steps = max(x.shape[-1], time_steps)  # determine amount of time steps from signal data
 
         pth = os.path.splitext(saveto)
         datavtk = data.copy()
