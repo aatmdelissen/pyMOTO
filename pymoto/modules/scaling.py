@@ -39,11 +39,8 @@ class Scaling(Module):
         self.maxval = maxval
         self.scaling = scaling
         self.minmax_smooth = minmax_smooth
-        # In case of constraints, initial x-value is not required for scaling-factor
-        if self.minval is not None or self.maxval is not None:
-            self.sf = self.scaling
-        else:
-            self.sf = None
+        self.sf = None
+        self.reset_scaling()
 
     def __call__(self, x):
         if self.sf is None:
@@ -77,3 +74,10 @@ class Scaling(Module):
             return dg / nrm
         else:
             return dg
+
+    def reset_scaling(self):
+        # In case of constraints, initial x-value is not required for scaling-factor
+        if self.minval is not None or self.maxval is not None:
+            self.sf = self.scaling
+        else:
+            self.sf = None
