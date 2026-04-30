@@ -315,14 +315,21 @@ class SignalSlice(Signal):
         return self
 
 
-def make_signals(*args):
+def make_signals(*args: str, **kwargs: Any) -> tuple[str, Signal]:
     """Batch-initialize a number of Signals
-    :param args: Tags for a number of Signals
-    :return: Dictionary of Signals, with key index equal to the signal tag
+
+    Args:
+      - *args: Tags for a number of Signals, state will be empty
+      - **kwargs: Keyword will be used as tag for Signal, while value will be set as the state
+
+    Returns:
+      Tuple of Signals
     """
-    ret = dict()
-    for a in args:
-        ret[a] = Signal(a)
+    ret = tuple()
+    for tag in args:
+        ret = (*ret, Signal(tag))
+    for tag, val in kwargs.items():
+        ret = (*ret, Signal(tag, val))
     return ret
 
 
