@@ -40,7 +40,20 @@ class TestConcat:
         for s in m.sig_in:
             assert s.sensitivity is None
 
+    def test_slicing_error(self):
+        # May 7, 2026. Does not work with Numpy 2.4.4, works in 2.3.3
+        # Error in two places:
+        #  - Concatenate does not return same type as input signal for sensitivities <-- fixed in Concatenate update
+        #  - Sliced signal adding sensitivity of shape (1, ) to shape () does not work.
+        with pym.Network() as fn:
+            s_inp = pym.Signal('s_out', np.random.rand(2, ))
 
+            s_concat = pym.Concatenate()(s_inp[0], s_inp[1])
+            s_agg = pym.PNorm(p=40)(s_concat)
+            s_g = pym.Scaling(scaling=10., maxval=0.05)(s_agg)
+
+        s_g.sensitivity = 1.0
+        fn.sensitivity()
 
 if __name__ == '__main__':
     pytest.main([__file__])
