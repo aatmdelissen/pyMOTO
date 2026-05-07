@@ -58,14 +58,51 @@ class TestSignal:
         assert c.tag == 'bar', "Set tag from init with sensitivity"
         npt.assert_equal(c.sensitivity, np.array([7.0, 8.0])), "Set sensitivity from init with sensitivity"
 
-    def test_make_signals(self):
-        d = pym.make_signals('a', 'b', 'c')
-        assert isinstance(d['a'], pym.Signal)
-        assert isinstance(d['b'], pym.Signal)
-        assert isinstance(d['c'], pym.Signal)
-        assert d['a'].tag == 'a'
-        assert d['b'].tag == 'b'
-        assert d['c'].tag == 'c'
+    def test_make_signals_arg(self):
+        sa = pym.make_signals('a')
+        assert isinstance(sa, pym.Signal)
+        assert sa.tag == 'a'
+
+    def test_make_signals_arg_and_kwarg(self):
+        sig_list, sig_dict = pym.make_signals('a', b=2)
+        assert isinstance(sig_list, tuple)
+        assert isinstance(sig_dict, dict)
+        assert len(sig_list) == 1
+        assert len(sig_dict) == 1
+        assert sig_list[0].tag == 'a'
+        assert sig_dict['b'].tag == 'b'
+        assert sig_dict['b'].state == 2
+
+    def test_make_signals_args(self):
+        sa, sb, sc = pym.make_signals('a', 'b', 'c')
+        for s, t in zip((sa, sb, sc), ('a', 'b', 'c')):
+            assert isinstance(s, pym.Signal)
+            assert s.tag == t
+
+    def test_make_signals_kwargs(self):
+        d = pym.make_signals(a=1.0, b=2.0, c=3.0)
+        for t in ('a', 'b', 'c'):
+            assert isinstance(d[t], pym.Signal)
+            assert d[t].tag == t
+        assert d['a'].state == 1.0
+        assert d['b'].state == 2.0
+        assert d['c'].state == 3.0
+
+    def test_make_signals_arg_and_kwarg(self):
+        sig_list, sig_dict = pym.make_signals('a', 'b', 'c', d=2, e=3, f=5)
+        assert isinstance(sig_list, tuple)
+        assert isinstance(sig_dict, dict)
+        assert len(sig_list) == 3
+        assert len(sig_dict) == 3
+        assert sig_list[0].tag == 'a'
+        assert sig_list[1].tag == 'b'
+        assert sig_list[2].tag == 'c'
+        assert sig_dict['d'].tag == 'd'
+        assert sig_dict['d'].state == 2
+        assert sig_dict['e'].tag == 'e'
+        assert sig_dict['e'].state == 3
+        assert sig_dict['f'].tag == 'f'
+        assert sig_dict['f'].state == 5
 
     def test_add_sensitivity_errors(self):
         a = pym.Signal('foo')

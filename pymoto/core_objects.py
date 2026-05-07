@@ -3,7 +3,7 @@ import warnings
 import inspect
 import time
 import copy
-from typing import Union, List, Any, Iterable, Set, Tuple
+from typing import Union, List, Any, Iterable, Set, Tuple, Dict
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from .utils import _parse_to_list
@@ -315,22 +315,46 @@ class SignalSlice(Signal):
         return self
 
 
-def make_signals(*args: str, **kwargs: Any) -> tuple[str, Signal]:
-    """Batch-initialize a number of Signals
+def make_signals(*args: str, **kwargs: Any) \
+        -> Signal | Tuple[Signal] | Dict[str, Signal] | Tuple[Tuple[Signal], Dict[str, Signal]]:
+    """Batch-initialize a number of Signals.
+
+    Example usage::
+
+        s_a, s_b = make_signals('a', 'b')  # Initialize via arguments (args)
+        assert s_a.tag == 'a'
+        assert s_a.state is None
+
+        sig_out = make_signals(c=1, d=3, e=5)  # Initialize via keyword arguments (kwargs)
+        assert sig_out['c'].tag == 'c'
+        assert sig_out['c'].state == 1
+
+        sig_list, sig_dict = make_signals('a', 'b', c=1, d=3, e=5)  # Initialize from both
+        assert sig_list[0].tag == 'a'
+        assert sig_dict['c'].tag == 'c'
+        assert sig_dict['c'].state == 1
 
     Args:
       - *args: Tags for a number of Signals, state will be empty
       - **kwargs: Keyword will be used as tag for Signal, while value will be set as the state
 
     Returns:
-      Tuple of Signals
+      Signals (`args` only), dict of signals (`kwargs only`), or tuple and dict of signals (both)
     """
-    ret = tuple()
-    for tag in args:
-        ret = (*ret, Signal(tag))
-    for tag, val in kwargs.items():
-        ret = (*ret, Signal(tag, val))
-    return ret
+    ret_args = tuple(Signal(tag) for tag in args)
+    ret_kwargs = {tag: Signal(tag, val) for (tag, val) in kwargs.items()}
+    if len(args) > 0 and len(kwargs) > 0:
+        return ret_args, ret_kwargs
+    elif len(args) > 0:
+        assert len(kwargs) == 0
+        if len(ret_args) == 1:
+            return ret_args[0]
+        else:
+            return ret_args
+    else:
+        assert len(args) == 0
+        assert len(kwargs) > 0
+        return ret_kwargs
 
 
 def _is_valid_signal(sig: Any):
