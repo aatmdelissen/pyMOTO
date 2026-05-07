@@ -316,7 +316,7 @@ class SignalSlice(Signal):
 
 
 def make_signals(*args: str, **kwargs: Any) \
-        -> Signal | Tuple[Signal] | Dict[str, Signal] | Tuple[Tuple[Signal], Dict[str, Signal]]:
+        -> Union[Signal, Tuple[Signal], Dict[str, Signal], Tuple[Tuple[Signal], Dict[str, Signal]]]:
     """Batch-initialize a number of Signals.
 
     Example usage::
