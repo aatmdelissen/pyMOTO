@@ -1,3 +1,24 @@
+---
+title: "pyMOTO: A modular approach to topology optimization in Python"
+tags:
+  - Python
+  - Engineering
+  - Topology optimization
+  - Modular framework
+  - Sensitivity analysis
+authors:
+  - name: Arnoud Delissen
+    orcid: 0000-0002-4676-8491
+    equal-contrib: true
+    affiliation: 1
+affiliations:
+  - name: Netherlands Organisation for Applied Scientific Research (TNO), Delft, the Netherlands
+    index: 1
+    ror: 01bnjb948
+date: 2 June 2026
+bibliography: paper.bib
+---
+
 ## Summary
 Topology optimization (also known as *generative design*) has become an increasingly valuable tool in various engineering disciplines. Its goal is to solve the inverse problem of optimal material distribution within a 2D or 3D domain to achieve components with enhanced performance — such as reduced mass, increased or decreased stiffness (as in compliant mechanisms), tailored thermal conductivity, or favorable dynamic properties. These  problems typically involve a very high number of design variables —ranging from millions to even billions — posing significant computational challenges.
 
