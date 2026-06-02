@@ -80,7 +80,7 @@ Already several academic research papers make use of the `pyMOTO` library, of wh
     - Stijn papers?
 
 ## Optimization structure and examples
-Any optimization in the `pyMOTO` framework follows the same structure. The problem one wants to optimize is defined in the `Network`, which is a functor providing forward response calculation (e.g. mass and stiffness) as well as backpropagation functionality for calculation of the sensitivities of relevant response values. The optimization algorithm iteratively updates the design after which it is evaluated using the `Network`, providing new responses and sensitivities with which the optimizer can update the design again.
+Any optimization in the `pyMOTO` framework follows the same structure as in \autoref{fig:optimization_loop}. The problem one wants to optimize is defined in the `Network`, which is a functor providing forward response calculation (e.g. mass and stiffness) as well as backpropagation functionality for calculation of the sensitivities of relevant response values. The optimization algorithm iteratively updates the design after which it is evaluated using the `Network`, providing new responses and sensitivities with which the optimizer can update the design again.
 
 ```mermaid
 flowchart LR;
@@ -93,11 +93,13 @@ OPT[Optimizer];
 PROB -- Responses and sensitivities --> OPT;
 OPT -- New design --> PROB;
 ```
-![[optimization_loop.png]]
+
+![\label{fig:optimization_loop}](optimization_loop.png)
+
 Inside the defined `Network`, several modules are linked together to construct the desired optimization problem, for which two examples are provided below. 
 
 #### Compliance minimization
-The structure inside a `Network` of the classic compliance minimization problem [@Bendsoe1989] is schematically shown in \autoref{fig:XXX}, with each box being a `Module` in `pyMOTO`. A code example implementing this optimization problem can be found in the [pyMOTO documentation (compliance minimization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_compliance.html).
+The structure inside a `Network` of the classic compliance minimization problem [@Bendsoe1989] is schematically shown in \autoref{fig:stiffness_network}, with each box being a `Module` in `pyMOTO`. A code example implementing this optimization problem can be found in the [pyMOTO documentation (compliance minimization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_compliance.html).
 ```mermaid
 flowchart TD;
 	classDef empty height: 1, width: 1, fill:#FFFFFF00, stroke:#FFFFFF00;
@@ -128,9 +130,11 @@ flowchart TD;
     DENS --> VOL;
     VOL --> |Volume| CONS;
 ```
-![[stiffness_network.png]]
+
+![\label{fig:stiffness_network}](figs/stiffness_network.png)
+
 #### Eigenfrequency maximization
-Another classic optimization problem is eigenfrequency maximization [@Ma1995]. This can quite easily be seen as an extension of the compliance minimization example, where the calculation of the mass matrix is added and the eigenvalue problem is solved instead of solving a linear system of equations, as is schematically shown in \autoref{fig:XXX}. The code for this example can be found again in the [pyMOTO documentation (eigenfrequency maximization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_eigenfrequency.html) .
+Another classic optimization problem is eigenfrequency maximization [@Ma1995]. This can quite easily be seen as an extension of the compliance minimization example, where the calculation of the mass matrix is added and the eigenvalue problem is solved instead of solving a linear system of equations, as is schematically shown in \autoref{fig:eigenfrequency_network}. The code for this example can be found again in the [pyMOTO documentation (eigenfrequency maximization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_eigenfrequency.html) .
 ```mermaid
  graph TD;
        classDef empty height: 1, width: 1, fill:#FFFFFF00, stroke:#FFFFFF00;
@@ -166,7 +170,9 @@ Another classic optimization problem is eigenfrequency maximization [@Ma1995]. T
       DENS --> VOL;
       VOL -- Volume --> CONS;
 ```
-![[eigenfrequency_network.png]]
+
+![\label{fig:eigenfrequency_network}](figs/eigenfrequency_network.png)
+
 These examples demonstrate the potential for reconfigurability and show that only a limited set of `pyMOTO` modules are required to construct various optimization problems. For more examples, the reader is referred to the [examples gallery of the `pyMOTO` documentation](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html#examples-topology-optimization) and [@Delissen2022].
 
 # Acknowledgements
