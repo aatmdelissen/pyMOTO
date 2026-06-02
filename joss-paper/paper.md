@@ -24,13 +24,12 @@ Topology optimization (also known as *generative design*) has become an increasi
 
 At the core of topology optimization are *gradient-based* optimization methods. Because performance evaluation of each design iteration requires solution of a finite-element simulation, leveraging gradient information is essential to keep the computational effort tractable. However, deriving and implementing gradients (or *design sensitivities*) can be complex, time-consuming, and prone to errors. This is where `pyMOTO` provides a powerful solution.
 
-TODO: Add example link
-![Structure optimized for maximum stiffness in a 3-point bending situation, using `pyMOTO`. Output of the optimization is post-processed with Paraview to generate this image and can also be used to generate an STL file.\label{fig:3D_stiffness}](figs/stiffness_optimized.png)
+![Structure optimized for maximum stiffness in a 3-point bending situation, using `pyMOTO` example [`ex_showcase_compliance.py`](https://github.com/aatmdelissen/pyMOTO/blob/master/examples/topology_optimization/ex_showcase_compliance.py). Output of the optimization is post-processed with Paraview to generate this image and can also be used to generate an STL file.\label{fig:3D_stiffness}](figs/stiffness_optimized.png)
 
 ## What does `pymoto` offer?
 The python package `pymoto` offers a  flexible and modular framework for construction of topology optimization problems. Using a curated set of generic building blocks (called `Module`s), users can easily assemble a wide variety of density-based topology optimization problems. Sensitivities are computed automatically by the framework using backpropagation, eliminating the need for manual gradient derivation.
 
-The framework is easily __extendable__ with custom modules, for which the user can implement their own functionality (and partial sensitivity implementation) or link external tools if desired. These can be linked to other modules, while the (semi-)automatic differentiation engine takes care of the sensitivities of interconnected network of modules. The architecture of the code itself is focused on reconfigurability, ease of use, and being lightweight, while still being computationally efficient enough to perform 3D optimization (see \autoref{fig:3D_stiffness} for an optimized example).
+The framework is easily __extendable__ with custom modules, for which the user can implement their own functionality (and partial sensitivity implementation) or link external tools if desired. These can be linked to other modules, while the (semi-)automatic differentiation engine takes care of the sensitivities of interconnected network of modules. The architecture of the code itself is focused on reconfigurability, ease of use, and being lightweight, while still being computationally efficient enough to perform 3D optimization (see \autoref{fig:3D_stiffness,fig:3D_thermal} for an optimized example).
 
 Currently implemented in `pymoto` are the following key features:
 - Core engine for semi-automatic differentiation and reconfigurability
@@ -48,8 +47,7 @@ Currently implemented in `pymoto` are the following key features:
 - Several optimizers suited for topology optimization (OC, MMA, GCMMA)
 - Finite-difference tools for checking sensitivity implementation
 
-TODO: Add example link
-![Structure optimized for thermal conduction with a distributed heat load, using `pyMOTO`. Post-processing is done with Paraview.\label{fig:3D_thermal_}](figs/thermal_optimized.png)
+![Structure optimized for thermal conduction with a distributed heat load, using `pyMOTO` example [`ex_showcase_thermal.py`](https://github.com/aatmdelissen/pyMOTO/blob/master/examples/topology_optimization/ex_showcase_thermal.py). Post-processing is done with Paraview.\label{fig:3D_thermal}](figs/thermal_optimized.png)
 
 ## Statement of need
 #### State of the field
