@@ -33,22 +33,22 @@ The framework is easily __extendable__ with custom modules, for which the user c
 
 Currently implemented in `pymoto` are the following key features:
 
-- Core engine for semi-automatic differentiation and reconfigurability
-- Library of building blocks (modules) for a wide variety of topology optimization problems
-	- Static and dynamic structural mechanics
-	- Compliant mechanisms
-	- Stress constraints
-	- Heat transfer and thermo-mechanic coupling
-	- Density filtering, robust formulations
-	- Overhang filter for additive manufacturing
-	- General math expressions, linear algebra operations, linear- and eigen-solvers
-	- General voxel-based finite element matrix assembly
-	- For more, see the [examples gallery](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html#examples-topology-optimization)
-- Collection of solvers for linear systems of equations for dense and sparse matrices, both direct and iterative. Includes multigrid preconditioning with conjugate-gradient solver enabling 3D topology optimization
-- Several optimizers suited for topology optimization (OC, MMA, GCMMA)
-- Finite-difference tools for checking sensitivity implementation
+- Core engine for semi-automatic differentiation and reconfigurability.
+- Library of building blocks (modules) for a wide variety of topology optimization problems.
+	- Static and dynamic structural mechanics.
+	- Compliant mechanisms.
+	- Stress constraints.
+	- Heat transfer and thermo-mechanic coupling.
+	- Density filtering, robust formulations.
+	- Overhang filter for additive manufacturing.
+	- General math expressions, linear algebra operations, linear- and eigen-solvers.
+	- General voxel-based finite element matrix assembly.
+	- For more, see the [examples gallery](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html#examples-topology-optimization).
+- Collection of solvers for linear systems of equations for dense and sparse matrices, both direct and iterative. Includes multigrid preconditioning with conjugate-gradient solver enabling 3D topology optimization.
+- Several optimizers suited for topology optimization (OC, MMA, GCMMA).
+- Finite-difference tools for checking sensitivity implementation.
 
-![Structure optimized for thermal conduction with a distributed heat load, using `pyMOTO` example [`ex_showcase_thermal.py`](https://github.com/aatmdelissen/pyMOTO/blob/master/examples/topology_optimization/ex_showcase_thermal.py). Post-processing is done with Paraview.\label{fig:3D_thermal}](figs/thermal_optimized.png)
+![Structure optimized for thermal conduction with a distributed heat load, using `pyMOTO` example [`ex_showcase_thermal.py`](https://github.com/aatmdelissen/pyMOTO/blob/master/examples/topology_optimization/ex_showcase_thermal.py). Post-processing is done with Paraview.\label{fig:3D_thermal}](figs/thermal_optimized.png){height="8cm"}
 
 # Statement of need
 ## State of the field
@@ -97,7 +97,7 @@ PROB -- Responses and sensitivities --> OPT;
 OPT -- New design --> PROB;
 ```
 
-![\label{fig:optimization_loop}](figs/optimization_loop.png)
+![\label{fig:optimization_loop}](figs/optimization_loop.png){width=8cm}
 
 Inside the defined `Network`, several modules are linked together to construct the desired optimization problem, for which two examples are provided below. 
 
@@ -135,7 +135,7 @@ flowchart TD;
     VOL --> |Volume| CONS;
 ```
 
-![\label{fig:stiffness_network}](figs/stiffness_network.png)
+![\label{fig:stiffness_network}](figs/stiffness_network.png){width=10cm}
 
 ## Eigenfrequency maximization
 Another classic optimization problem is eigenfrequency maximization [@Ma1995]. This can quite easily be seen as an extension of the compliance minimization example, where the calculation of the mass matrix is added and the eigenvalue problem is solved instead of solving a linear system of equations, as is schematically shown in \autoref{fig:eigenfrequency_network}. The code for this example can be found in the [pyMOTO documentation (eigenfrequency maximization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_eigenfrequency.html).
@@ -176,7 +176,7 @@ Another classic optimization problem is eigenfrequency maximization [@Ma1995]. T
       VOL -- Volume --> CONS;
 ```
 
-![\label{fig:eigenfrequency_network}](figs/eigenfrequency_network.png)
+![\label{fig:eigenfrequency_network}](figs/eigenfrequency_network.png){width=10cm}
 
 These examples demonstrate the potential for reconfigurability and show that only a limited set of `pyMOTO` modules are required to construct various optimization problems. For more examples, the reader is referred to the [examples gallery of the `pyMOTO` documentation](https://pymoto.readthedocs.io/en/latest/auto_examples/index.html#examples-topology-optimization) and [@Delissen2022].
 
