@@ -20,14 +20,14 @@ bibliography: paper.bib
 ---
 
 # Summary
-Topology optimization (also known as *generative design*) has become an increasingly valuable tool in various engineering disciplines. Its goal is to solve the inverse problem of optimal material distribution within a 2D or 3D domain to achieve components with enhanced performance — such as reduced mass, increased or decreased stiffness (as in compliant mechanisms), tailored thermal conductivity, or favorable dynamic properties. These  problems typically involve a very high number of design variables —ranging from millions to even billions — posing significant computational challenges.
+Topology optimization (also known as *generative design*) has become an increasingly valuable tool in various engineering disciplines. Its goal is to solve the inverse problem of optimal material distribution within a 2D or 3D domain to achieve components with enhanced performance — such as reduced mass, increased or decreased stiffness (as in compliant mechanisms), tailored thermal conductivity, or favorable dynamic properties. These problems typically involve a very high number of design variables —ranging from millions to even billions — posing significant computational challenges.
 
 At the core of topology optimization are *gradient-based* optimization methods. Because performance evaluation of each design iteration requires solution of a finite-element simulation, leveraging gradient information is essential to keep the computational effort tractable. However, deriving and implementing gradients (or *design sensitivities*) can be complex, time-consuming, and prone to errors. This is where `pyMOTO` provides a powerful solution.
 
-![Structure optimized for maximum stiffness in a 3-point bending situation, using `pyMOTO` example [`ex_showcase_compliance.py`](https://github.com/aatmdelissen/pyMOTO/blob/master/examples/topology_optimization/ex_showcase_compliance.py). Output of the optimization is post-processed with Paraview to generate this image and can also be used to generate an STL file.\label{fig:3D_stiffness}](figs/stiffness_optimized.png){width="10cm"}
+![Structure optimized for maximum stiffness in a 3-point bending situation, using `pyMOTO` example [`ex_showcase_compliance.py`](https://github.com/aatmdelissen/pyMOTO/blob/master/examples/topology_optimization/ex_showcase_compliance.py). Output of the optimization is post-processed with Paraview to generate this image and can also be used to generate an STL file for 3D printing.\label{fig:3D_stiffness}](figs/stiffness_optimized.png){width="10cm"}
 
 # What does `pymoto` offer?
-The python package `pymoto` offers a  flexible and modular framework for construction of topology optimization problems. Using a curated set of generic building blocks (called `Module`s), users can easily assemble a wide variety of density-based topology optimization problems. Sensitivities are computed automatically by the framework using backpropagation, eliminating the need for manual gradient derivation.
+The python package `pymoto` offers a flexible and modular framework for construction of topology optimization problems. Using a curated set of generic building blocks (called `Module`s), users can easily assemble a wide variety of density-based topology optimization problems. Sensitivities are computed automatically by the framework using backpropagation, eliminating the need for manual gradient derivation.
 
 The framework is easily __extendable__ with custom modules, for which the user can implement their own functionality (and partial sensitivity implementation) or link external tools if desired. These can be linked to other modules, while the (semi-)automatic differentiation engine takes care of the sensitivities of interconnected network of modules. The architecture of the code itself is focused on reconfigurability, ease of use, and being lightweight, while still being computationally efficient enough to perform 3D optimization (see \autoref{fig:3D_stiffness} and \autoref{fig:3D_thermal} for optimized examples).
 
@@ -71,26 +71,17 @@ Besides the topology optimization itself, users may also benefit from:
  - Foundation for extensions targeting specific applications (and user-specific code base)
  - Defined structure and interface that allows easy sharing of modules containing new formulations between parties without sharing entire code-base
  
-Already several academic research papers make use of the `pyMOTO` library, of which some bordering industrial applications. 
-
-- Peak paper [@Delissen2020]
-- Nyquist paper [@Delissen2023]
-- Addma paper (industry) [@Delissen2022]
-- Enclosed void joran [@Zwet2023]
-- Overhang joran student
-- Marek paper
-- Joran paper
-- Stijn papers?
+Already several academic research papers make use of the `pyMOTO` library, of which some bordering industrial applications. Examples are optimization of structures involving dynamics and control [@Delissen2020;@Delissen2023], a 3D printing filter preventing enclosed voids [@Zwet2023], or optimization of a 3D printed high-precision motion stage [@Delissen2022].
 
 # Optimization structure and examples
 Any optimization in the `pyMOTO` framework follows the same structure as in \autoref{fig:optimization_loop}. The problem one wants to optimize is defined in the `Network`, which is a functor providing forward response calculation (e.g. mass and stiffness) as well as backpropagation functionality for calculation of the sensitivities of relevant response values. The optimization algorithm iteratively updates the design after which it is evaluated using the `Network`, providing new responses and sensitivities with which the optimizer can update the design again.
 
 ![\label{fig:optimization_loop}](figs/optimization_loop.png){width=8cm}
 
-Inside the defined `Network`, several modules are linked together to construct the desired optimization problem, for which two examples are provided below. 
+Inside the `Network`, several modules are linked together to construct the desired optimization problem, for which two examples are provided below. 
 
 ## Compliance minimization
-The structure inside a `Network` of the classic compliance minimization problem [@Bendsoe1989] is schematically shown in \autoref{fig:stiffness_network}, with each box being a `Module` in `pyMOTO`. Note that the optimized designs in \autoref{fig:3D_stiffness} (structural mechanics) and \autoref{fig:3D_thermal} (thermal conduction) both use this network, apart from the assembly module, which assembles a structural stiffness matrix for the former and conductivity matrix for the latter. A code example implementing this optimization problem can be found in the [pyMOTO documentation (compliance minimization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_compliance.html).
+The structure inside a `Network` of the classic compliance minimization problem [@Bendsoe1989] is schematically shown in \autoref{fig:stiffness_network}, with each box being a `Module` in `pyMOTO`. Note that the optimized designs in \autoref{fig:3D_stiffness} (structural mechanics) and \autoref{fig:3D_thermal} (thermal conduction) both use this identical network, apart from the assembly module, which assembles a structural stiffness matrix for the former and conductivity matrix for the latter. A minimal code example implementing this optimization problem can be found in the [pyMOTO documentation (compliance minimization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_compliance.html).
 
 ![\label{fig:stiffness_network}](figs/stiffness_network.png){width=10cm}
 
