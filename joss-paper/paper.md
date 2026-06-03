@@ -32,6 +32,7 @@ The python package `pymoto` offers a  flexible and modular framework for constru
 The framework is easily __extendable__ with custom modules, for which the user can implement their own functionality (and partial sensitivity implementation) or link external tools if desired. These can be linked to other modules, while the (semi-)automatic differentiation engine takes care of the sensitivities of interconnected network of modules. The architecture of the code itself is focused on reconfigurability, ease of use, and being lightweight, while still being computationally efficient enough to perform 3D optimization (see \autoref{fig:3D_stiffness} and \autoref{fig:3D_thermal} for optimized examples).
 
 Currently implemented in `pymoto` are the following key features:
+
 - Core engine for semi-automatic differentiation and reconfigurability
 - Library of building blocks (modules) for a wide variety of topology optimization problems
 	- Static and dynamic structural mechanics
@@ -65,19 +66,21 @@ Besides density-based topology optimization, software also exists for other type
 A broad range of users may benefit from using `pymoto`. On the one hand, there are users that want to generate *designs or components* with enhanced optimized performance, for instance students, (3D printing) hobbyists, industrial users making mechanical components, or researchers in a topic that benefits optimized designs. On the other hand, there are students or researchers that focus on the topology optimization *itself*, whether it be to learn the ropes or experimenting with optimization formulations and new functionalities (for the purpose of improving the former use-case).
 
 Besides the topology optimization itself, users may also benefit from:
+
  - Rapid development and testing of topology optimization formulations, without constantly having to (re-)implement sensitivities
  - Foundation for extensions targeting specific applications (and user-specific code base)
  - Defined structure and interface that allows easy sharing of modules containing new formulations between parties without sharing entire code-base
  
 Already several academic research papers make use of the `pyMOTO` library, of which some bordering industrial applications. 
-    - Peak paper [@Delissen2020]
-    - Nyquist paper [@Delissen2023]
-    - Addma paper (industry) [@Delissen2022]
-    - Enclosed void joran [@Zwet2023]
-    - Overhang joran student
-    - Marek paper
-    - Joran paper
-    - Stijn papers?
+
+- Peak paper [@Delissen2020]
+- Nyquist paper [@Delissen2023]
+- Addma paper (industry) [@Delissen2022]
+- Enclosed void joran [@Zwet2023]
+- Overhang joran student
+- Marek paper
+- Joran paper
+- Stijn papers?
 
 # Optimization structure and examples
 Any optimization in the `pyMOTO` framework follows the same structure as in \autoref{fig:optimization_loop}. The problem one wants to optimize is defined in the `Network`, which is a functor providing forward response calculation (e.g. mass and stiffness) as well as backpropagation functionality for calculation of the sensitivities of relevant response values. The optimization algorithm iteratively updates the design after which it is evaluated using the `Network`, providing new responses and sensitivities with which the optimizer can update the design again.
@@ -100,6 +103,7 @@ Inside the defined `Network`, several modules are linked together to construct t
 
 ## Compliance minimization
 The structure inside a `Network` of the classic compliance minimization problem [@Bendsoe1989] is schematically shown in \autoref{fig:stiffness_network}, with each box being a `Module` in `pyMOTO`. Note that the optimized designs in \autoref{fig:3D_stiffness} (structural mechanics) and \autoref{fig:3D_thermal} (thermal conduction) both use this network, apart from the assembly module, which assembles a structural stiffness matrix for the former and conductivity matrix for the latter. A code example implementing this optimization problem can be found in the [pyMOTO documentation (compliance minimization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_compliance.html). 
+
 ```mermaid
 flowchart TD;
 	classDef empty height: 1, width: 1, fill:#FFFFFF00, stroke:#FFFFFF00;
@@ -134,7 +138,8 @@ flowchart TD;
 ![\label{fig:stiffness_network}](figs/stiffness_network.png)
 
 ## Eigenfrequency maximization
-Another classic optimization problem is eigenfrequency maximization [@Ma1995]. This can quite easily be seen as an extension of the compliance minimization example, where the calculation of the mass matrix is added and the eigenvalue problem is solved instead of solving a linear system of equations, as is schematically shown in \autoref{fig:eigenfrequency_network}. The code for this example can be found in the [pyMOTO documentation (eigenfrequency maximization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_eigenfrequency.html) .
+Another classic optimization problem is eigenfrequency maximization [@Ma1995]. This can quite easily be seen as an extension of the compliance minimization example, where the calculation of the mass matrix is added and the eigenvalue problem is solved instead of solving a linear system of equations, as is schematically shown in \autoref{fig:eigenfrequency_network}. The code for this example can be found in the [pyMOTO documentation (eigenfrequency maximization)](https://pymoto.readthedocs.io/en/latest/auto_examples/topology_optimization/ex_eigenfrequency.html).
+
 ```mermaid
  graph TD;
        classDef empty height: 1, width: 1, fill:#FFFFFF00, stroke:#FFFFFF00;
