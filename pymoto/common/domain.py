@@ -625,7 +625,7 @@ class VoxelDomain:
             file.write(b"</VTKFile>")
 
     @staticmethod
-    def create_for_mesh(mesh: Union[MeshT, list[MeshT]], h: float, Nmin: int = 1, Npadding: int = 0):
+    def create_for_mesh(mesh: Union[MeshT, Iterable[MeshT]], h: float, Nmin: int = 1, Npadding: int = 0):
         """ Make a suitable domain for given (triangle) meshes (see :py:module:`numpy-stl`)
 
         Args:
@@ -647,7 +647,7 @@ class VoxelDomain:
         n_elem = np.ceil(((mmax - mmin)/h + 2*Npadding)/Nmin).astype(int) * Nmin
 
         assert np.all(n_elem % Nmin == 0)
-        assert np.all((n_elem - 2*Npadding) * h >= (mmax - mmin))
+        assert np.all((n_elem - 2*Npadding) * h >= (mmax - mmin) - h*1e-5)
 
         # Determine domain extents
         dmin = (mmax + mmin - n_elem * h)/2  # == origin
@@ -680,7 +680,8 @@ class VoxelDomain:
         dmax = self.origin + self.element_size * self.size
 
         # Check if mesh extents fit in domain
-        if not np.all(mesh.min_ >= dmin) or not np.all(mesh.max_ <= dmax):
+        etol = 1e-5*self.element_size
+        if not np.all(mesh.min_ >= dmin - etol) or not np.all(mesh.max_ <= dmax + etol):
             warnings.warn(f"Mesh {mesh.name} does not fit in domain!")
 
         n_hits = np.zeros(self.size, dtype=int)
@@ -742,9 +743,12 @@ class VoxelDomain:
             
             if surface:
                 select = [None, None, None]
-                select[i0] = np.round(distances / self.element_size[i0]).astype(int)
-                select[i1] = indices[:, 1]
-                select[i2] = indices[:, 2]
+                hit_elements = np.round(distances / self.element_size[i0]).astype(int)
+                # Unselect
+                subset = np.logical_and(0 <= hit_elements, hit_elements < n_hits.shape[i0])
+                select[i0] = hit_elements[subset]
+                select[i1] = indices[subset, 1]
+                select[i2] = indices[subset, 2]
                 np.add.at(n_hits, tuple(select), 3)
             else:  # Solid body
                 n_intersections = np.sum(intersected, axis=0)  # Number of intersections per ray
