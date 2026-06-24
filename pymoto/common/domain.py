@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 import numpy as np
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
+import scipy.ndimage
 
 from ..utils import _parse_to_list
 
@@ -275,42 +276,62 @@ class VoxelDomain:
             nod_idx (optional): Selected node indices. Defaults to `None`, which returns all nodes.
 
         Returns:
-            Coordinates numpy array of size `(dim, #nodes)`
+            Coordinates numpy array of size `(#dim, #nodes)`
         """
         ijk = self.get_node_indices(nod_idx)
         return (self.origin[: self.dim] + self.element_size[: self.dim] * ijk.T).T
     
-    def get_rigid_body_modes(self):
+    def get_rigid_body_modes(self, cor: Union[Iterable[float], NDArray[np.floating]] = None,
+                                   nod_idx: IndexType = None):
         """Construct rigid body modes for given spatial domain
 
         - For dim==2, there are 3 rigid body modes: x-translation, y-translation, and z-rotation.
         - For dim==3, there are 6: x-, y-, z-translations, and x-, y-, z-rotations.
         
         The translations are in the same units as the coordinates (e.g. in [m]), and the rotations are around the 
-        origin (e.g. in [rad]).
+        center of rotation (e.g. in [rad]).
+
+        Args:
+            cor (optional): Center of rotation of size `(#dim, )`. Default is the centroid (*i.e.* geometric center).
+            nod_idx (optional): Subset of nodes to construct rigid body modes for. Default is the entire domain.
 
         Returns:
             Numpy array with rigid body modes of size `(#dim * #nodes, #rbm)`
         """
+        # Parse inputs
+        if nod_idx is None:
+            dof_idx = [slice(i, None, self.dim) for i in range(self.dim)]
+        else:
+            nod_idx = np.asarray(nod_idx).flatten()
+            dof_idx = [self.get_dofnumber(nod_idx, dof_idx=i, ndof=self.dim).flatten() for i in range(self.dim)]
 
-        nrbm = int(self.dim * (self.dim + 1) / 2)  
-        # Calculate nullspace
+        coords = self.get_node_position(nod_idx)
+
+        if cor is None:
+            cor = np.average(coords, axis=-1)
+        coords -= cor[:, None]
+
+        # Allocate vector
+        nrbm = int(self.dim * (self.dim + 1) / 2)  # Number of rigid body modes
         rbm = np.zeros((self.nnodes*self.dim, nrbm))
+
+        # Calculate nullspace
         # Translations
         for i in range(self.dim):
-            rbm[i::self.dim, i] = 1.0
+            rbm[dof_idx[i], i] = 1.0
+
         # Rotations
-        coords = self.get_node_position()
         if self.dim == 3:
             # Rx
-            rbm[1::self.dim, -3] = coords[2]
-            rbm[2::self.dim, -3] = -coords[1]
+            rbm[dof_idx[1], -3] = -coords[2]
+            rbm[dof_idx[2], -3] = coords[1]
             # Ry
-            rbm[0::self.dim, -2] = coords[2]
-            rbm[2::self.dim, -2] = -coords[0]
+            rbm[dof_idx[0], -2] = coords[2]
+            rbm[dof_idx[2], -2] = -coords[0]
         # Rz
-        rbm[0::self.dim, -1] = -coords[1]
-        rbm[1::self.dim, -1] = coords[0]
+        rbm[dof_idx[0], -1] = -coords[1]
+        rbm[dof_idx[1], -1] = coords[0]
+
         return rbm
 
     def get_element_indices(self, el_idx: IndexType = None):
@@ -776,4 +797,25 @@ class VoxelDomain:
                     np.add.at(is_hit, (idx1_line, idx2_line, slice(None)), idx_intersect)
                 n_hits += np.clip(is_hit, 0, 1)
 
+        if n_hits.max() < 2:
+            warnings.warn(f"Voxelization results in zero selected elements ({mesh.name})")
         return self.elements[n_hits >= 2]
+
+    def offset_element_set(self, el_idx: IndexType, n: int):
+        """ Offset an element set of indices by a given amount
+
+        Args:
+            el_idx: Seed element indices
+            n: Distance of elements to grow (positive value) or to shrink (negative values)
+
+        Returns:
+            Offset element indices
+        """
+        select = np.zeros(self.nel, dtype=bool)
+        select[el_idx] = True
+        element_map = scipy.ndimage.rank_filter(select[self.elements],
+                                                rank=0 if n < 0 else -1,  # Take minimum or maximum
+                                                size=2 * abs(n) + 1,   # Filter window size
+                                                mode='constant',
+                                                cval=1 if n < 0 else 0)
+        return self.elements[element_map].copy()
