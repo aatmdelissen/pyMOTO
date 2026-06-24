@@ -16,6 +16,8 @@ def _parse_to_list(*args: Any):
         return var_in
     elif isinstance(var_in, tuple) or isinstance(var_in, set):
         return list(var_in)
+    elif isinstance(var_in, dict):
+        return list(var_in.values())
     else:
         return [var_in]
 
