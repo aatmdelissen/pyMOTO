@@ -126,6 +126,8 @@ def test_rigid_body_modes_full_2D():
     Rz = np.array([[0, -1], [1, 0]])
     rbm_rz = (Rz @ (coords - com[:, None])).T.flatten()
     assert np.allclose(rbm[:, 2], rbm_rz)
+    RtR = rbm.T @ rbm
+    assert np.allclose(RtR - np.diag(RtR.diagonal()), 0)  # Test orthogonality
 
 
 def test_rigid_body_modes_full_3D():
@@ -154,6 +156,8 @@ def test_rigid_body_modes_full_3D():
     assert np.allclose(rbm[:, 4], rbm_ry)
     assert np.allclose(rbm[:, 5], rbm_rz)
     # domain.write_to_vti(dict(rbm=rbm))
+    # Not orthogonal because center of rotation is not in the center.
+
 
 def test_rigid_body_modes_subset_3D():
     domain = pym.VoxelDomain(10, 10, 10, unitx=0.1, unity=0.1, unitz=0.1)
