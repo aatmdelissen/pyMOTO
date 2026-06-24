@@ -262,9 +262,21 @@ class PlotIter(FigModule):
             self.maxlim = max(self.maxlim, np.max(xadd))
 
         self.ax.set_xlim([-0.5, self.iter + 0.5])
+        update_limits = True
         if self.ylim is not None:
             self.ax.set_ylim(self.ylim)
-        elif np.isfinite(self.minlim) and np.isfinite(self.maxlim):
+            update_limits = False
+
+        if not np.isfinite(self.minlim) or not np.isfinite(self.maxlim):
+            update_limits = False
+
+        if self.maxlim - self.minlim <= 0:
+            update_limits = False
+
+        if self.log_scale and (self.minlim <= 0 or self.maxlim <= 0):
+            update_limits = False
+
+        if update_limits:
             if self.log_scale:
                 dy = (np.log10(self.maxlim) - np.log10(self.minlim)) * 0.05
                 ll = 10 ** (np.log10(self.minlim) - dy)
@@ -274,10 +286,6 @@ class PlotIter(FigModule):
                 ll = self.minlim - dy
                 ul = self.maxlim + dy
 
-            if ll == ul:
-                dy = abs(np.nextafter(abs(ll), 1) - abs(ll))
-                ll = ll - 1e5 * dy
-                ul = ul + 1e5 * dy
             self.ax.set_ylim([ll, ul])
 
         self._update_fig()
