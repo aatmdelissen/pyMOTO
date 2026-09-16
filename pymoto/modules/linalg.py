@@ -603,4 +603,6 @@ class EigenSolve(Module):
             if B is not None:
                 dBi = DyadicMatrix(alpha / 2 * phi + lam * v, phi)
                 dB += np.real(dBi) if np.isrealobj(B) else dBi
+        # Solvers are now all up to date and don't need updating anymore until next response() call
+        self.adjoint_solvers_need_update = False
         return dA, dB
