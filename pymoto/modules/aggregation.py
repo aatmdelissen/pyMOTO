@@ -149,9 +149,14 @@ class Aggregation(Module):
 class PNorm(Aggregation):
     r"""P-norm aggregration
 
-    :math:`S_p(x_1, x_2, \dotsc, x_n) = \left( \sum_i (|x_i|^p) \right)^{1/p}
+    :math:`S_p(x_1, x_2, \dotsc, x_n) = \left( \sum_i (|x_i|^p) \right)^{1/p}`
 
-    Only valid for positive :math:`x_i` when approximating the minimum or maximum
+    Only valid for positive :math:`x_i` when approximating the minimum or maximum. If max-/minima of negative values 
+    are required, users are referred to :py:class:`pymoto.KSFunction` or :py:class:`pymoto.SoftMinMax`.
+    
+    This function generally overestimates the approximated maximum 
+    :math:`S_p(x_1, x_2, \dotsc, x_n) > \text{max}(x_1, x_2, \dotsc, x_n)`, especially when values :math:`x_i` are 
+    close together. Conversely, the minimum is underestimated.
     """
 
     def __init__(self, p: float = 2, scaling: AggScaling = None, active_set: AggActiveSet = None):
@@ -183,8 +188,10 @@ class SoftMinMax(Aggregation):
 
     :math:`S_a(x_1, x_2, \dotsc, x_n) = \frac{\sum_i (x_i \exp(a x_i))}{\sum_i (\exp(a x_i))}`
 
-    When using as maximum, it underestimates the maximum
-    It is exact however when :math:`x_1=x_2=\dotsc=x_n``
+    When using as maximum it underestimates the maximum 
+    :math:`S_a(x_1, x_2, \dotsc, x_n) \leq \text{max}(x_1, x_2, \dotsc, x_n)` and vice versa voor a minimum 
+    approximation. However, the estimation is exact when :math:`x_1=x_2=\dotsc=x_n`. The SoftMinMax function works for 
+    both positive and negative values.
     """
 
     def __init__(self, alpha=1.0, scaling: AggScaling = None, active_set: AggActiveSet = None):
@@ -212,6 +219,10 @@ class KSFunction(Aggregation):
     r"""Aggregation using Kreisselmeier and Steinhauser function from 1979
 
     :math:`S_\rho(x_1, x_2, \dotsc, x_n) = \frac{1}{\rho} \ln \left( \sum_i \exp(\rho x_i) \right)`
+
+    The KS function overestimates the maximum :math:`S_\rho(x_1, x_2, \dotsc, x_n) > \text{max}(x_1, x_2, \dotsc, x_n)`,
+    especially when the values :math:`x_i` are close together, and vice versa for minimum approximation. The KS 
+    function works for both positive and negative values.
     """
 
     def __init__(self, rho=1.0, scaling: AggScaling = None, active_set: AggActiveSet = None):
