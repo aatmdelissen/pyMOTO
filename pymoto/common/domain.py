@@ -548,8 +548,9 @@ class VoxelDomain:
                             veci = vec[tuple(ind)]
                         else:
                             veci = vec
+                            
                         if veci.ndim > 1:
-                            veci = veci.flatten()
+                            veci = np.ravel(veci)
 
                         if np.iscomplexobj(veci):
                             vecs_to_write = [veci.real.astype(np.float32), veci.imag.astype(np.float32)]
@@ -597,6 +598,9 @@ class VoxelDomain:
                             veci = vec[tuple(ind)]
                         else:
                             veci = vec
+
+                        if veci.ndim > 1:
+                            veci = np.ravel(veci)
 
                         if np.iscomplexobj(veci):
                             vecs_to_write = [veci.real.astype(np.float32), veci.imag.astype(np.float32)]
