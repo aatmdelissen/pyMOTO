@@ -337,7 +337,7 @@ class CG(LinearSolver):
         """
 
         self.preconditioner = preconditioner
-        self.orth_subspace = orth(orth_subspace)
+        self.orth_subspace = orth(orth_subspace) if orth_subspace is not None else None
         self.tol = tol
         self.maxit = maxit
         self.restart = restart
