@@ -23,7 +23,7 @@ def _parse_to_list(*args: Any):
 
 
 def _concatenate_to_array(var_list: list):
-    values = np.array([])
+    values = np.array([], dtype=np.result_type(*var_list))
     cumulative_inds = np.zeros(len(var_list) + 1, dtype=int)
 
     for i, v in enumerate(var_list):

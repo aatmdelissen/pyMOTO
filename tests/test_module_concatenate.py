@@ -55,5 +55,20 @@ class TestConcat:
         s_g.sensitivity = 1.0
         fn.sensitivity()
 
+    def test_real_and_complex(self):
+        # When combining real and complex inputs, the end result needs to be complex. Also the reverse for sensitivities
+        with pym.Network() as fn:
+            sre = pym.Signal("re", np.array([1.0]))
+            sim = pym.Signal("im", np.array([0.1 + 0.2j]))
+            scon = pym.Concatenate()(sre, sim)
+
+        assert np.all(scon.state == np.array([1.0, 0.1 + 0.2j]))
+
+        scon.sensitivity = np.array([1.1 + 1.2j, 2.1 + 2.2j])
+        fn.sensitivity()
+
+        assert sre.sensitivity == np.array([1.1])
+        assert sim.sensitivity == np.array([2.1 + 2.2j])
+
 if __name__ == '__main__':
     pytest.main([__file__])

@@ -1,4 +1,6 @@
 """Generic modules, valid for general mathematical operations"""
+import warnings
+
 import numpy as np
 
 from pymoto.core_objects import Module
@@ -242,12 +244,19 @@ class Concatenate(Module):
 
     def _sensitivity(self, dy):
         args = self.get_input_states()
-        
+
         dx = _split_from_array(dy, self.cumlens)
         for i, v in enumerate(args):
             if np.all(dx[i] == 0):
                 dx[i] = None
                 continue
+
+            # Make correct dtype
+            dtype = np.asarray(v).dtype
+            if dtype != np.asarray(dx[i]).dtype:
+                with warnings.catch_warnings():  # Prevent warning casting complex to real
+                    warnings.filterwarnings('ignore', category=np.exceptions.ComplexWarning)
+                    dx[i] = np.asarray(dx[i]).astype(dtype)
             
             # Make correct shape
             vshape = getattr(v, 'shape', ())
@@ -256,8 +265,10 @@ class Concatenate(Module):
 
             # Make correct type
             if not isinstance(dx[i], type(v)):
-                dx[i] = type(v)(dx[i])
-   
+                # Hack. Casting complex -> float failed, so use workaround via numpy typecast first to get rid of
+                # complex part
+                dx[i] = type(v)(np.astype(dx[i], type(v)))
+
         return dx
 
 
