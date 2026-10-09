@@ -8,7 +8,7 @@ from .matrix_checks import (
     matrix_is_positive_definite,
 )
 from .dense import SolverDiagonal, SolverDenseQR, SolverDenseLU, SolverDenseCholesky, SolverDenseLDL
-from .sparse import SolverSparsePardiso, SolverSparseLU, SolverSparseCholeskyScikit, SolverSparseCholeskyCVXOPT
+from .sparse import SolverSparsePardiso, SolverSparseLU, SolverSparseCholeskyScikit, SolverSparseCholeskyCVXOPT, SolverSparseTriangular
 from .iterative import Preconditioner, CG, DampedJacobi, SOR, ILU, GeometricMultigrid
 from .auto_determine import auto_determine_solver
 
@@ -30,6 +30,7 @@ __all__ = [
     "SolverSparseLU",
     "SolverSparseCholeskyScikit",
     "SolverSparseCholeskyCVXOPT",
+    "SolverSparseTriangular",
     "Preconditioner",
     "CG",
     "DampedJacobi",

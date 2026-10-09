@@ -2,9 +2,10 @@ import warnings
 import time
 import numpy as np
 import scipy.sparse as sps
-from scipy.sparse.linalg import splu, spilu
+from scipy.sparse.linalg import splu, spilu, spsolve_triangular
 from .solvers import LinearSolver
 from .auto_determine import auto_determine_solver
+from .sparse import SolverSparseTriangular
 from pymoto import VoxelDomain
 
 
@@ -36,6 +37,7 @@ class DampedJacobi(Preconditioner):
         super().__init__(A)
 
     def update(self, A):
+        self.A = A
         self.D = A.diagonal()
 
     def solve(self, rhs, x0=None, trans="N"):
@@ -56,47 +58,36 @@ class SOR(Preconditioner):
     def __init__(self, A=None, w=1.0):
         r"""Initialize the SOR preconditioner
 
+        For `w = 1`, this preconditioner is a Gauss-Seidel preconditioner.
+
         Args:
            A (optional): The matrix
-            w (optional): Weight factor :math:`0 < \omega < 2`
+           w (optional): Weight factor :math:`0 < \omega < 2`
         """
         assert 0 < w < 2, "w must be between 0 and 2"
         self.w = w
-        self.L = None
-        self.U = None
+        self.Lsolver = SolverSparseTriangular(lower=True)
+        self.Usolver = SolverSparseTriangular(lower=False)
         self.Dw = None
         super().__init__(A)
 
     def update(self, A):
         diag = A.diagonal()
         diagw = sps.diags(diag) / self.w
-        self.L = splu(sps.tril(A, k=-1) + diagw)  # Lower triangular part including diagonal
-        self.U = splu(sps.triu(A, k=1) + diagw)
-
+        self.A = A
+        self.Lsolver.update(sps.tril(A, k=-1) + diagw)  # Lower triangular part including diagonal
+        self.Usolver.update(sps.triu(A, k=1) + diagw)
         self.Dw = diag * (2 - self.w) / self.w
 
     def solve(self, rhs, x0=None, trans="N"):
-        if trans == "N":
-            # M = (D/w + L) wD^-1 / (2-w) (D/w + U)
-            # from scipy.sparse.linalg import spsolve_triangular
-            # u1 = spsolve_triangular(self.L, rhs, lower=True, overwrite_A=False)  # Solve triangular is still very slow
-            u1 = self.L.solve(rhs)
-            u1 *= self.Dw[:, None]
-            # u2 = spsolve_triangular(self.U, u1, lower=False, overwrite_A=False, overwrite_b=True)
-            u2 = self.U.solve(u1)
-            return u2
-        elif trans == "T":
-            u1 = self.U.solve(rhs, trans="T")
-            u1 *= self.Dw[:, None]
-            u2 = self.L.solve(u1, trans="T")
-            return u2
-        elif trans == "H":
-            u1 = self.U.solve(rhs, trans="H")
-            u1 *= self.Dw[:, None].conj()
-            u2 = self.L.solve(u1, trans="H")
-            return u2
-        else:
-            raise TypeError("Only N, T, or H transposition is possible")
+        # M = (D/w + L) wD^-1 / (2-w) (D/w + U)
+        sL, sU = (self.Lsolver, self.Usolver) if trans == "N" else (self.Usolver, self.Lsolver)
+        Dc = self.Dw.conj() if trans == "H" else self.Dw
+        
+        u1 = sL.solve(rhs, trans=trans)
+        u1 *= Dc[:, None]
+        u2 = sU.solve(u1, trans=trans)
+        return u2
 
 
 class ILU(Preconditioner):
@@ -115,6 +106,7 @@ class ILU(Preconditioner):
         super().__init__(A)
 
     def update(self, A):
+        self.A = A
         self.ilu = spilu(A, **self.kwargs)
 
     def solve(self, rhs, x0=None, trans="N"):
@@ -162,6 +154,7 @@ class GeometricMultigrid(Preconditioner):
         self.sub_domain = VoxelDomain(
             domain.nelx // 2, domain.nely // 2, domain.nelz // 2, domain.unitx * 2, domain.unity * 2, domain.unitz * 2
         )
+        self._count = None
 
         super().__init__(A)
 
@@ -174,6 +167,7 @@ class GeometricMultigrid(Preconditioner):
         if self.inner_level is None:
             self.inner_level = auto_determine_solver(Ac)
         self.inner_level.update(Ac)
+        self._count = 0
 
     def setup_interpolation(self, A):
         assert A.shape[0] % self.domain.nnodes == 0
@@ -253,6 +247,7 @@ class GeometricMultigrid(Preconditioner):
         for i in range(self.smooth_steps):
             r = rhs - self.A @ u_f
             u_f += self.smoother.solve(r, trans=trans)
+        self._count += 1
         return u_f
 
 
@@ -292,6 +287,23 @@ def orth(u, normalize=True, zero_rtol=1e-15):
     return np.stack(orth_vecs, axis=-1)
 
 
+def remove_subspace(U, V, orthonormal=False):
+    """Remove subspace from a set of vectors
+
+    Args:
+        U: Set of vectors to be filtered `(#dof, #vectors)` (input is unchanged and a new `numpy` array is returned)
+        V: Set of filtering vectors (not necessarily orthogonal) `(#dof, #nsubspace)`
+
+    Returns:
+        Filtered set of vectors of size `(#dof, #vectors)`
+    """
+    if orthonormal:
+        # V.T @ V == I
+        return U - V @ (V.T @ U)
+    else:
+        return U - V @ np.linalg.solve(V.T @ V, V.T @ U)
+
+
 class CG(LinearSolver):
     """Preconditioned conjugate gradient method
     Works for positive-definite self-adjoint matrices (:math:`A=A^H`)
@@ -305,17 +317,19 @@ class CG(LinearSolver):
 
     def __init__(self, 
                  A=None, 
-                 preconditioner: Preconditioner = Preconditioner(), 
-                 tol: float = 1e-7, 
+                 preconditioner: Preconditioner = Preconditioner(),
+                 orth_subspace: np.ndarray = None,
+                 tol: float = 1e-7,
                  maxit: int = 10000, 
                  restart: int = 50, 
-                 verbosity: int = 0
+                 verbosity: int = 0,
                  ):
         """Initialize the CG solver
 
         Args:
             A (matrix, optional): The matrix
             preconditioner (Preconditioner, optional): Preconditioner to use
+            orth_subspace (np.ndarray, optional): Solution is found in the subspace orthogonal to given subspace
             tol (float, optional): Convergence tolerance. Defaults to 1e-7.
             maxit (int, optional): Maximum number of iterations. Defaults to 10000.
             restart (int, optional): Restart every Nth iteration. Defaults to 50.
@@ -323,21 +337,25 @@ class CG(LinearSolver):
         """
 
         self.preconditioner = preconditioner
-        self.A = A
+        self.orth_subspace = orth(orth_subspace)
         self.tol = tol
         self.maxit = maxit
         self.restart = restart
         self.verbosity = verbosity
+        self._count = None
         super().__init__(A)
 
     def update(self, A):
         tstart = time.perf_counter()
         self.A = A
         self.preconditioner.update(A)
+        self._count = 0
         if self.verbosity >= 1:
             print(f"CG Preconditioner set up in {np.round(time.perf_counter() - tstart, 3)}s")
 
     def solve(self, rhs, x0=None, trans="N"):
+        if self.A is None:
+            raise ValueError("Matrix needs to be set first in update()")
         if trans == "N":
             A = self.A
         elif trans == "T":
@@ -352,11 +370,17 @@ class CG(LinearSolver):
             b = rhs.reshape((rhs.size, 1))
         else:
             b = rhs
+
+        if self.orth_subspace is not None:
+            # Remove orth_subspace
+            b = remove_subspace(b, self.orth_subspace, orthonormal=True)
         x = np.zeros_like(rhs, dtype=np.result_type(rhs, A)) if x0 is None else x0.copy()
         if x.ndim == 1:
             x = x.reshape((x.size, 1))
 
         r = b - A @ x
+        if self.orth_subspace is not None:
+            r = remove_subspace(r, self.orth_subspace, orthonormal=True)
         tval = np.linalg.norm(r, axis=0) / np.linalg.norm(b, axis=0)
         if self.verbosity >= 2:
             print(f"CG Initial (max) residual = {tval.max()}")
@@ -369,10 +393,15 @@ class CG(LinearSolver):
             return x.flatten() if rhs.ndim == 1 else x
 
         z = self.preconditioner.solve(r, trans=trans)
+        if self.orth_subspace is not None:
+            # print(z.T @ self.nullspace / np.linalg.norm(z, axis=0))
+            z = remove_subspace(z, self.orth_subspace, orthonormal=True)
         p = orth(z, normalize=True)
 
         for i in range(self.maxit):
             q = A @ p
+            if self.orth_subspace is not None:
+                q = remove_subspace(q, self.orth_subspace)
             pq = p.conj().T @ q
             pq_inv = np.linalg.inv(pq)
             alpha = pq_inv @ (p.conj().T @ r)
@@ -380,6 +409,8 @@ class CG(LinearSolver):
             x += p @ alpha
             if i % self.restart == 0:  # Explicit restart
                 r = b - A @ x
+                if self.orth_subspace is not None:
+                    r = remove_subspace(r, self.orth_subspace, orthonormal=True)
             else:
                 r -= q @ alpha
 
@@ -390,6 +421,9 @@ class CG(LinearSolver):
                 break
 
             z = self.preconditioner.solve(r, trans=trans)
+            if self.orth_subspace is not None:
+                # print(z.T @ self.orth_subspace/ np.linalg.norm(z, axis=0))
+                z = remove_subspace(z, self.orth_subspace, orthonormal=True)
 
             beta = -pq_inv @ (q.conj().T @ z)
             p = orth(z + p @ beta, normalize=False)
@@ -399,5 +433,7 @@ class CG(LinearSolver):
         elif self.verbosity >= 1:
             print(f"""CG Converged in {i} iterations and {np.round(time.perf_counter() - tstart, 3)}s, 
                   with final (max) residual {tval.max()}""")
+
+        self._count += 1
 
         return x.flatten() if rhs.ndim == 1 else x

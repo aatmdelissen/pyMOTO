@@ -10,6 +10,7 @@ class SolverDiagonal(LinearSolver):
 
     def update(self, A):
         """Extracts the diagonal of the matrix"""
+        self.A = A
         self.diag = A.diagonal()
         return self
 
@@ -73,6 +74,7 @@ class SolverDenseLU(LinearSolver):
         r"""Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{U}`, where :math:`\mathbf{L}` is a lower
         triangular matrix and :math:`\mathbf{U}` is upper triangular.
         """
+        self.A = A
         self.p, self.l, self.u = spla.lu(A)
         return self
 
@@ -123,6 +125,7 @@ class SolverDenseCholesky(LinearSolver):
         r"""Factorize the matrix as :math:`\mathbf{A}=\mathbf{U}^{\text{H}}\mathbf{U}`, where :math:`\mathbf{U}` is an
         upper triangular matrix.
         """
+        self.A = A
         try:
             self.U = spla.cholesky(A)
             self.success = True
@@ -173,6 +176,7 @@ class SolverDenseLDL(LinearSolver):
         matrix :math:`\mathbf{A}` is real-valued, there is no difference between the two.
         The matrix :math:`\mathbf{L}` is lower triangular and :math:`\mathbf{D}` is a diagonal matrix.
         """
+        self.A = A
         if self.hermitian is None:
             self.hermitian = matrix_is_hermitian(A)
         self.l, self.d, self.p = spla.ldl(A, hermitian=self.hermitian)  # LDL is introduced in Scipy v1.7

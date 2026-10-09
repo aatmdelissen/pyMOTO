@@ -1,6 +1,7 @@
 import warnings
 import numpy as np
 from .matrix_checks import matrix_is_hermitian, matrix_is_symmetric, matrix_is_complex
+from scipy.sparse.linalg import LinearOperator
 
 
 class LinearSolver:
@@ -19,6 +20,7 @@ class LinearSolver:
         Args:
             A (matrix, optional): Optionally provide a matrix, which is used in :method:`update` right away.
         """
+        self.A = A
         if A is not None:
             self.update(A)
 
@@ -31,6 +33,7 @@ class LinearSolver:
         Returns:
             self
         """
+        self.A = A
         raise NotImplementedError(f"Solver not implemented {self._err_msg}")
 
     def solve(self, rhs, x0=None, trans="N"):
@@ -83,6 +86,14 @@ class LinearSolver:
                 bnorm = 1
         rnorm = np.linalg.norm(mat @ x - b, axis=0)
         return rnorm / bnorm
+    
+    @property
+    def linear_operator(self) -> LinearOperator:
+        if self.A is None:
+            raise ValueError("Matrix must be supplied to solver.")
+        return LinearOperator(self.A.shape, dtype=self.A.dtype,
+                              matvec=self.solve, rmatvec=lambda b: self.solve(b, trans="H")
+                              )
 
 
 def get_diagonal_indices(mat):

@@ -1,4 +1,5 @@
 import sys
+import time
 import glob
 import ctypes
 import warnings
@@ -8,6 +9,7 @@ from ctypes.util import find_library
 import numpy as np
 import scipy.sparse as sps
 from scipy.sparse import SparseEfficiencyWarning
+from scipy.sparse.linalg import spsolve_triangular
 from .matrix_checks import matrix_is_hermitian, matrix_is_complex, matrix_is_symmetric
 from .solvers import LinearSolver
 
@@ -239,10 +241,10 @@ class SolverSparsePardiso(LinearSolver):
         self._phase = None
         self._msglvl = 0  # 1 shows statistical info of MKL
 
-        self._factorized_A = sps.csr_matrix((0, 0))
+        self._factorized_A = sps.csr_matrix((0, 0))  # TODO This parameter is not used. Should be generic for all solvers -- to update matrix or not if changed
         self.size_limit_storage = size_limit_storage
         self._solve_transposed = False
-
+        self._count = None
         super().__init__(A)
 
     def _check_A(self, A):
@@ -420,7 +422,7 @@ class SolverSparsePardiso(LinearSolver):
             return np.ascontiguousarray(x)  # change memory-layout back from fortran to c order
 
     @staticmethod
-    def _hash_csr_matrix(self, matrix):
+    def _hash_csr_matrix(matrix):
         return (
             hashlib.sha1(matrix.indices).hexdigest()
             + hashlib.sha1(matrix.indptr).hexdigest()
@@ -446,6 +448,7 @@ class SolverSparsePardiso(LinearSolver):
         self._iparm[11] = 0
         self._call_pardiso()
         self._phase = 33  # Set solver ready for 3) solving with iterative refinement
+        self._count = 0
 
     def solve(self, b, x0=None, trans="N"):
         """solve Ax=b for x
@@ -490,7 +493,7 @@ class SolverSparsePardiso(LinearSolver):
             self._iparm[11] = 0
 
         x = self._call_pardiso(b=b)
-
+        self._count += 1
         if conjugate_mode and not transpose_mode:
             return np.conj(x)  # Conjugate back
         else:
@@ -534,6 +537,7 @@ class SolverSparseLU(LinearSolver):
         r"""Factorize the matrix as :math:`\mathbf{A}=\mathbf{L}\mathbf{U}`, where :math:`\mathbf{L}` is a lower
         triangular matrix and :math:`\mathbf{U}` is upper triangular.
         """
+        self.A = A
         self.iscomplex = matrix_is_complex(A)
         self.inv = splu(A)
         return self
@@ -664,7 +668,7 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
             K = cvxopt.spmatrix(Kcoo.data, Kcoo.row.astype(int), Kcoo.col.astype(int))
         else:
             K = A
-
+        self.A = K
         if self.inv is None:
             self.inv = cvxopt.cholmod.symbolic(K)
         cvxopt.cholmod.numeric(K, self.inv)
@@ -692,3 +696,117 @@ class SolverSparseCholeskyCVXOPT(LinearSolver):
 
         x = np.array(B).flatten() if rhs.ndim == 1 else np.array(B)
         return x.conj() if trans == "T" else x
+
+
+def timer(func):
+    def wrapped(*args, **kwargs):
+        t0 = time.perf_counter()
+        out = func(*args, **kwargs)
+        print(f"Elapsed for {func.__name__} is {time.perf_counter() - t0} s")
+        return out
+    return wrapped
+
+
+class SolverSparseTriangular(LinearSolver):
+    """Solver for sparse triangular matrices
+    
+    The default internal solver is IntelMKL (requires `mkl` package), with fallback to the solver 
+    `scipy.sparse.linalg.spsolve_tiangular`. The `scipy` function uses `SuperLU`, which is much slower than `mkl`.
+    """
+    def __init__(self, A=None, lower: bool = True):
+        """Construct SolverSparseTriangular
+
+        Args:
+            A (Sparse matrix, optional): The matrix to solve. Defaults to None.
+            lower (bool, optional): Use lower triangular part of the matrix. Defaults to True.
+        """
+        super().__init__(A=A)
+        self.lower = lower
+        self.use_mkl = libmkl is not None
+        self._mkl_fn = None
+    
+    def update(self, A):
+        self.A = sps.csr_matrix(sps.tril(A) if self.lower else sps.triu(A))
+        if self.use_mkl:
+            if not self.A.has_sorted_indices:
+                self.A = self.A.sorted_indices()
+            if not self.A.has_canonical_format:
+                self.A.sum_duplicates()
+
+            self._mkl_ia = self.A.indptr.astype(np.int32) + 1  # Add 1 for one-based indexing used in MKL function
+            self._mkl_ja = self.A.indices.astype(np.int32) + 1
+    
+    def solve_mkl(self, rhs, x0=None, trans="N"):
+        if libmkl is None:
+            raise ImportError("IntelMKL is not available")
+        
+        supported_types = [np.single, np.double, np.csingle, np.cdouble]
+        if not any([np.issubdtype(self.A.dtype, t) for t in supported_types]):
+            msg = f"Attempting to use Intel MKL triangular solver, but matrix has unsupported dypte {self.A.dtype}"
+            raise TypeError(msg)
+
+        # Get correct MKL function
+        type_idx = np.argwhere([np.issubdtype(self.A.dtype, t) for t in supported_types])[0].item()
+        # The zero-based functions (libmkl.mkl_cspblas_?csrsymv) do not work
+        # fn = [libmkl.mkl_cspblas_scsrsymv, 
+        #       libmkl.mkl_cspblas_dcsrsymv, 
+        #       libmkl.mkl_cspblas_ccsrsymv, 
+        #       libmkl.mkl_cspblas_zcsrsymv][type_idx]
+        fn = [libmkl.mkl_scsrtrsv,
+              libmkl.mkl_dcsrtrsv,
+              libmkl.mkl_ccsrtrsv,
+              libmkl.mkl_zcsrtrsv,
+              ][type_idx]
+
+        if type_idx > 1:
+            raise NotImplementedError("Not for complex values yet")
+        
+        # Pointer types
+        c_data_p = ctypes.POINTER([ctypes.c_float, ctypes.c_double, ..., ...][type_idx])
+        c_int32_p = ctypes.POINTER(ctypes.c_int32)
+        fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, 
+                       c_int32_p, c_data_p, c_int32_p, c_int32_p, c_data_p, c_data_p]
+        
+        rhs = np.require(rhs, requirements='F')
+        x = np.zeros_like(rhs, dtype=self.A.dtype)
+        if rhs.ndim == 1:
+            rhses = [rhs]
+            xes = [x]
+        elif rhs.ndim == 2:
+            rhses = [rhs[:, i] for i in range(rhs.shape[-1])]
+            xes = [x[:, i] for i in range(rhs.shape[-1])]
+
+        uplo = 'L'if self.lower else 'U'
+
+        for ri, xi in zip(rhses, xes):
+            fn(ctypes.c_char_p(uplo.encode('utf-8')),
+               ctypes.c_char_p(trans.encode('utf-8')),
+               ctypes.c_char_p('N'.encode('utf-8')),  # diag
+               ctypes.byref(ctypes.c_int32(self.A.shape[0])),  # m (number of rows)
+               self.A.data.ctypes.data_as(c_data_p),  # a (matrix values)
+               self._mkl_ia.ctypes.data_as(c_int32_p),  # ia -> csr-indptr
+               self._mkl_ja.ctypes.data_as(c_int32_p),  # ja -> csr-indices
+               ri.ctypes.data_as(c_data_p),  # b -> right-hand side vector
+               xi.ctypes.data_as(c_data_p),  # x -> output
+            )
+        return x
+        
+    def solve(self, rhs, x0=None, trans="N"):
+        if self.use_mkl:
+            # Fast version uses Intel MKL
+            try:
+                return self.solve_mkl(rhs, x0=x0, trans=trans)
+            except (ImportError, TypeError) as e:
+                warnings.warn(f"Triangular solver with MKL failed ({e})")
+                pass
+
+        # Fallback: Scipy uses SuperLU backpropagation, which is slow
+        if trans == "N":
+            return spsolve_triangular(self.A, rhs, lower=self.lower)
+        elif trans == "T":
+            return spsolve_triangular(self.A.T, rhs, lower=not self.lower)
+        elif trans == "H":
+            return spsolve_triangular(self.A.T, rhs.conj(), lower=not self.lower).conj()
+        else:
+            raise TypeError("Only N, T, or H transposition is possible")
+
